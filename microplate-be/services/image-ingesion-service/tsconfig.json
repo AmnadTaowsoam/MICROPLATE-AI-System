@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",            // ⬅️ เปลี่ยนเป็น CJS
+    "moduleResolution": "Node",      // ⬅️ ใช้ Node resolver
+    "outDir": "dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "baseUrl": "./src"               // ถ้าใช้ path alias
+  },
+  "include": ["src"]
+}
+
+

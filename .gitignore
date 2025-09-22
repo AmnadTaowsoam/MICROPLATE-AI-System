@@ -1,0 +1,318 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output/
+
+# Dependency directories
+jspm_packages/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+public
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Temporary folders
+tmp/
+temp/
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker
+.dockerignore
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Prisma
+prisma/migrations/
+.env
+
+# Redis dumps
+dump.rdb
+
+# Docker volumes
+docker-data/
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Generated files
+generated/
+auto-generated/
+
+# Test files
+test-results/
+coverage/
+
+# Local development
+local/
+.local/
+
+# Secrets
+secrets/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Microplate specific
+uploads/
+downloads/
+temp-files/
+processed-images/
+model-cache/
+inference-cache/
+
+# Service specific ignores
+services/*/node_modules/
+services/*/dist/
+services/*/.env
+services/*/logs/
+services/*/temp/
+
+# Gateway specific
+services/gatway/node_modules/
+services/gatway/dist/
+services/gatway/.env
+services/gatway/logs/
+
+# Auth service specific
+services/auth-service/node_modules/
+services/auth-service/dist/
+services/auth-service/.env
+services/auth-service/logs/
+
+# Image ingestion service specific
+services/image-ingesion-service/node_modules/
+services/image-ingesion-service/dist/
+services/image-ingesion-service/.env
+services/image-ingesion-service/logs/
+services/image-ingesion-service/uploads/
+services/image-ingesion-service/temp/
+
+# Vision inference service specific
+services/vision-inference-service/__pycache__/
+services/vision-inference-service/.env
+services/vision-inference-service/logs/
+services/vision-inference-service/model-cache/
+services/vision-inference-service/inference-cache/
+services/vision-inference-service/app/best_model/
+*.pt
+*.jpg
+*.zip
+
+# Prediction DB service specific
+services/prediction-db-service/node_modules/
+services/prediction-db-service/dist/
+services/prediction-db-service/.env
+services/prediction-db-service/logs/
+services/prediction-db-service/prisma/migrations/
+
+# Result API service specific
+services/result-api-service/node_modules/
+services/result-api-service/dist/
+services/result-api-service/.env
+services/result-api-service/logs/
+services/result-api-service/prisma/migrations/
+services/result-api-service/cache/
+services/result-api-service/temp/
+
+# Labware interface service specific
+services/labware-interface-service/node_modules/
+services/labware-interface-service/dist/
+services/labware-interface-service/.env
+services/labware-interface-service/logs/
+
+
+
+*.ipynb
