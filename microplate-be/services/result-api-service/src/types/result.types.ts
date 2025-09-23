@@ -92,7 +92,7 @@ export interface PredictionRunDetails {
     averageConfidence: number;
   };
   rowCounts: Record<string, number>;
-  interfaceResults: {
+  inferenceResults: {
     distribution: Record<string, number>;
     concentration?: {
       positive_percentage: number;
@@ -284,7 +284,7 @@ export interface ResultService {
 
 export interface AggregationService {
   updateSampleSummary(sampleNo: string): Promise<void>;
-  calculateDistribution(interfaceResults: any[]): Record<string, number>;
+  calculateDistribution(inferenceResults: any[]): Record<string, number>;
   calculateStatistics(runs: any[]): any;
 }
 
@@ -298,6 +298,14 @@ export interface WebSocketService {
   broadcastSampleUpdate(sampleNo: string, data: any): Promise<void>;
   broadcastRunUpdate(runId: number, data: any): Promise<void>;
   broadcastSystemUpdate(data: any): Promise<void>;
+  getConnectionStats(): {
+    totalConnections: number;
+    totalWebSockets: number;
+    sampleSubscriptions: number;
+    runSubscriptions: number;
+    systemSubscriptions: number;
+  };
+  isHealthy(): boolean;
 }
 
 // =========================

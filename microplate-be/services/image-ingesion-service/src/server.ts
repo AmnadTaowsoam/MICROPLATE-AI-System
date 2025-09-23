@@ -4,7 +4,7 @@ import sensible from '@fastify/sensible';
 import cors from '@fastify/cors';
 import dotenv from 'dotenv';
 import { registerImageRoutes } from './routes/image.routes';
-import { ensureStorageDirectories } from './config/storage';
+import { ensureBuckets } from './services/s3.service';
 
 dotenv.config();
 
@@ -19,7 +19,7 @@ const PORT = Number(process.env.PORT || 6402);
 app.register(registerImageRoutes);
 
 async function start() {
-  await ensureStorageDirectories();
+  await ensureBuckets();
   await app.listen({ port: PORT, host: '0.0.0.0' });
 }
 

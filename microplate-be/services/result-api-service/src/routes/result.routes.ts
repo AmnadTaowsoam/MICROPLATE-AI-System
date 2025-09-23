@@ -1,18 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { ResultController } from '@/controllers/result.controller';
-import { 
-  authenticateToken, 
-  requirePermission,
-  optionalAuth 
-} from '@/middleware/auth.middleware';
-import {
-  validateParams,
-  validateQuery,
-  validateSampleNo,
-  validateRunId,
-  validatePagination,
-  validateDateRange,
-} from '@/middleware/validation.middleware';
+// Auth and validation are handled at the gateway layer
 import {
   SampleNoSchema,
   RunIdSchema,
@@ -21,8 +9,8 @@ import {
   StatisticsFiltersSchema,
 } from '@/schemas/result.schemas';
 
-export async function resultRoutes(fastify: FastifyInstance) {
-  const resultController = fastify.resultController as ResultController;
+export async function resultRoutes(fastify: FastifyInstance & { resultController: ResultController }) {
+  const resultController = fastify.resultController;
 
   // =========================
   // Sample Routes
@@ -30,13 +18,6 @@ export async function resultRoutes(fastify: FastifyInstance) {
 
   // GET /api/v1/results/samples - List samples with pagination and filtering
   fastify.get('/samples', {
-    preHandler: [
-      authenticateToken,
-      requirePermission('results:read'),
-      validateQuery(SampleListQuerySchema),
-      validatePagination,
-      validateDateRange,
-    ],
     handler: resultController.getSamples.bind(resultController),
     schema: {
       tags: ['Samples'],
@@ -99,12 +80,6 @@ export async function resultRoutes(fastify: FastifyInstance) {
 
   // GET /api/v1/results/samples/:sampleNo - Get detailed sample information
   fastify.get('/samples/:sampleNo', {
-    preHandler: [
-      authenticateToken,
-      requirePermission('results:read'),
-      validateParams(z.object({ sampleNo: SampleNoSchema })),
-      validateSampleNo,
-    ],
     handler: resultController.getSampleDetails.bind(resultController),
     schema: {
       tags: ['Samples'],
@@ -122,12 +97,6 @@ export async function resultRoutes(fastify: FastifyInstance) {
 
   // GET /api/v1/results/samples/:sampleNo/summary - Get sample summary
   fastify.get('/samples/:sampleNo/summary', {
-    preHandler: [
-      authenticateToken,
-      requirePermission('results:read'),
-      validateParams(z.object({ sampleNo: SampleNoSchema })),
-      validateSampleNo,
-    ],
     handler: resultController.getSampleSummary.bind(resultController),
     schema: {
       tags: ['Samples'],
@@ -145,15 +114,6 @@ export async function resultRoutes(fastify: FastifyInstance) {
 
   // GET /api/v1/results/samples/:sampleNo/runs - Get all runs for a sample
   fastify.get('/samples/:sampleNo/runs', {
-    preHandler: [
-      authenticateToken,
-      requirePermission('results:read'),
-      validateParams(z.object({ sampleNo: SampleNoSchema })),
-      validateQuery(RunListQuerySchema),
-      validateSampleNo,
-      validatePagination,
-      validateDateRange,
-    ],
     handler: resultController.getSampleRuns.bind(resultController),
     schema: {
       tags: ['Samples'],
@@ -171,12 +131,6 @@ export async function resultRoutes(fastify: FastifyInstance) {
 
   // GET /api/v1/results/samples/:sampleNo/last - Get most recent run for a sample
   fastify.get('/samples/:sampleNo/last', {
-    preHandler: [
-      authenticateToken,
-      requirePermission('results:read'),
-      validateParams(z.object({ sampleNo: SampleNoSchema })),
-      validateSampleNo,
-    ],
     handler: resultController.getLastRun.bind(resultController),
     schema: {
       tags: ['Samples'],
@@ -194,12 +148,6 @@ export async function resultRoutes(fastify: FastifyInstance) {
 
   // GET /api/v1/results/samples/:sampleNo/trends - Get trend analysis for a sample
   fastify.get('/samples/:sampleNo/trends', {
-    preHandler: [
-      authenticateToken,
-      requirePermission('results:read'),
-      validateParams(z.object({ sampleNo: SampleNoSchema })),
-      validateSampleNo,
-    ],
     handler: resultController.getSampleTrends.bind(resultController),
     schema: {
       tags: ['Samples'],
@@ -221,12 +169,6 @@ export async function resultRoutes(fastify: FastifyInstance) {
 
   // GET /api/v1/results/runs/:runId - Get detailed run information
   fastify.get('/runs/:runId', {
-    preHandler: [
-      authenticateToken,
-      requirePermission('results:read'),
-      validateParams(z.object({ runId: RunIdSchema })),
-      validateRunId,
-    ],
     handler: resultController.getRunDetails.bind(resultController),
     schema: {
       tags: ['Runs'],
@@ -248,12 +190,6 @@ export async function resultRoutes(fastify: FastifyInstance) {
 
   // GET /api/v1/results/statistics/overview - Get system-wide statistics
   fastify.get('/statistics/overview', {
-    preHandler: [
-      authenticateToken,
-      requirePermission('results:read'),
-      validateQuery(StatisticsFiltersSchema),
-      validateDateRange,
-    ],
     handler: resultController.getSystemStatistics.bind(resultController),
     schema: {
       tags: ['Statistics'],
@@ -276,12 +212,6 @@ export async function resultRoutes(fastify: FastifyInstance) {
 
   // DELETE /api/v1/results/cache/samples/:sampleNo - Invalidate sample cache
   fastify.delete('/cache/samples/:sampleNo', {
-    preHandler: [
-      authenticateToken,
-      requirePermission('system:admin'),
-      validateParams(z.object({ sampleNo: SampleNoSchema })),
-      validateSampleNo,
-    ],
     handler: resultController.invalidateSampleCache.bind(resultController),
     schema: {
       tags: ['Cache'],
@@ -299,10 +229,6 @@ export async function resultRoutes(fastify: FastifyInstance) {
 
   // DELETE /api/v1/results/cache/system - Invalidate system cache
   fastify.delete('/cache/system', {
-    preHandler: [
-      authenticateToken,
-      requirePermission('system:admin'),
-    ],
     handler: resultController.invalidateSystemCache.bind(resultController),
     schema: {
       tags: ['Cache'],
@@ -317,7 +243,6 @@ export async function resultRoutes(fastify: FastifyInstance) {
 
   // GET /api/v1/results/health - Health check
   fastify.get('/health', {
-    preHandler: [optionalAuth],
     handler: resultController.healthCheck.bind(resultController),
     schema: {
       tags: ['Health'],
@@ -328,7 +253,6 @@ export async function resultRoutes(fastify: FastifyInstance) {
 
   // GET /api/v1/results/ready - Readiness check
   fastify.get('/ready', {
-    preHandler: [optionalAuth],
     handler: resultController.readinessCheck.bind(resultController),
     schema: {
       tags: ['Health'],
@@ -339,10 +263,6 @@ export async function resultRoutes(fastify: FastifyInstance) {
 
   // GET /api/v1/results/metrics - Get service metrics
   fastify.get('/metrics', {
-    preHandler: [
-      authenticateToken,
-      requirePermission('system:admin'),
-    ],
     handler: resultController.getMetrics.bind(resultController),
     schema: {
       tags: ['Monitoring'],

@@ -4,7 +4,7 @@ import { logger } from '../utils/logger';
 
 export async function databaseRoutes(fastify: FastifyInstance) {
   // Get database status
-  fastify.get('/status', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.get('/status', async (_request: FastifyRequest, reply: FastifyReply) => {
     try {
       const result = await prisma.$queryRaw`
         SELECT 
@@ -72,7 +72,7 @@ export async function databaseRoutes(fastify: FastifyInstance) {
   });
 
   // Get prediction runs count
-  fastify.get('/stats/predictions', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.get('/stats/predictions', async (_request: FastifyRequest, reply: FastifyReply) => {
     try {
       const stats = await prisma.predictionRun.groupBy({
         by: ['status'],
@@ -105,47 +105,17 @@ export async function databaseRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Get sample summary stats
-  fastify.get('/stats/samples', async (request: FastifyRequest, reply: FastifyReply) => {
-    try {
-      const totalSamples = await prisma.sampleSummary.count();
-      const recentSamples = await prisma.sampleSummary.count({
-        where: {
-          updatedAt: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
-          },
-        },
-      });
-
-      const topSamples = await prisma.sampleSummary.findMany({
-        orderBy: {
-          totalRuns: 'desc',
-        },
-        take: 10,
-        select: {
-          sampleNo: true,
-          totalRuns: true,
-          lastRunAt: true,
-        },
-      });
-
-      return {
-        totalSamples,
-        recentSamples,
-        topSamples,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      logger.error('Failed to get sample stats:', error);
-      return reply.status(500).send({
-        error: 'Failed to get sample statistics',
-        timestamp: new Date().toISOString(),
-      });
-    }
+  // Get sample summary stats (moved to result-api-service)
+  fastify.get('/stats/samples', async (_request: FastifyRequest, reply: FastifyReply) => {
+    return reply.status(501).send({
+      error: 'Endpoint moved to result-api-service',
+      hint: 'Use result-api-service /api/v1/... endpoints for sample summaries',
+      timestamp: new Date().toISOString(),
+    });
   });
 
   // Database maintenance operations
-  fastify.post('/maintenance/cleanup', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.post('/maintenance/cleanup', async (_request: FastifyRequest, reply: FastifyReply) => {
     try {
       // Clean up old health checks (older than 7 days)
       const healthCheckResult = await prisma.healthCheck.deleteMany({

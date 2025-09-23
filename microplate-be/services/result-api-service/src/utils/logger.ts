@@ -2,17 +2,8 @@ import pino from 'pino';
 import { config } from '@/config/config';
 
 // Create logger instance
-export const logger = pino({
+const options: pino.LoggerOptions = {
   level: config.logging.level,
-  transport: config.logging.format === 'pretty' ? {
-    target: 'pino-pretty',
-    options: {
-      colorize: true,
-      translateTime: 'SYS:standard',
-      ignore: 'pid,hostname',
-      messageFormat: '[{time}] {level}: {msg}',
-    }
-  } : undefined,
   formatters: {
     level: (label) => {
       return { level: label };
@@ -33,12 +24,26 @@ export const logger = pino({
     res: (res) => ({
       statusCode: res.statusCode,
       headers: {
-        'content-type': res.headers['content-type'],
+        'content-type': (res as any).headers['content-type'],
       },
     }),
     err: pino.stdSerializers.err,
   },
-});
+};
+
+if (config.logging.format === 'pretty') {
+  (options as any).transport = {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'SYS:standard',
+      ignore: 'pid,hostname',
+      messageFormat: '[{time}] {level}: {msg}',
+    }
+  };
+}
+
+export const logger = pino(options);
 
 // Request logger middleware
 export const requestLogger = (request: any, reply: any, done: () => void) => {

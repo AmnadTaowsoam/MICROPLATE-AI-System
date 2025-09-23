@@ -48,7 +48,7 @@ class DatabaseService:
             resp.raise_for_status()
             return resp.json()
 
-    async def create_interface_results(self, run_id: int, results_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_inference_results(self, run_id: int, results_data: Dict[str, Any]) -> Dict[str, Any]:
         async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             resp = await client.post(f"{self.base_url}/api/v1/predictions/{run_id}/results", json=results_data)
             resp.raise_for_status()

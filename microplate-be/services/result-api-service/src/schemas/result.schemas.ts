@@ -126,7 +126,7 @@ export const RunDetailsResponseSchema = z.object({
     averageConfidence: z.number(),
   }),
   rowCounts: z.record(z.string(), z.number()),
-  interfaceResults: z.object({
+  inferenceResults: z.object({
     distribution: z.record(z.string(), z.number()),
     concentration: z.object({
       positive_percentage: z.number(),

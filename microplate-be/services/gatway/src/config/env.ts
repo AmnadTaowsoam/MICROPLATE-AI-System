@@ -37,12 +37,13 @@ export function loadEnv(): EnvConfig {
     corsCredentials: (process.env.CORS_CREDENTIALS || 'true') === 'true',
     helmetEnabled: (process.env.HELMET_ENABLED || 'true') === 'true',
     services: {
-      auth: process.env.AUTH_SERVICE_URL || 'http://auth-service:6401',
-      images: process.env.IMAGE_SERVICE_URL || 'http://image-ingestion-service:6402',
-      inference: process.env.INFERENCE_SERVICE_URL || 'http://vision-inference-service:6403',
-      results: process.env.RESULT_SERVICE_URL || 'http://result-api-service:6404',
-      interface: process.env.INTERFACE_SERVICE_URL || 'http://labware-interface-service:6405',
-      capture: process.env.CAPTURE_SERVICE_URL || 'http://vision-capture-service:6406'
+      // Support new env names with fallback to previous ones
+      auth: process.env.AUTH_URL || process.env.AUTH_SERVICE_URL || 'http://auth-service:6401',
+      images: process.env.IMAGE_INGESION_URL || process.env.IMAGE_SERVICE_URL || 'http://image-ingestion-service:6402',
+      inference: process.env.VISION_INFERENCE_URL || process.env.INFERENCE_SERVICE_URL || 'http://vision-inference-service:6403',
+      results: process.env.RESULT_API_URL || process.env.RESULT_SERVICE_URL || 'http://result-api-service:6404',
+      interface: process.env.LABWARE_INTERFACE_URL || process.env.INTERFACE_SERVICE_URL || 'http://labware-interface-service:6405',
+      capture: process.env.PREDICTION_RESULT_URL || process.env.CAPTURE_SERVICE_URL || 'http://vision-capture-service:6406'
     },
     rateLimit: {
       global: {

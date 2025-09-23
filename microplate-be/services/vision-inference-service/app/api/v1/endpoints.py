@@ -217,7 +217,7 @@ async def predict_endpoint(
         }
         
         try:
-            await db_service.create_interface_results(run_id, results_data)
+            await db_service.create_inference_results(run_id, results_data)
             logger.debug("Interface results saved for run_id=%s", run_id)
         except Exception as e:
             logger.warning(f"Failed to save interface results: {e}")
@@ -253,7 +253,7 @@ async def predict_endpoint(
                 },
                 'well_predictions': well_predictions,
                 'row_counts': counts,
-                'interface_results': {
+                'inference_results': {
                     'distribution': distribution
                 }
             }

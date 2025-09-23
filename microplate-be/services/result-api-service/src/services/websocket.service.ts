@@ -27,7 +27,7 @@ export class WebSocketServiceImpl implements WebSocketService {
     });
 
     ws.addEventListener('error', (error) => {
-      logger.error('WebSocket error', { connectionId, error });
+      logger.error({ connectionId, error }, 'WebSocket error');
       this.removeConnection(connectionId, ws);
     });
 
@@ -37,11 +37,11 @@ export class WebSocketServiceImpl implements WebSocketService {
         const message = JSON.parse(event.data.toString()) as WebSocketMessage;
         this.handleMessage(connectionId, message);
       } catch (error) {
-        logger.error('Invalid WebSocket message', { connectionId, error });
+        logger.error({ connectionId, error }, 'Invalid WebSocket message');
       }
     });
 
-    logger.info('WebSocket connection added', { connectionId });
+    logger.info({ connectionId }, 'WebSocket connection added');
   }
 
   removeConnection(connectionId: string, ws: WebSocket): void {
@@ -54,7 +54,7 @@ export class WebSocketServiceImpl implements WebSocketService {
       }
     }
 
-    logger.info('WebSocket connection removed', { connectionId });
+    logger.info({ connectionId }, 'WebSocket connection removed');
   }
 
   subscribeToSample(connectionId: string, sampleNo: string): void {
@@ -63,7 +63,7 @@ export class WebSocketServiceImpl implements WebSocketService {
     }
     this.sampleSubscriptions.get(sampleNo)!.add(connectionId);
 
-    logger.info('Subscribed to sample updates', { connectionId, sampleNo });
+    logger.info({ connectionId, sampleNo }, 'Subscribed to sample updates');
   }
 
   unsubscribeFromSample(connectionId: string, sampleNo: string): void {
@@ -75,7 +75,7 @@ export class WebSocketServiceImpl implements WebSocketService {
       }
     }
 
-    logger.info('Unsubscribed from sample updates', { connectionId, sampleNo });
+    logger.info({ connectionId, sampleNo }, 'Unsubscribed from sample updates');
   }
 
   subscribeToRun(connectionId: string, runId: number): void {
@@ -84,7 +84,7 @@ export class WebSocketServiceImpl implements WebSocketService {
     }
     this.runSubscriptions.get(runId)!.add(connectionId);
 
-    logger.info('Subscribed to run updates', { connectionId, runId });
+    logger.info({ connectionId, runId }, 'Subscribed to run updates');
   }
 
   unsubscribeFromRun(connectionId: string, runId: number): void {
@@ -96,17 +96,17 @@ export class WebSocketServiceImpl implements WebSocketService {
       }
     }
 
-    logger.info('Unsubscribed from run updates', { connectionId, runId });
+    logger.info({ connectionId, runId }, 'Unsubscribed from run updates');
   }
 
   subscribeToSystem(connectionId: string): void {
     this.systemSubscriptions.add(connectionId);
-    logger.info('Subscribed to system updates', { connectionId });
+    logger.info({ connectionId }, 'Subscribed to system updates');
   }
 
   unsubscribeFromSystem(connectionId: string): void {
     this.systemSubscriptions.delete(connectionId);
-    logger.info('Unsubscribed from system updates', { connectionId });
+    logger.info({ connectionId }, 'Unsubscribed from system updates');
   }
 
   async broadcastSampleUpdate(sampleNo: string, data: any): Promise<void> {
@@ -123,7 +123,7 @@ export class WebSocketServiceImpl implements WebSocketService {
     };
 
     await this.broadcastToConnections(subscribers, notification);
-    logger.info('Sample update broadcasted', { sampleNo, subscriberCount: subscribers.size });
+    logger.info({ sampleNo, subscriberCount: subscribers.size }, 'Sample update broadcasted');
   }
 
   async broadcastRunUpdate(runId: number, data: any): Promise<void> {
@@ -140,7 +140,7 @@ export class WebSocketServiceImpl implements WebSocketService {
     };
 
     await this.broadcastToConnections(subscribers, notification);
-    logger.info('Run update broadcasted', { runId, subscriberCount: subscribers.size });
+    logger.info({ runId, subscriberCount: subscribers.size }, 'Run update broadcasted');
   }
 
   async broadcastSystemUpdate(data: any): Promise<void> {
@@ -153,7 +153,7 @@ export class WebSocketServiceImpl implements WebSocketService {
     };
 
     await this.broadcastToConnections(this.systemSubscriptions, notification);
-    logger.info('System update broadcasted', { subscriberCount: this.systemSubscriptions.size });
+    logger.info({ subscriberCount: this.systemSubscriptions.size }, 'System update broadcasted');
   }
 
   private async broadcastToConnections(
@@ -174,7 +174,7 @@ export class WebSocketServiceImpl implements WebSocketService {
               deadConnections.push(connectionId);
             }
           } catch (error) {
-            logger.error('Error sending WebSocket message', { connectionId, error });
+            logger.error({ connectionId, error }, 'Error sending WebSocket message');
             deadConnections.push(connectionId);
           }
         }
@@ -203,7 +203,7 @@ export class WebSocketServiceImpl implements WebSocketService {
         this.handlePing(connectionId);
         break;
       default:
-        logger.warn('Unknown WebSocket message type', { connectionId, type: message.type });
+        logger.warn({ connectionId, type: message.type }, 'Unknown WebSocket message type');
     }
   }
 
@@ -225,7 +225,7 @@ export class WebSocketServiceImpl implements WebSocketService {
         this.subscribeToSystem(connectionId);
         break;
       default:
-        logger.warn('Unknown subscription channel', { connectionId, channel });
+        logger.warn({ connectionId, channel }, 'Unknown subscription channel');
     }
   }
 
@@ -247,7 +247,7 @@ export class WebSocketServiceImpl implements WebSocketService {
         this.unsubscribeFromSystem(connectionId);
         break;
       default:
-        logger.warn('Unknown unsubscription channel', { connectionId, channel });
+        logger.warn({ connectionId, channel }, 'Unknown unsubscription channel');
     }
   }
 
@@ -309,7 +309,7 @@ export class WebSocketServiceImpl implements WebSocketService {
     }
 
     if (deadConnections.length > 0) {
-      logger.info('Cleaned up dead WebSocket connections', { count: deadConnections.length });
+      logger.info({ count: deadConnections.length }, 'Cleaned up dead WebSocket connections');
     }
   }
 

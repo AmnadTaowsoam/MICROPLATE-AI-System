@@ -1,8 +1,10 @@
-import { promises as fs } from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import mime from 'mime';
 import { storageConfig } from '../config/storage';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
 
 export type FileType = 'raw' | 'annotated' | 'thumbnail';
 
@@ -26,15 +28,35 @@ export async function saveImage(params: UploadParams) {
   const ext = mime.getExtension(detectedMime) || 'bin';
   const uuid = randomUUID();
   const subdir = params.runId ? path.join(params.sampleNo, params.runId) : params.sampleNo;
-  const baseDir = params.fileType === 'annotated' ? storageConfig.annotatedPath : storageConfig.rawPath;
   const fileName = `${params.sampleNo}_${timestamp}_${uuid}${params.fileType === 'thumbnail' ? '_thumb' : ''}.${ext}`;
   const relPath = path.join(subdir, fileName).replace(/\\/g, '/');
-  const fullPath = path.join(baseDir, subdir, fileName);
-  await fs.mkdir(path.dirname(fullPath), { recursive: true });
-  await fs.writeFile(fullPath, params.buffer);
 
-  const urlBase = params.fileType === 'annotated' ? storageConfig.urls.annotated : storageConfig.urls.raw;
-  const publicUrl = `${urlBase}/${relPath}`;
+  const bucket = params.fileType === 'annotated'
+    ? storageConfig.s3.annotatedBucket
+    : storageConfig.s3.rawBucket;
+
+  const s3 = new S3Client({
+    endpoint: storageConfig.s3.endpoint,
+    region: storageConfig.s3.region,
+    credentials: {
+      accessKeyId: storageConfig.s3.accessKeyId,
+      secretAccessKey: storageConfig.s3.secretAccessKey
+    },
+    forcePathStyle: storageConfig.s3.forcePathStyle
+  });
+
+  await s3.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key: relPath,
+    Body: params.buffer,
+    ContentType: detectedMime
+  }));
+
+  const signedUrl = await getSignedUrl(
+    s3,
+    new GetObjectCommand({ Bucket: bucket, Key: relPath }),
+    { expiresIn: storageConfig.s3.signedUrlExpiry }
+  );
 
   return {
     sampleNo: params.sampleNo,
@@ -46,8 +68,8 @@ export async function saveImage(params: UploadParams) {
     mimeType: detectedMime,
     bucketName: params.fileType === 'annotated' ? 'annotated-images' : 'raw-images',
     objectKey: relPath,
-    signedUrl: publicUrl,
-    urlExpiresAt: null as unknown as string | null,
+    signedUrl,
+    urlExpiresAt: new Date(Date.now() + storageConfig.s3.signedUrlExpiry * 1000).toISOString(),
     description: params.description || ''
   };
 }

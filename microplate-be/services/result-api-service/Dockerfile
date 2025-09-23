@@ -1,9 +1,11 @@
-# Use Node.js 20 Alpine as base image
-FROM node:20-alpine AS base
+# Use Debian-based image to ensure Prisma OpenSSL compatibility
+FROM node:20-bullseye-slim AS base
 
 # Install dependencies only when needed
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Copy package files
@@ -25,6 +27,10 @@ RUN yarn build
 # Production image
 FROM base AS runner
 WORKDIR /app
+# Ensure OpenSSL available at runtime for Prisma engines
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs

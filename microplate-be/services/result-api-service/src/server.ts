@@ -169,7 +169,7 @@ const registerPlugins = async () => {
     },
     staticCSP: true,
     transformStaticCSP: (header) => header,
-    transformSpecification: (swaggerObject, _request, _reply) => {
+    transformSpecification: (swaggerObject) => {
       return swaggerObject;
     },
     transformSpecificationClone: true
@@ -199,10 +199,10 @@ const initializeServices = () => {
 // Register routes
 const registerRoutes = async () => {
   // Register API routes
-  await fastify.register(resultRoutes, { prefix: '/api/v1/results' });
+  await fastify.register(resultRoutes as any, { prefix: '/api/v1/results' });
   
   if (config.features.websocket) {
-    await fastify.register(websocketRoutes, { prefix: '/api/v1/results' });
+    await fastify.register(websocketRoutes as any, { prefix: '/api/v1/results' });
   }
 };
 
@@ -213,8 +213,8 @@ const setupDatabaseNotifications = async () => {
   }
 
   try {
-    // Listen for interface_results_new notifications
-    await prisma.$executeRaw`LISTEN interface_results_new`;
+    // Listen for inference_results_new notifications
+    await prisma.$executeRaw`LISTEN inference_results_new`;
     
     // Set up notification handler
     const handleNotification = async (payload: string) => {
@@ -229,11 +229,11 @@ const setupDatabaseNotifications = async () => {
 
           if (run) {
             // Update sample summary
-            await (fastify.aggregationService as AggregationServiceImpl).updateSampleSummary(run.sampleNo);
+            await (fastify as any).aggregationService.updateSampleSummary(run.sampleNo);
             
             // Broadcast WebSocket updates
             if (config.features.websocket) {
-              const websocketController = fastify.websocketController as WebSocketController;
+              const websocketController = (fastify as any).websocketController as WebSocketController;
               await websocketController.broadcastSampleUpdate(run.sampleNo, {
                 sampleNo: run.sampleNo,
                 runId,
@@ -243,7 +243,7 @@ const setupDatabaseNotifications = async () => {
           }
         }
       } catch (error) {
-        fastify.log.error('Error handling database notification:', error);
+        fastify.log.error({ error }, 'Error handling database notification');
       }
     };
 
@@ -252,7 +252,7 @@ const setupDatabaseNotifications = async () => {
     fastify.log.info('Database notifications configured');
 
   } catch (error) {
-    fastify.log.error('Failed to setup database notifications:', error);
+    fastify.log.error({ error }, 'Failed to setup database notifications');
   }
 };
 
@@ -295,7 +295,7 @@ const start = async () => {
     fastify.log.info(`Environment: ${config.server.nodeEnv}`);
 
   } catch (err) {
-    fastify.log.error(err);
+    fastify.log.error({ err }, 'Startup error');
     process.exit(1);
   }
 };
@@ -317,7 +317,7 @@ const gracefulShutdown = async (signal: string) => {
     fastify.log.info('Graceful shutdown completed');
     process.exit(0);
   } catch (error) {
-    fastify.log.error('Error during graceful shutdown:', error);
+    fastify.log.error({ error }, 'Error during graceful shutdown');
     process.exit(1);
   }
 };
@@ -328,13 +328,13 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-  fastify.log.error('Uncaught Exception:', error);
+  fastify.log.error({ error }, 'Uncaught Exception');
   gracefulShutdown('uncaughtException');
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  fastify.log.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  fastify.log.error({ promise, reason }, 'Unhandled Rejection');
   gracefulShutdown('unhandledRejection');
 });
 

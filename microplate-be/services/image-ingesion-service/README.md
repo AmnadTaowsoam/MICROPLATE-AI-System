@@ -1,12 +1,13 @@
 # Image Ingestion Service
 
-บริการสำหรับรับ-จัดเก็บ-ให้ลิงก์เข้าถึงรูปภาพของระบบ Microplate โดยเก็บลง local shared-storage และส่งเหตุการณ์ความคืบหน้า/ข้อผิดพลาดไปยัง Redis (ตัวเลือก)
+บริการสำหรับรับ-จัดเก็บ-ให้ลิงก์เข้าถึงรูปภาพของระบบ Microplate โดยเก็บลง MinIO (S3-compatible) และส่งเหตุการณ์ความคืบหน้า/ข้อผิดพลาดไปยัง Redis (ตัวเลือก)
 
 ## คุณสมบัติหลัก
 - อัปโหลดไฟล์ภาพแบบ multipart (`POST /api/v1/images`)
 - แยกเก็บตามประเภทไฟล์: `raw`, `annotated` (รองรับ `thumbnail` ไว้แล้ว)
-- สร้างโฟลเดอร์อัตโนมัติและตั้งชื่อไฟล์ด้วย `timestamp + uuid`
-- สร้าง URL สำหรับเข้าถึงไฟล์ผ่าน Gateway static files
+- อัปโหลดเข้า MinIO โดยตรง และตั้งชื่อไฟล์ด้วย `timestamp + uuid`
+- คืนค่า Presigned URL จาก MinIO เพื่อเข้าถึงไฟล์ชั่วคราว (`SIGNED_URL_EXPIRY`)
+- สร้างบัคเก็ตอัตโนมัติเมื่อเริ่มงาน/ตรวจ readiness ผ่าน `ensureBuckets()`
 - Health/Readiness checks: `/healthz`, `/readyz`
 - Worker จัดการ retention: ย้ายไฟล์เก่า >30 วันไป backup และลบไฟล์ backup >90 วัน (ตั้งค่าได้)
 - ส่ง log ไป Redis เป็น progress_log และ error_log (ตั้งค่าได้)
@@ -32,16 +33,9 @@ copy env.example .env
   - `PORT=6402`
   - `MAX_FILE_SIZE_BYTES=52428800`
   - `ALLOWED_MIME_TYPES=image/jpeg,image/png,image/webp,image/tiff`
-  - `DISABLE_AUTH=true` (ค่าปริยาย: ไม่ตรวจซ้ำ เพราะ Gateway ตรวจ JWT ให้แล้ว)
+  - (ไม่ต้องตั้ง DISABLE_AUTH แล้ว หากเข้าผ่าน Gateway เท่านั้น)
 - Storage (local filesystem)
-  - `FILE_STORAGE_BASE_PATH=../../shared-storage`
-  - `FILE_STORAGE_RAW_IMAGES_PATH=../../shared-storage/raw-images`
-  - `FILE_STORAGE_ANNOTATED_IMAGES_PATH=../../shared-storage/annotated-images`
-  - `FILE_STORAGE_TEMP_FILES_PATH=../../shared-storage/temp-files`
-  - `FILE_STORAGE_BACKUP_PATH=../../shared-storage/backup-images`
-  - `FILE_BASE_URL=http://localhost:6400/files`
-  - `FILE_RAW_IMAGES_URL=http://localhost:6400/files/raw-images`
-  - `FILE_ANNOTATED_IMAGES_URL=http://localhost:6400/files/annotated-images`
+- (ไม่ใช้ shared-storage แล้ว)
 - Retention worker
   - `RETENTION_MOVE_DAYS=30`
   - `RETENTION_DELETE_DAYS=90`
@@ -100,8 +94,8 @@ curl -X POST http://localhost:6402/api/v1/images \
     "mimeType": "image/jpeg",
     "bucketName": "annotated-images",
     "objectKey": "S123456/789/S123456_20240115_103000_uuid.jpg",
-    "signedUrl": "http://localhost:6400/files/annotated-images/S123456/789/...",
-    "urlExpiresAt": null,
+    "signedUrl": "http://minio:9000/annotated-images/...&X-Amz-Signature=...",
+    "urlExpiresAt": "2025-01-15T11:00:00Z",
     "description": ""
   }
 }
@@ -121,18 +115,14 @@ curl -X POST http://localhost:6402/api/v1/images \
 - ตั้ง `DISABLE_AUTH=true` (ค่าเริ่มต้น) เพื่อปิดการตรวจสิทธิ์ซ้ำในบริการนี้ เพราะ Gateway ตรวจ JWT ให้แล้ว
 - จำกัดขนาดไฟล์/ชนิดไฟล์ผ่าน ENV
 
-## โครงสร้าง Shared Storage (ย่อ)
-```
-shared-storage/
-  raw-images/
-    {sample_no}/[{run_id}/]{timestamp_uuid}.{ext}
-  annotated-images/
-    {sample_no}/[{run_id}/]{timestamp_uuid}.{ext}
-  backup-images/
-    raw-images/... (โครงสร้างเหมือนต้นทาง)
-    annotated-images/...
-  temp-files/
-```
+## บัคเก็ตที่ต้องมีใน MinIO
+- `raw-images`
+- `annotated-images`
+
+## หมายเหตุด้านความปลอดภัยของ MinIO
+- หากยังไม่ตั้งค่า SSE/KMS ให้ปิด `ServerSideEncryption` ในคำสั่งอัปโหลด (ได้ปิดไว้แล้วในโค้ด)
+- ใช้ presigned URL เพื่อการเข้าถึงแบบชั่วคราวแทนการเปิด bucket public
+- ตั้ง Lifecycle (ILM) บน MinIO เพื่อลบไฟล์เก่ากว่า N วัน (แนะนำ 45 วัน)
 
 ## การทดสอบด่วน
 ```
@@ -155,3 +145,4 @@ curl -X POST http://localhost:6402/api/v1/images \
 
 ---
 หากต้องการเพิ่ม GET endpoints (เช่น list by sample/run) หรือเชื่อมต่อฐานข้อมูลเพื่อเก็บเมทาดาทา แจ้งได้ครับ
+

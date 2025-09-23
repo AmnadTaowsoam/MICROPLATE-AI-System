@@ -84,7 +84,7 @@ export async function predictionRoutes(fastify: FastifyInstance) {
         include: {
           wellPredictions: true,
           rowCounts: true,
-          interfaceResults: true,
+          inferenceResults: true,
           imageFiles: true,
         },
       });
@@ -197,9 +197,12 @@ export async function predictionRoutes(fastify: FastifyInstance) {
         return acc;
       }, {} as Record<string, { count: number; avgConfidence: number }>);
 
-      // Calculate average confidence
-      Object.keys(summary).forEach(className => {
-        summary[className].avgConfidence /= summary[className].count;
+      // Calculate average confidence (guard against undefined)
+      Object.keys(summary).forEach((className) => {
+        const stats = summary[className];
+        if (stats && stats.count > 0) {
+          stats.avgConfidence /= stats.count;
+        }
       });
 
       return {
@@ -268,43 +271,25 @@ export async function predictionRoutes(fastify: FastifyInstance) {
     const since = new Date(Date.now() - hours * 60 * 60 * 1000);
 
     try {
-      const [recentRuns, recentSamples] = await Promise.all([
-        prisma.predictionRun.findMany({
-          where: {
-            createdAt: {
-              gte: since,
-            },
+      const recentRuns = await prisma.predictionRun.findMany({
+        where: {
+          createdAt: {
+            gte: since,
           },
-          orderBy: {
-            createdAt: 'desc',
-          },
-          take: 20,
-          select: {
-            id: true,
-            sampleNo: true,
-            status: true,
-            createdAt: true,
-            processingTimeMs: true,
-          },
-        }),
-        prisma.sampleSummary.findMany({
-          where: {
-            updatedAt: {
-              gte: since,
-            },
-          },
-          orderBy: {
-            updatedAt: 'desc',
-          },
-          take: 10,
-          select: {
-            sampleNo: true,
-            totalRuns: true,
-            lastRunAt: true,
-            updatedAt: true,
-          },
-        }),
-      ]);
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 20,
+        select: {
+          id: true,
+          sampleNo: true,
+          status: true,
+          createdAt: true,
+          processingTimeMs: true,
+        },
+      });
+      const recentSamples: any[] = [];
 
       return {
         recentRuns,

@@ -7,9 +7,7 @@
  */
 
 import Fastify from 'fastify';
-import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
-import rateLimit from '@fastify/rate-limit';
 import { PrismaClient } from '@prisma/client';
 import { config } from './config/config';
 import { logger } from './utils/logger';
@@ -25,29 +23,15 @@ export const prisma = new PrismaClient({
 
 // Initialize Fastify
 const fastify = Fastify({
-  logger: logger,
-  disableRequestLogging: process.env.NODE_ENV === 'production',
+  logger: logger as any,
+  disableRequestLogging: process.env['NODE_ENV'] === 'production',
 });
 
 // Register plugins
 async function registerPlugins() {
-  // CORS
-  await fastify.register(cors, {
-    origin: config.cors.allowedOrigins,
-    credentials: config.cors.allowCredentials,
-    methods: config.cors.allowedMethods,
-    allowedHeaders: config.cors.allowedHeaders,
-  });
-
   // Security
   await fastify.register(helmet, {
     contentSecurityPolicy: false,
-  });
-
-  // Rate limiting
-  await fastify.register(rateLimit, {
-    max: config.rateLimit.max,
-    timeWindow: config.rateLimit.timeWindow,
   });
 }
 
@@ -119,7 +103,7 @@ async function start() {
     });
 
   } catch (error) {
-    logger.error('Failed to start server:', error);
+    logger.error({ error }, 'Failed to start server');
     process.exit(1);
   }
 }

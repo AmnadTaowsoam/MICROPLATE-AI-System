@@ -8,10 +8,10 @@ export class AggregationServiceImpl implements AggregationService {
 
   async updateSampleSummary(sampleNo: string): Promise<void> {
     try {
-      logger.info('Starting sample summary update', { sampleNo });
+      logger.info({ sampleNo }, 'Starting sample summary update');
 
       // Get all interface results for the sample
-      const interfaceResults = await this.prisma.inferenceResult.findMany({
+      const inferenceResults = await this.prisma.inferenceResult.findMany({
         where: {
           run: { sampleNo }
         },
@@ -19,13 +19,13 @@ export class AggregationServiceImpl implements AggregationService {
         orderBy: { run: { predictAt: 'desc' } }
       });
 
-      if (interfaceResults.length === 0) {
-        logger.warn('No interface results found for sample', { sampleNo });
+      if (inferenceResults.length === 0) {
+        logger.warn({ sampleNo }, 'No inference results found for sample');
         return;
       }
 
       // Calculate aggregated distribution
-      const distribution = this.calculateDistribution(interfaceResults);
+      const distribution = this.calculateDistribution(inferenceResults);
 
       // Get run statistics
       const runStats = await this.prisma.predictionRun.aggregate({
@@ -60,33 +60,33 @@ export class AggregationServiceImpl implements AggregationService {
           summary: summary as any,
           totalRuns: runStats._count.id,
           lastRunAt: runStats._max.predictAt,
-          lastRunId: latestRun?.id,
+          lastRunId: latestRun?.id ?? null,
         },
         create: {
           sampleNo,
           summary: summary as any,
           totalRuns: runStats._count.id,
           lastRunAt: runStats._max.predictAt,
-          lastRunId: latestRun?.id,
+          lastRunId: latestRun?.id ?? null,
         }
       });
 
-      logger.info('Sample summary updated successfully', { 
+      logger.info({ 
         sampleNo, 
         totalRuns: runStats._count.id,
         distribution 
-      });
+      }, 'Sample summary updated successfully');
 
     } catch (error) {
-      logger.error('Failed to update sample summary', { sampleNo, error });
+      logger.error({ sampleNo, error }, 'Failed to update sample summary');
       throw createError.database('Failed to update sample summary', { sampleNo, error });
     }
   }
 
-  calculateDistribution(interfaceResults: any[]): Record<string, number> {
+  calculateDistribution(inferenceResults: any[]): Record<string, number> {
     const distribution: Record<string, number> = {};
 
-    for (const result of interfaceResults) {
+    for (const result of inferenceResults) {
       const resultData = result.results as any;
       const resultDistribution = resultData?.distribution || {};
       
@@ -122,15 +122,15 @@ export class AggregationServiceImpl implements AggregationService {
       }
 
       // Calculate average confidence
-      const totalConfidence = wellPredictions.reduce((sum, wp) => sum + wp.confidence, 0);
+      const totalConfidence = wellPredictions.reduce((sum: number, wp: { confidence: number }) => sum + wp.confidence, 0);
       const averageConfidence = totalConfidence / wellPredictions.length;
 
       // Calculate high confidence percentage (confidence > 0.8)
-      const highConfidenceCount = wellPredictions.filter(wp => wp.confidence > 0.8).length;
+      const highConfidenceCount = wellPredictions.filter((wp: { confidence: number }) => wp.confidence > 0.8).length;
       const highConfidencePercentage = (highConfidenceCount / wellPredictions.length) * 100;
 
       // Calculate well detection accuracy (simplified - would need ground truth)
-      const validDetections = wellPredictions.filter(wp => wp.class_ !== 'invalid').length;
+      const validDetections = wellPredictions.filter((wp: { class_: string }) => wp.class_ !== 'invalid').length;
       const wellDetectionAccuracy = (validDetections / wellPredictions.length) * 100;
 
       return {
@@ -140,13 +140,32 @@ export class AggregationServiceImpl implements AggregationService {
       };
 
     } catch (error) {
-      logger.error('Failed to calculate quality metrics', { sampleNo, error });
+      logger.error({ sampleNo, error }, 'Failed to calculate quality metrics');
       return {
         average_confidence: 0,
         high_confidence_percentage: 0,
         well_detection_accuracy: 0,
       };
     }
+  }
+
+  // Calculate basic statistics from runs
+  calculateStatistics(runs: any[]): any {
+    const totalDetections = runs.reduce((sum, run) => sum + (run.wellPredictions?.length || 0), 0);
+    const positiveCount = runs.reduce((sum, run) => sum + (run.wellPredictions?.filter((wp: any) => wp.class_ === 'positive').length || 0), 0);
+    const negativeCount = runs.reduce((sum, run) => sum + (run.wellPredictions?.filter((wp: any) => wp.class_ === 'negative').length || 0), 0);
+    const invalidCount = runs.reduce((sum, run) => sum + (run.wellPredictions?.filter((wp: any) => wp.class_ === 'invalid').length || 0), 0);
+    const avgConfidenceNumerator = runs.reduce((sum, run) => sum + (run.wellPredictions?.reduce((s: number, wp: any) => s + (wp.confidence || 0), 0) || 0), 0);
+    const avgConfidenceDenominator = runs.reduce((sum, run) => sum + (run.wellPredictions?.length || 0), 0);
+    const averageConfidence = avgConfidenceDenominator > 0 ? avgConfidenceNumerator / avgConfidenceDenominator : 0;
+
+    return {
+      totalDetections,
+      positiveCount,
+      negativeCount,
+      invalidCount,
+      averageConfidence,
+    };
   }
 
   private calculateConcentration(distribution: Record<string, number>): any {
@@ -170,7 +189,7 @@ export class AggregationServiceImpl implements AggregationService {
 
   // Batch update multiple sample summaries
   async updateMultipleSampleSummaries(sampleNos: string[]): Promise<void> {
-    logger.info('Starting batch sample summary update', { count: sampleNos.length });
+    logger.info({ count: sampleNos.length }, 'Starting batch sample summary update');
 
     const results = await Promise.allSettled(
       sampleNos.map(sampleNo => this.updateSampleSummary(sampleNo))
@@ -179,21 +198,21 @@ export class AggregationServiceImpl implements AggregationService {
     const successful = results.filter(r => r.status === 'fulfilled').length;
     const failed = results.filter(r => r.status === 'rejected').length;
 
-    logger.info('Batch sample summary update completed', { 
+    logger.info({ 
       total: sampleNos.length,
       successful,
       failed 
-    });
+    }, 'Batch sample summary update completed');
 
     if (failed > 0) {
-      const failedSamples = sampleNos.filter((_, index) => results[index].status === 'rejected');
-      logger.error('Some sample summaries failed to update', { failedSamples });
+      const failedSamples = sampleNos.filter((_: string, index: number) => (results[index] as PromiseSettledResult<void>).status === 'rejected');
+      logger.error({ failedSamples }, 'Some sample summaries failed to update');
     }
   }
 
   // Update all sample summaries (use with caution)
   async updateAllSampleSummaries(): Promise<void> {
-    logger.info('Starting full sample summary update');
+    logger.info({}, 'Starting full sample summary update');
 
     try {
       // Get all unique sample numbers
@@ -202,7 +221,7 @@ export class AggregationServiceImpl implements AggregationService {
         distinct: ['sampleNo']
       });
 
-      const sampleNos = samples.map(s => s.sampleNo);
+      const sampleNos = samples.map((s: { sampleNo: string }) => s.sampleNo);
       
       // Process in batches to avoid overwhelming the database
       const batchSize = 50;
@@ -216,17 +235,17 @@ export class AggregationServiceImpl implements AggregationService {
         }
       }
 
-      logger.info('Full sample summary update completed', { totalSamples: sampleNos.length });
+      logger.info({ totalSamples: sampleNos.length }, 'Full sample summary update completed');
 
     } catch (error) {
-      logger.error('Failed to update all sample summaries', { error });
+      logger.error({ error }, 'Failed to update all sample summaries');
       throw createError.database('Failed to update all sample summaries', { error });
     }
   }
 
   // Recalculate statistics for a specific time range
   async recalculateStatisticsForDateRange(startDate: Date, endDate: Date): Promise<void> {
-    logger.info('Starting statistics recalculation for date range', { startDate, endDate });
+    logger.info({ startDate, endDate }, 'Starting statistics recalculation for date range');
 
     try {
       // Get samples that have runs in the date range
@@ -241,17 +260,17 @@ export class AggregationServiceImpl implements AggregationService {
         distinct: ['sampleNo']
       });
 
-      const sampleNos = samples.map(s => s.sampleNo);
+      const sampleNos = samples.map((s: { sampleNo: string }) => s.sampleNo);
       await this.updateMultipleSampleSummaries(sampleNos);
 
-      logger.info('Statistics recalculation completed', { 
+      logger.info({ 
         sampleCount: sampleNos.length,
         startDate,
         endDate 
-      });
+      }, 'Statistics recalculation completed');
 
     } catch (error) {
-      logger.error('Failed to recalculate statistics for date range', { error });
+      logger.error({ error }, 'Failed to recalculate statistics for date range');
       throw createError.database('Failed to recalculate statistics for date range', { error });
     }
   }
@@ -286,19 +305,19 @@ export class AggregationServiceImpl implements AggregationService {
         summary.lastRunAt?.getTime() === actualLastRun?.predictAt.getTime();
 
       if (!isConsistent) {
-        logger.warn('Sample summary inconsistency detected', { 
+        logger.warn({ 
           sampleNo,
           storedRuns: summary.totalRuns,
           actualRuns: actualRunCount,
           storedLastRunId: summary.lastRunId,
           actualLastRunId: actualLastRun?.id,
-        });
+        }, 'Sample summary inconsistency detected');
       }
 
       return isConsistent;
 
     } catch (error) {
-      logger.error('Failed to validate sample summary', { sampleNo, error });
+      logger.error({ sampleNo, error }, 'Failed to validate sample summary');
       return false;
     }
   }
@@ -330,7 +349,7 @@ export class AggregationServiceImpl implements AggregationService {
       };
 
     } catch (error) {
-      logger.error('Failed to get aggregation stats', { error });
+      logger.error({ error }, 'Failed to get aggregation stats');
       throw createError.database('Failed to get aggregation stats', { error });
     }
   }

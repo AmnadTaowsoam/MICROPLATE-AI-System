@@ -1,11 +1,8 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { ResultService } from '@/services/result.service';
-import { WebSocketService } from '@/services/websocket.service';
+import { ResultService, PaginationOptions, WebSocketService } from '@/types/result.types';
 import { sendSuccess, sendError } from '@/utils/errors';
 import { logger } from '@/utils/logger';
-import { AuthenticatedRequest } from '@/middleware/auth.middleware';
 import { 
-  PaginationOptions,
   SampleListQuery,
   RunListQuery,
   StatisticsFilters 
@@ -27,8 +24,8 @@ export class ResultController {
       const options: PaginationOptions = {
         page: query.page,
         limit: query.limit,
-        sortBy: query.sortBy,
-        sortOrder: query.sortOrder,
+        ...(query.sortBy ? { sortBy: query.sortBy } : {}),
+        ...(query.sortOrder ? { sortOrder: query.sortOrder } : {}),
       };
 
       const filters = {
@@ -40,17 +37,17 @@ export class ResultController {
 
       const result = await this.resultService.getSamples({ ...options, filters });
 
-      logger.info('Samples retrieved', { 
+      logger.info({ 
         requestId: request.id,
         total: result.pagination.total,
         page: result.pagination.page,
         filters
-      });
+      }, 'Samples retrieved');
 
       return sendSuccess(reply, result);
     } catch (error) {
-      logger.error('Failed to get samples', { requestId: request.id, error });
-      return sendError(reply, error);
+      logger.error({ requestId: request.id, error }, 'Failed to get samples');
+      return sendError(reply, error as any);
     }
   }
 
@@ -59,20 +56,20 @@ export class ResultController {
       const { sampleNo } = request.params as { sampleNo: string };
       const result = await this.resultService.getSampleDetails(sampleNo);
 
-      logger.info('Sample details retrieved', { 
+      logger.info({ 
         requestId: request.id,
         sampleNo,
         totalRuns: result.totalRuns
-      });
+      }, 'Sample details retrieved');
 
       return sendSuccess(reply, result);
     } catch (error) {
-      logger.error('Failed to get sample details', { 
+      logger.error({ 
         requestId: request.id,
         sampleNo: (request.params as any)?.sampleNo,
         error 
-      });
-      return sendError(reply, error);
+      }, 'Failed to get sample details');
+      return sendError(reply, error as any);
     }
   }
 
@@ -81,19 +78,19 @@ export class ResultController {
       const { sampleNo } = request.params as { sampleNo: string };
       const result = await this.resultService.getSampleSummary(sampleNo);
 
-      logger.info('Sample summary retrieved', { 
+      logger.info({ 
         requestId: request.id,
         sampleNo
-      });
+      }, 'Sample summary retrieved');
 
       return sendSuccess(reply, result);
     } catch (error) {
-      logger.error('Failed to get sample summary', { 
+      logger.error({ 
         requestId: request.id,
         sampleNo: (request.params as any)?.sampleNo,
         error 
-      });
-      return sendError(reply, error);
+      }, 'Failed to get sample summary');
+      return sendError(reply, error as any);
     }
   }
 
@@ -105,27 +102,27 @@ export class ResultController {
       const options: PaginationOptions = {
         page: query.page,
         limit: query.limit,
-        sortBy: query.sortBy,
-        sortOrder: query.sortOrder,
+        ...(query.sortBy ? { sortBy: query.sortBy } : {}),
+        ...(query.sortOrder ? { sortOrder: query.sortOrder } : {}),
       };
 
       const result = await this.resultService.getSampleRuns(sampleNo, options);
 
-      logger.info('Sample runs retrieved', { 
+      logger.info({ 
         requestId: request.id,
         sampleNo,
         total: result.pagination.total,
         page: result.pagination.page
-      });
+      }, 'Sample runs retrieved');
 
       return sendSuccess(reply, result);
     } catch (error) {
-      logger.error('Failed to get sample runs', { 
+      logger.error({ 
         requestId: request.id,
         sampleNo: (request.params as any)?.sampleNo,
         error 
-      });
-      return sendError(reply, error);
+      }, 'Failed to get sample runs');
+      return sendError(reply, error as any);
     }
   }
 
@@ -134,20 +131,20 @@ export class ResultController {
       const { sampleNo } = request.params as { sampleNo: string };
       const result = await this.resultService.getLastRun(sampleNo);
 
-      logger.info('Last run retrieved', { 
+      logger.info({ 
         requestId: request.id,
         sampleNo,
         runId: result.runId
-      });
+      }, 'Last run retrieved');
 
       return sendSuccess(reply, result);
     } catch (error) {
-      logger.error('Failed to get last run', { 
+      logger.error({ 
         requestId: request.id,
         sampleNo: (request.params as any)?.sampleNo,
         error 
-      });
-      return sendError(reply, error);
+      }, 'Failed to get last run');
+      return sendError(reply, error as any);
     }
   }
 
@@ -156,20 +153,20 @@ export class ResultController {
       const { sampleNo } = request.params as { sampleNo: string };
       const result = await this.resultService.getSampleTrends(sampleNo);
 
-      logger.info('Sample trends retrieved', { 
+      logger.info({ 
         requestId: request.id,
         sampleNo,
         trendPoints: result.trends.confidenceTrend.length
-      });
+      }, 'Sample trends retrieved');
 
       return sendSuccess(reply, result);
     } catch (error) {
-      logger.error('Failed to get sample trends', { 
+      logger.error({ 
         requestId: request.id,
         sampleNo: (request.params as any)?.sampleNo,
         error 
-      });
-      return sendError(reply, error);
+      }, 'Failed to get sample trends');
+      return sendError(reply, error as any);
     }
   }
 
@@ -182,20 +179,20 @@ export class ResultController {
       const { runId } = request.params as { runId: number };
       const result = await this.resultService.getRunDetails(runId);
 
-      logger.info('Run details retrieved', { 
+      logger.info({ 
         requestId: request.id,
         runId,
         sampleNo: result.sampleNo
-      });
+      }, 'Run details retrieved');
 
       return sendSuccess(reply, result);
     } catch (error) {
-      logger.error('Failed to get run details', { 
+      logger.error({ 
         requestId: request.id,
         runId: (request.params as any)?.runId,
         error 
-      });
-      return sendError(reply, error);
+      }, 'Failed to get run details');
+      return sendError(reply, error as any);
     }
   }
 
@@ -214,19 +211,19 @@ export class ResultController {
 
       const result = await this.resultService.getSystemStatistics(filters);
 
-      logger.info('System statistics retrieved', { 
+      logger.info({ 
         requestId: request.id,
         totalSamples: result.totalSamples,
         totalRuns: result.totalRuns
-      });
+      }, 'System statistics retrieved');
 
       return sendSuccess(reply, result);
     } catch (error) {
-      logger.error('Failed to get system statistics', { 
+      logger.error({ 
         requestId: request.id,
         error 
-      });
-      return sendError(reply, error);
+      }, 'Failed to get system statistics');
+      return sendError(reply, error as any);
     }
   }
 
@@ -239,7 +236,7 @@ export class ResultController {
       const { sampleNo } = request.params as { sampleNo: string };
       
       // Only allow cache invalidation for authenticated users with appropriate permissions
-      const user = (request as AuthenticatedRequest).user;
+      const user = (request as any).user;
       if (!user || !user.roles.includes('admin')) {
         return reply.status(403).send({
           success: false,
@@ -252,27 +249,27 @@ export class ResultController {
 
       await (this.resultService as any).invalidateSampleCache(sampleNo);
 
-      logger.info('Sample cache invalidated', { 
+      logger.info({ 
         requestId: request.id,
         sampleNo,
         userId: user.id
-      });
+      }, 'Sample cache invalidated');
 
       return sendSuccess(reply, { message: 'Cache invalidated successfully' });
     } catch (error) {
-      logger.error('Failed to invalidate sample cache', { 
+      logger.error({ 
         requestId: request.id,
         sampleNo: (request.params as any)?.sampleNo,
         error 
-      });
-      return sendError(reply, error);
+      }, 'Failed to invalidate sample cache');
+      return sendError(reply, error as any);
     }
   }
 
   async invalidateSystemCache(request: FastifyRequest, reply: FastifyReply) {
     try {
       // Only allow cache invalidation for authenticated users with appropriate permissions
-      const user = (request as AuthenticatedRequest).user;
+      const user = (request as any).user;
       if (!user || !user.roles.includes('admin')) {
         return reply.status(403).send({
           success: false,
@@ -285,18 +282,18 @@ export class ResultController {
 
       await (this.resultService as any).invalidateSystemCache();
 
-      logger.info('System cache invalidated', { 
+      logger.info({ 
         requestId: request.id,
         userId: user.id
-      });
+      }, 'System cache invalidated');
 
       return sendSuccess(reply, { message: 'System cache invalidated successfully' });
     } catch (error) {
-      logger.error('Failed to invalidate system cache', { 
+      logger.error({ 
         requestId: request.id,
         error 
-      });
-      return sendError(reply, error);
+      }, 'Failed to invalidate system cache');
+      return sendError(reply, error as any);
     }
   }
 
@@ -314,13 +311,13 @@ export class ResultController {
         dependencies: {
           database: 'healthy' as const,
           cache: 'healthy' as const,
-          websocket: this.websocketService.isHealthy() ? 'healthy' as const : 'unhealthy' as const,
+          websocket: (this.websocketService as any).isHealthy() ? 'healthy' as const : 'unhealthy' as const,
         }
       };
 
       return sendSuccess(reply, healthStatus);
     } catch (error) {
-      logger.error('Health check failed', { requestId: request.id, error });
+      logger.error({ requestId: request.id, error }, 'Health check failed');
       
       const healthStatus = {
         status: 'unhealthy' as const,
@@ -366,7 +363,7 @@ export class ResultController {
         });
       }
     } catch (error) {
-      logger.error('Readiness check failed', { requestId: request.id, error });
+      logger.error({ requestId: request.id, error }, 'Readiness check failed');
       
       return reply.status(503).send({
         success: false,
@@ -385,13 +382,13 @@ export class ResultController {
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         memory: process.memoryUsage(),
-        websocket: this.websocketService.getConnectionStats(),
+        websocket: (this.websocketService as any).getConnectionStats(),
       };
 
       return sendSuccess(reply, metrics);
     } catch (error) {
-      logger.error('Failed to get metrics', { requestId: request.id, error });
-      return sendError(reply, error);
+      logger.error({ requestId: request.id, error }, 'Failed to get metrics');
+      return sendError(reply, error as any);
     }
   }
 }

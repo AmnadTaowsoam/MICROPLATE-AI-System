@@ -35,7 +35,7 @@ model PredictionRun {
   
   // Relations
   rowCounts            RowCounts[]
-  interfaceResults     InferenceResult[]
+  inferenceResults     InferenceResult[]
   wellPredictions      WellPrediction[]
   imageFiles           ImageFile[]
   
@@ -69,7 +69,7 @@ model InferenceResult {
   // Relations
   run       PredictionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
   
-  @@map("interface_results")
+  @@map("inference_results")
   @@schema("prediction_result")
   @@index([runId])
 }

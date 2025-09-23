@@ -26,7 +26,7 @@ graph TB
         
         subgraph "Data Layer"
             PG[(PostgreSQL 17<br/>Multi-schema)]
-            OBJ[(Object Storage<br/>MinIO/S3)]
+            OBJ[(Object Storage<br/>MinIO/S3 - Presigned URLs)]
         end
     end
 
@@ -56,7 +56,7 @@ graph TB
     INF -->|Store Results| PDB
     PDB -->|Database Ops| PG
     INF -->|Store Images| IMG
-    IMG -->|Store Files| OBJ
+    IMG -->|Store Files + Presigned URLs| OBJ
     RES -->|Query Data| PDB
     LAB -->|Generate CSV| LABWARE
     AUTH -->|Send Emails| EMAIL

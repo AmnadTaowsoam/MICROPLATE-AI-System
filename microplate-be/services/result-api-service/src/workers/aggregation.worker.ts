@@ -26,28 +26,28 @@ class AggregationWorker {
 
   async start(): Promise<void> {
     if (this.isRunning) {
-      logger.warn('Aggregation worker is already running');
+      logger.warn({}, 'Aggregation worker is already running');
       return;
     }
 
     try {
-      logger.info('Starting aggregation worker...');
+      logger.info({}, 'Starting aggregation worker...');
 
       // Connect to database
       await this.prisma.$connect();
-      logger.info('Database connected for aggregation worker');
+      logger.info({}, 'Database connected for aggregation worker');
 
       // Setup database notifications
       await this.setupDatabaseNotifications();
 
       this.isRunning = true;
-      logger.info('Aggregation worker started successfully');
+      logger.info({}, 'Aggregation worker started successfully');
 
       // Start periodic maintenance tasks
       this.startMaintenanceTasks();
 
     } catch (error) {
-      logger.error('Failed to start aggregation worker:', error);
+      logger.error({ error }, 'Failed to start aggregation worker');
       throw error;
     }
   }
@@ -58,7 +58,7 @@ class AggregationWorker {
     }
 
     try {
-      logger.info('Stopping aggregation worker...');
+      logger.info({}, 'Stopping aggregation worker...');
 
       this.isRunning = false;
 
@@ -71,36 +71,36 @@ class AggregationWorker {
       // Disconnect from database
       await this.prisma.$disconnect();
 
-      logger.info('Aggregation worker stopped successfully');
+      logger.info({}, 'Aggregation worker stopped successfully');
 
     } catch (error) {
-      logger.error('Error stopping aggregation worker:', error);
+      logger.error({ error }, 'Error stopping aggregation worker');
       throw error;
     }
   }
 
   private async setupDatabaseNotifications(): Promise<void> {
     if (!config.features.databaseNotifications) {
-      logger.info('Database notifications disabled - skipping setup');
+      logger.info({}, 'Database notifications disabled - skipping setup');
       return;
     }
 
     try {
       // In a real implementation, this would use a PostgreSQL LISTEN/NOTIFY client
       // For now, we'll simulate the setup
-      logger.info('Database notifications configured');
+      logger.info({}, 'Database notifications configured');
       
       // Example of how to handle notifications:
       // this.notificationClient = new pg.Client(connectionString);
       // await this.notificationClient.connect();
-      // await this.notificationClient.query('LISTEN interface_results_new');
+      // await this.notificationClient.query('LISTEN inference_results_new');
       
       // this.notificationClient.on('notification', (msg) => {
       //   this.handleNotification(msg);
       // });
 
     } catch (error) {
-      logger.error('Failed to setup database notifications:', error);
+      logger.error({ error }, 'Failed to setup database notifications');
     }
   }
 
@@ -108,22 +108,22 @@ class AggregationWorker {
     try {
       const { channel, payload } = notification;
       
-      logger.info('Received database notification', { channel, payload });
+      logger.info({ channel, payload }, 'Received database notification');
 
       switch (channel) {
-        case 'interface_results_new':
-          await this.processNewInterfaceResult(payload);
+        case 'inference_results_new':
+          await this.processNewInferenceResult(payload);
           break;
         default:
-          logger.warn('Unknown notification channel', { channel });
+          logger.warn({ channel }, 'Unknown notification channel');
       }
 
     } catch (error) {
-      logger.error('Error handling notification:', { error, notification });
+      logger.error({ error, notification }, 'Error handling notification');
     }
   }
 
-  private async processNewInterfaceResult(runId: string): Promise<void> {
+  private async processNewInferenceResult(runId: string): Promise<void> {
     try {
       const runIdNum = parseInt(runId, 10);
       
@@ -134,25 +134,25 @@ class AggregationWorker {
       });
 
       if (!run) {
-        logger.warn('Run not found for notification', { runId: runIdNum });
+        logger.warn({ runId: runIdNum }, 'Run not found for notification');
         return;
       }
 
-      logger.info('Processing new interface result', { 
+      logger.info({ 
         runId: runIdNum, 
         sampleNo: run.sampleNo 
-      });
+      }, 'Processing new inference result');
 
       // Update sample summary
       await this.aggregationService.updateSampleSummary(run.sampleNo);
 
-      logger.info('Sample summary updated', { 
+      logger.info({ 
         runId: runIdNum, 
         sampleNo: run.sampleNo 
-      });
+      }, 'Sample summary updated');
 
     } catch (error) {
-      logger.error('Error processing new interface result:', { runId, error });
+      logger.error({ runId, error }, 'Error processing new inference result');
     }
   }
 
@@ -164,7 +164,7 @@ class AggregationWorker {
       try {
         await this.runConsistencyCheck();
       } catch (error) {
-        logger.error('Error in consistency check:', error);
+        logger.error({ error }, 'Error in consistency check');
       }
     }, 60 * 60 * 1000); // 1 hour
 
@@ -175,7 +175,7 @@ class AggregationWorker {
       try {
         await this.runCleanupTasks();
       } catch (error) {
-        logger.error('Error in cleanup tasks:', error);
+        logger.error({ error }, 'Error in cleanup tasks');
       }
     }, 6 * 60 * 60 * 1000); // 6 hours
 
@@ -186,14 +186,14 @@ class AggregationWorker {
       try {
         await this.updateSystemStatistics();
       } catch (error) {
-        logger.error('Error updating system statistics:', error);
+        logger.error({ error }, 'Error updating system statistics');
       }
     }, 15 * 60 * 1000); // 15 minutes
   }
 
   private async runConsistencyCheck(): Promise<void> {
     try {
-      logger.info('Starting consistency check...');
+      logger.info({}, 'Starting consistency check...');
 
       // Get all samples that might need consistency checking
       const samples = await this.prisma.sampleSummary.findMany({
@@ -206,26 +206,26 @@ class AggregationWorker {
       for (const sample of samples) {
         const isConsistent = await this.aggregationService.validateSampleSummary(sample.sampleNo);
         if (!isConsistent) {
-          logger.warn('Inconsistent sample summary detected', { sampleNo: sample.sampleNo });
+          logger.warn({ sampleNo: sample.sampleNo }, 'Inconsistent sample summary detected');
           // Fix the inconsistency
           await this.aggregationService.updateSampleSummary(sample.sampleNo);
           inconsistentCount++;
         }
       }
 
-      logger.info('Consistency check completed', { 
+      logger.info({ 
         totalChecked: samples.length,
         inconsistentFound: inconsistentCount
-      });
+      }, 'Consistency check completed');
 
     } catch (error) {
-      logger.error('Error in consistency check:', error);
+      logger.error({ error }, 'Error in consistency check');
     }
   }
 
   private async runCleanupTasks(): Promise<void> {
     try {
-      logger.info('Starting cleanup tasks...');
+      logger.info({}, 'Starting cleanup tasks...');
 
       // Clean up old health check records (keep only last 24 hours)
       const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -238,21 +238,21 @@ class AggregationWorker {
         }
       });
 
-      logger.info('Cleanup tasks completed', { 
+      logger.info({ 
         deletedHealthChecks: deletedHealthChecks.count
-      });
+      }, 'Cleanup tasks completed');
 
     } catch (error) {
-      logger.error('Error in cleanup tasks:', error);
+      logger.error({ error }, 'Error in cleanup tasks');
     }
   }
 
   private async updateSystemStatistics(): Promise<void> {
     try {
       // This would update any cached system statistics
-      logger.debug('System statistics update completed');
+      logger.debug({}, 'System statistics update completed');
     } catch (error) {
-      logger.error('Error updating system statistics:', error);
+      logger.error({ error }, 'Error updating system statistics');
     }
   }
 
@@ -260,20 +260,20 @@ class AggregationWorker {
   async updateSampleSummary(sampleNo: string): Promise<void> {
     try {
       await this.aggregationService.updateSampleSummary(sampleNo);
-      logger.info('Manual sample summary update completed', { sampleNo });
+      logger.info({ sampleNo }, 'Manual sample summary update completed');
     } catch (error) {
-      logger.error('Error in manual sample summary update:', { sampleNo, error });
+      logger.error({ sampleNo, error }, 'Error in manual sample summary update');
       throw error;
     }
   }
 
   async updateAllSampleSummaries(): Promise<void> {
     try {
-      logger.info('Starting manual update of all sample summaries...');
+      logger.info({}, 'Starting manual update of all sample summaries...');
       await this.aggregationService.updateAllSampleSummaries();
-      logger.info('Manual update of all sample summaries completed');
+      logger.info({}, 'Manual update of all sample summaries completed');
     } catch (error) {
-      logger.error('Error in manual update of all sample summaries:', error);
+      logger.error({ error }, 'Error in manual update of all sample summaries');
       throw error;
     }
   }
@@ -287,10 +287,10 @@ class AggregationWorker {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      logger.error('Error getting worker stats:', error);
+      logger.error({ error }, 'Error getting worker stats');
       return {
         isRunning: this.isRunning,
-        error: error.message,
+        error: (error as any).message,
         timestamp: new Date().toISOString(),
       };
     }
@@ -302,13 +302,13 @@ const worker = new AggregationWorker();
 
 // Handle process signals
 process.on('SIGINT', async () => {
-  logger.info('Received SIGINT, stopping aggregation worker...');
+  logger.info({}, 'Received SIGINT, stopping aggregation worker...');
   await worker.stop();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  logger.info('Received SIGTERM, stopping aggregation worker...');
+  logger.info({}, 'Received SIGTERM, stopping aggregation worker...');
   await worker.stop();
   process.exit(0);
 });
@@ -316,7 +316,7 @@ process.on('SIGTERM', async () => {
 // Start worker if this file is run directly
 if (require.main === module) {
   worker.start().catch((error) => {
-    logger.error('Failed to start aggregation worker:', error);
+    logger.error({ error }, 'Failed to start aggregation worker');
     process.exit(1);
   });
 }

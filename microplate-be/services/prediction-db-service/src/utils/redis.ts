@@ -1,10 +1,10 @@
-import { createClient, RedisClientType } from 'redis';
+import { createClient } from 'redis';
 import { redis as redisConfig, logging } from '../config/config';
 import { logger } from './logger';
 
-let client: RedisClientType | null = null;
+let client: ReturnType<typeof createClient> | null = null;
 
-export async function getRedisClient(): Promise<RedisClientType | null> {
+export async function getRedisClient(): Promise<ReturnType<typeof createClient> | null> {
   if (!logging.redis.enabled) {
     return null;
   }
@@ -15,15 +15,20 @@ export async function getRedisClient(): Promise<RedisClientType | null> {
 
   try {
     const url = redisConfig.url || `redis://${redisConfig.host}:${redisConfig.port}`;
-    client = createClient({ url, database: redisConfig.db, password: redisConfig.password });
+    const options: Parameters<typeof createClient>[0] = { url, database: redisConfig.db } as any;
+    if (typeof redisConfig.password === 'string' && redisConfig.password.length > 0) {
+      (options as any).password = redisConfig.password;
+    }
 
-    client.on('error', (err) => {
+    const newClient = createClient(options);
+    newClient.on('error', (err) => {
       logger.error({ err }, 'Redis Client Error');
     });
 
-    await client.connect();
+    await newClient.connect();
+    client = newClient;
     logger.info('Redis connected');
-    return client;
+    return newClient;
   } catch (error) {
     logger.error({ error }, 'Failed to initialize Redis client');
     return null;

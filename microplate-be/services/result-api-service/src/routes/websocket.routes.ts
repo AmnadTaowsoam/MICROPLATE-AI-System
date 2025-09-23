@@ -1,10 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { WebSocketController } from '@/controllers/websocket.controller';
-import { authenticateToken } from '@/middleware/auth.middleware';
 import { z } from 'zod';
 
-export async function websocketRoutes(fastify: FastifyInstance) {
-  const websocketController = fastify.websocketController as WebSocketController;
+export async function websocketRoutes(fastify: FastifyInstance & { websocketController: WebSocketController }) {
+  const websocketController = fastify.websocketController;
 
   // =========================
   // WebSocket Routes
@@ -22,7 +21,6 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   fastify.register(async function (fastify) {
     fastify.get('/ws/auth', {
       websocket: true,
-      preHandler: [authenticateToken],
       handler: websocketController.handleAuthenticatedConnection.bind(websocketController),
     });
   });
@@ -33,9 +31,6 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
   // POST /api/v1/results/subscriptions/samples/:sampleNo - Subscribe to sample updates via HTTP
   fastify.post('/subscriptions/samples/:sampleNo', {
-    preHandler: [
-      authenticateToken,
-    ],
     handler: websocketController.subscribeToSample.bind(websocketController),
     schema: {
       tags: ['WebSocket Subscriptions'],
@@ -60,9 +55,6 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
   // DELETE /api/v1/results/subscriptions/samples/:sampleNo - Unsubscribe from sample updates via HTTP
   fastify.delete('/subscriptions/samples/:sampleNo', {
-    preHandler: [
-      authenticateToken,
-    ],
     handler: websocketController.unsubscribeFromSample.bind(websocketController),
     schema: {
       tags: ['WebSocket Subscriptions'],
@@ -87,9 +79,6 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
   // POST /api/v1/results/subscriptions/runs/:runId - Subscribe to run updates via HTTP
   fastify.post('/subscriptions/runs/:runId', {
-    preHandler: [
-      authenticateToken,
-    ],
     handler: websocketController.subscribeToRun.bind(websocketController),
     schema: {
       tags: ['WebSocket Subscriptions'],
@@ -114,9 +103,6 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
   // DELETE /api/v1/results/subscriptions/runs/:runId - Unsubscribe from run updates via HTTP
   fastify.delete('/subscriptions/runs/:runId', {
-    preHandler: [
-      authenticateToken,
-    ],
     handler: websocketController.unsubscribeFromRun.bind(websocketController),
     schema: {
       tags: ['WebSocket Subscriptions'],
@@ -141,9 +127,6 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
   // POST /api/v1/results/subscriptions/system - Subscribe to system updates via HTTP
   fastify.post('/subscriptions/system', {
-    preHandler: [
-      authenticateToken,
-    ],
     handler: websocketController.subscribeToSystem.bind(websocketController),
     schema: {
       tags: ['WebSocket Subscriptions'],
@@ -161,9 +144,6 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
   // DELETE /api/v1/results/subscriptions/system - Unsubscribe from system updates via HTTP
   fastify.delete('/subscriptions/system', {
-    preHandler: [
-      authenticateToken,
-    ],
     handler: websocketController.unsubscribeFromSystem.bind(websocketController),
     schema: {
       tags: ['WebSocket Subscriptions'],
@@ -185,9 +165,6 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
   // GET /api/v1/results/ws/stats - Get WebSocket connection statistics
   fastify.get('/ws/stats', {
-    preHandler: [
-      authenticateToken,
-    ],
     handler: websocketController.getConnectionStats.bind(websocketController),
     schema: {
       tags: ['WebSocket Management'],

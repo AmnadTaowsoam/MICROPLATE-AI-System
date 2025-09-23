@@ -1,8 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { WebSocketService } from '@/services/websocket.service';
+import { WebSocketService } from '@/types/result.types';
 import { logger } from '@/utils/logger';
 import { createError } from '@/utils/errors';
-import { AuthenticatedRequest } from '@/middleware/auth.middleware';
 
 export class WebSocketController {
   constructor(private websocketService: WebSocketService) {}
@@ -10,7 +9,7 @@ export class WebSocketController {
   async handleConnection(request: FastifyRequest, reply: FastifyReply) {
     try {
       // Upgrade to WebSocket connection
-      const { socket } = await reply.raw.upgrade();
+      const { socket } = await (reply.raw as any).upgrade();
       
       // Generate connection ID
       const connectionId = this.generateConnectionId(request);
@@ -18,11 +17,11 @@ export class WebSocketController {
       // Add connection to service
       this.websocketService.addConnection(connectionId, socket);
       
-      logger.info('WebSocket connection established', { 
+      logger.info({ 
         connectionId,
         ip: request.ip,
         userAgent: request.headers['user-agent']
-      });
+      }, 'WebSocket connection established');
 
       // Send welcome message
       socket.send(JSON.stringify({
@@ -34,7 +33,7 @@ export class WebSocketController {
       }));
 
     } catch (error) {
-      logger.error('Failed to establish WebSocket connection', { error });
+      logger.error({ error }, 'Failed to establish WebSocket connection');
       throw createError.websocket('Failed to establish WebSocket connection', { error });
     }
   }
@@ -42,13 +41,13 @@ export class WebSocketController {
   async handleAuthenticatedConnection(request: FastifyRequest, reply: FastifyReply) {
     try {
       // Verify authentication
-      const user = (request as AuthenticatedRequest).user;
+      const user = (request as any).user;
       if (!user) {
         throw createError.unauthorized('Authentication required for WebSocket connection');
       }
 
       // Upgrade to WebSocket connection
-      const { socket } = await reply.raw.upgrade();
+      const { socket } = await (reply.raw as any).upgrade();
       
       // Generate connection ID with user context
       const connectionId = this.generateAuthenticatedConnectionId(user.id);
@@ -56,12 +55,12 @@ export class WebSocketController {
       // Add connection to service
       this.websocketService.addConnection(connectionId, socket);
       
-      logger.info('Authenticated WebSocket connection established', { 
+      logger.info({ 
         connectionId,
         userId: user.id,
         username: user.username,
         ip: request.ip
-      });
+      }, 'Authenticated WebSocket connection established');
 
       // Send welcome message with user context
       socket.send(JSON.stringify({
@@ -75,7 +74,7 @@ export class WebSocketController {
       }));
 
     } catch (error) {
-      logger.error('Failed to establish authenticated WebSocket connection', { error });
+      logger.error({ error }, 'Failed to establish authenticated WebSocket connection');
       throw createError.websocket('Failed to establish authenticated WebSocket connection', { error });
     }
   }
@@ -83,7 +82,7 @@ export class WebSocketController {
   // Handle subscription requests via HTTP (alternative to WebSocket messages)
   async subscribeToSample(request: FastifyRequest, reply: FastifyReply) {
     try {
-      const user = (request as AuthenticatedRequest).user;
+      const user = (request as any).user;
       if (!user) {
         throw createError.unauthorized('Authentication required');
       }
@@ -93,11 +92,11 @@ export class WebSocketController {
 
       this.websocketService.subscribeToSample(connectionId, sampleNo);
 
-      logger.info('Sample subscription created via HTTP', { 
+      logger.info({ 
         connectionId,
         userId: user.id,
         sampleNo
-      });
+      }, 'Sample subscription created via HTTP');
 
       return reply.send({
         success: true,
@@ -109,7 +108,7 @@ export class WebSocketController {
       });
 
     } catch (error) {
-      logger.error('Failed to subscribe to sample via HTTP', { error });
+      logger.error({ error }, 'Failed to subscribe to sample via HTTP');
       return reply.status(400).send({
         success: false,
         error: {
@@ -122,7 +121,7 @@ export class WebSocketController {
 
   async unsubscribeFromSample(request: FastifyRequest, reply: FastifyReply) {
     try {
-      const user = (request as AuthenticatedRequest).user;
+      const user = (request as any).user;
       if (!user) {
         throw createError.unauthorized('Authentication required');
       }
@@ -132,11 +131,11 @@ export class WebSocketController {
 
       this.websocketService.unsubscribeFromSample(connectionId, sampleNo);
 
-      logger.info('Sample unsubscription created via HTTP', { 
+      logger.info({ 
         connectionId,
         userId: user.id,
         sampleNo
-      });
+      }, 'Sample unsubscription created via HTTP');
 
       return reply.send({
         success: true,
@@ -148,7 +147,7 @@ export class WebSocketController {
       });
 
     } catch (error) {
-      logger.error('Failed to unsubscribe from sample via HTTP', { error });
+      logger.error({ error }, 'Failed to unsubscribe from sample via HTTP');
       return reply.status(400).send({
         success: false,
         error: {
@@ -161,7 +160,7 @@ export class WebSocketController {
 
   async subscribeToRun(request: FastifyRequest, reply: FastifyReply) {
     try {
-      const user = (request as AuthenticatedRequest).user;
+      const user = (request as any).user;
       if (!user) {
         throw createError.unauthorized('Authentication required');
       }
@@ -171,11 +170,11 @@ export class WebSocketController {
 
       this.websocketService.subscribeToRun(connectionId, runId);
 
-      logger.info('Run subscription created via HTTP', { 
+      logger.info({ 
         connectionId,
         userId: user.id,
         runId
-      });
+      }, 'Run subscription created via HTTP');
 
       return reply.send({
         success: true,
@@ -187,7 +186,7 @@ export class WebSocketController {
       });
 
     } catch (error) {
-      logger.error('Failed to subscribe to run via HTTP', { error });
+      logger.error({ error }, 'Failed to subscribe to run via HTTP');
       return reply.status(400).send({
         success: false,
         error: {
@@ -200,7 +199,7 @@ export class WebSocketController {
 
   async unsubscribeFromRun(request: FastifyRequest, reply: FastifyReply) {
     try {
-      const user = (request as AuthenticatedRequest).user;
+      const user = (request as any).user;
       if (!user) {
         throw createError.unauthorized('Authentication required');
       }
@@ -210,11 +209,11 @@ export class WebSocketController {
 
       this.websocketService.unsubscribeFromRun(connectionId, runId);
 
-      logger.info('Run unsubscription created via HTTP', { 
+      logger.info({ 
         connectionId,
         userId: user.id,
         runId
-      });
+      }, 'Run unsubscription created via HTTP');
 
       return reply.send({
         success: true,
@@ -226,7 +225,7 @@ export class WebSocketController {
       });
 
     } catch (error) {
-      logger.error('Failed to unsubscribe from run via HTTP', { error });
+      logger.error({ error }, 'Failed to unsubscribe from run via HTTP');
       return reply.status(400).send({
         success: false,
         error: {
@@ -239,7 +238,7 @@ export class WebSocketController {
 
   async subscribeToSystem(request: FastifyRequest, reply: FastifyReply) {
     try {
-      const user = (request as AuthenticatedRequest).user;
+      const user = (request as any).user;
       if (!user) {
         throw createError.unauthorized('Authentication required');
       }
@@ -251,12 +250,12 @@ export class WebSocketController {
 
       const { connectionId } = request.body as { connectionId: string };
 
-      this.websocketService.subscribeToSystem(connectionId);
+      (this.websocketService as any).subscribeToSystem(connectionId);
 
-      logger.info('System subscription created via HTTP', { 
+      logger.info({ 
         connectionId,
         userId: user.id
-      });
+      }, 'System subscription created via HTTP');
 
       return reply.send({
         success: true,
@@ -267,7 +266,7 @@ export class WebSocketController {
       });
 
     } catch (error) {
-      logger.error('Failed to subscribe to system via HTTP', { error });
+      logger.error({ error }, 'Failed to subscribe to system via HTTP');
       return reply.status(400).send({
         success: false,
         error: {
@@ -280,19 +279,19 @@ export class WebSocketController {
 
   async unsubscribeFromSystem(request: FastifyRequest, reply: FastifyReply) {
     try {
-      const user = (request as AuthenticatedRequest).user;
+      const user = (request as any).user;
       if (!user) {
         throw createError.unauthorized('Authentication required');
       }
 
       const { connectionId } = request.body as { connectionId: string };
 
-      this.websocketService.unsubscribeFromSystem(connectionId);
+      (this.websocketService as any).unsubscribeFromSystem(connectionId);
 
-      logger.info('System unsubscription created via HTTP', { 
+      logger.info({ 
         connectionId,
         userId: user.id
-      });
+      }, 'System unsubscription created via HTTP');
 
       return reply.send({
         success: true,
@@ -303,7 +302,7 @@ export class WebSocketController {
       });
 
     } catch (error) {
-      logger.error('Failed to unsubscribe from system via HTTP', { error });
+      logger.error({ error }, 'Failed to unsubscribe from system via HTTP');
       return reply.status(400).send({
         success: false,
         error: {
@@ -316,7 +315,7 @@ export class WebSocketController {
 
   async getConnectionStats(request: FastifyRequest, reply: FastifyReply) {
     try {
-      const user = (request as AuthenticatedRequest).user;
+      const user = (request as any).user;
       if (!user) {
         throw createError.unauthorized('Authentication required');
       }
@@ -326,12 +325,12 @@ export class WebSocketController {
         throw createError.forbidden('Admin role required to view connection stats');
       }
 
-      const stats = this.websocketService.getConnectionStats();
+      const stats = (this.websocketService as any).getConnectionStats();
 
-      logger.info('Connection stats retrieved', { 
+      logger.info({ 
         userId: user.id,
         stats
-      });
+      }, 'Connection stats retrieved');
 
       return reply.send({
         success: true,
@@ -339,7 +338,7 @@ export class WebSocketController {
       });
 
     } catch (error) {
-      logger.error('Failed to get connection stats', { error });
+      logger.error({ error }, 'Failed to get connection stats');
       return reply.status(400).send({
         success: false,
         error: {
@@ -370,27 +369,27 @@ export class WebSocketController {
   async broadcastSampleUpdate(sampleNo: string, data: any): Promise<void> {
     try {
       await this.websocketService.broadcastSampleUpdate(sampleNo, data);
-      logger.info('Sample update broadcasted', { sampleNo });
+      logger.info({ sampleNo }, 'Sample update broadcasted');
     } catch (error) {
-      logger.error('Failed to broadcast sample update', { sampleNo, error });
+      logger.error({ sampleNo, error }, 'Failed to broadcast sample update');
     }
   }
 
   async broadcastRunUpdate(runId: number, data: any): Promise<void> {
     try {
       await this.websocketService.broadcastRunUpdate(runId, data);
-      logger.info('Run update broadcasted', { runId });
+      logger.info({ runId }, 'Run update broadcasted');
     } catch (error) {
-      logger.error('Failed to broadcast run update', { runId, error });
+      logger.error({ runId, error }, 'Failed to broadcast run update');
     }
   }
 
   async broadcastSystemUpdate(data: any): Promise<void> {
     try {
       await this.websocketService.broadcastSystemUpdate(data);
-      logger.info('System update broadcasted');
+      logger.info({}, 'System update broadcasted');
     } catch (error) {
-      logger.error('Failed to broadcast system update', { error });
+      logger.error({ error }, 'Failed to broadcast system update');
     }
   }
 }

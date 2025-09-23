@@ -89,7 +89,7 @@ description?: string
     "height": 1080,
     "bucketName": "raw-images",
     "objectKey": "S123456/456/20240115_103000_uuid.jpg",
-    "signedUrl": "https://storage.example.com/raw-images/S123456/456/20240115_103000_uuid.jpg?signature=...",
+    "signedUrl": "http://minio:9000/raw-images/S123456/456/20240115_103000_uuid.jpg?X-Amz-Algorithm=...",
     "urlExpiresAt": "2024-01-15T11:00:00Z",
     "createdAt": "2024-01-15T10:30:00Z"
   }
@@ -141,7 +141,7 @@ Get image metadata and signed URL.
     "mimeType": "image/jpeg",
     "width": 1920,
     "height": 1080,
-    "signedUrl": "https://storage.example.com/raw-images/S123456/456/20240115_103000_uuid.jpg?signature=...",
+    "signedUrl": "http://minio:9000/raw-images/S123456/456/20240115_103000_uuid.jpg?X-Amz-Algorithm=...",
     "urlExpiresAt": "2024-01-15T11:00:00Z",
     "createdAt": "2024-01-15T10:30:00Z"
   }
@@ -165,7 +165,7 @@ Get all images for a specific run.
         "id": 123,
         "fileType": "raw",
         "fileName": "S123456_20240115_103000.jpg",
-        "signedUrl": "https://storage.example.com/raw-images/S123456/456/20240115_103000_uuid.jpg?signature=...",
+        "signedUrl": "http://minio:9000/raw-images/S123456/456/20240115_103000_uuid.jpg?X-Amz-Algorithm=...",
         "urlExpiresAt": "2024-01-15T11:00:00Z",
         "createdAt": "2024-01-15T10:30:00Z"
       },
@@ -173,7 +173,7 @@ Get all images for a specific run.
         "id": 124,
         "fileType": "annotated",
         "fileName": "S123456_20240115_103000_annotated.jpg",
-        "signedUrl": "https://storage.example.com/annotated-images/S123456/456/20240115_103000_uuid.jpg?signature=...",
+        "signedUrl": "http://minio:9000/annotated-images/S123456/456/20240115_103000_uuid.jpg?X-Amz-Algorithm=...",
         "urlExpiresAt": "2024-01-15T11:00:00Z",
         "createdAt": "2024-01-15T10:30:00Z"
       }
@@ -205,7 +205,7 @@ Get all images for a specific sample.
         "runId": 456,
         "fileType": "raw",
         "fileName": "S123456_20240115_103000.jpg",
-        "signedUrl": "https://storage.example.com/raw-images/S123456/456/20240115_103000_uuid.jpg?signature=...",
+        "signedUrl": "http://minio:9000/raw-images/S123456/456/20240115_103000_uuid.jpg?X-Amz-Algorithm=...",
         "urlExpiresAt": "2024-01-15T11:00:00Z",
         "createdAt": "2024-01-15T10:30:00Z"
       }
@@ -229,7 +229,7 @@ Refresh signed URL for an image.
 {
   "success": true,
   "data": {
-    "signedUrl": "https://storage.example.com/raw-images/S123456/456/20240115_103000_uuid.jpg?signature=...",
+    "signedUrl": "http://minio:9000/raw-images/S123456/456/20240115_103000_uuid.jpg?X-Amz-Algorithm=...",
     "urlExpiresAt": "2024-01-15T11:00:00Z"
   }
 }
@@ -283,7 +283,7 @@ Process an image (resize, optimize, generate thumbnail).
         "id": 125,
         "fileType": "thumbnail",
         "fileName": "S123456_20240115_103000_thumb.jpg",
-        "signedUrl": "https://storage.example.com/thumbnails/S123456/456/20240115_103000_uuid_thumb.jpg?signature=...",
+        "signedUrl": "http://minio:9000/thumbnails/S123456/456/20240115_103000_uuid_thumb.jpg?X-Amz-Algorithm=...",
         "width": 200,
         "height": 150
       }

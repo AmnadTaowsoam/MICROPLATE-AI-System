@@ -4,7 +4,7 @@ import { logger } from '../utils/logger';
 
 export async function healthRoutes(fastify: FastifyInstance) {
   // Basic health check
-  fastify.get('/', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.get('/', async (_request: FastifyRequest, _reply: FastifyReply) => {
     return {
       status: 'healthy',
       timestamp: new Date().toISOString(),
@@ -14,7 +14,7 @@ export async function healthRoutes(fastify: FastifyInstance) {
   });
 
   // Detailed health check with database status
-  fastify.get('/detailed', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.get('/detailed', async (_request: FastifyRequest, reply: FastifyReply) => {
     const health = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
@@ -50,7 +50,7 @@ export async function healthRoutes(fastify: FastifyInstance) {
   });
 
   // Readiness check
-  fastify.get('/ready', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.get('/ready', async (_request: FastifyRequest, reply: FastifyReply) => {
     try {
       await prisma.$queryRaw`SELECT 1`;
       return reply.status(200).send({
@@ -68,7 +68,7 @@ export async function healthRoutes(fastify: FastifyInstance) {
   });
 
   // Liveness check
-  fastify.get('/live', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.get('/live', async (_request: FastifyRequest, reply: FastifyReply) => {
     return reply.status(200).send({
       status: 'alive',
       timestamp: new Date().toISOString(),

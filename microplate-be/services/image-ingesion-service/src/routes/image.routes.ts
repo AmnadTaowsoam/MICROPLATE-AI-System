@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { ensureStorageDirectories, storageConfig } from '../config/storage';
+import { storageConfig } from '../config/storage';
+import { ensureBuckets } from '../services/s3.service';
 import { saveImage } from '../services/upload.service';
 import { publishLog } from '../services/event-bus.service';
 
@@ -25,7 +26,6 @@ export async function registerImageRoutes(app: FastifyInstance) {
     if (!sampleNo) return reply.badRequest('sample_no is required');
     if (!['raw', 'annotated', 'thumbnail'].includes(fileType)) return reply.badRequest('invalid file_type');
 
-    await ensureStorageDirectories();
     const buffer = await mp.toBuffer();
 
     const data = await saveImage({
@@ -50,9 +50,9 @@ export async function registerImageRoutes(app: FastifyInstance) {
   app.get('/healthz', async () => ({ status: 'ok' }));
   app.get('/readyz', async () => {
     try {
-      await ensureStorageDirectories();
+      await ensureBuckets();
       return { status: 'ready' };
-    } catch {
+    } catch (err) {
       return { status: 'not-ready' };
     }
   });

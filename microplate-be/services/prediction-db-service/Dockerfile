@@ -11,7 +11,7 @@ COPY tsconfig.json ./
 COPY prisma/ ./prisma/
 COPY src/ ./src/
 
-RUN npm ci
+RUN npm install
 RUN npx prisma generate
 RUN npm run build
 RUN npm prune --omit=dev
@@ -41,4 +41,4 @@ EXPOSE 6406
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:6406/api/v1/health/ready', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
-CMD ["node", "dist/server.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]

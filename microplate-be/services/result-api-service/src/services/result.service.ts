@@ -28,7 +28,7 @@ export class ResultServiceImpl implements ResultService {
     if (config.features.caching) {
       const cached = await this.cache.get<SampleSummary>(cacheKey);
       if (cached) {
-        logger.debug('Sample summary retrieved from cache', { sampleNo });
+        logger.debug({ sampleNo }, 'Sample summary retrieved from cache');
         return cached;
       }
     }
@@ -58,7 +58,7 @@ export class ResultServiceImpl implements ResultService {
       await this.cache.set(cacheKey, result, config.cache.ttl);
     }
 
-    logger.info('Sample summary retrieved', { sampleNo, totalRuns: result.totalRuns });
+    logger.info({ sampleNo, totalRuns: result.totalRuns }, 'Sample summary retrieved');
     return result;
   }
 
@@ -69,7 +69,7 @@ export class ResultServiceImpl implements ResultService {
     if (config.features.caching) {
       const cached = await this.cache.get<SampleDetails>(cacheKey);
       if (cached) {
-        logger.debug('Sample details retrieved from cache', { sampleNo });
+        logger.debug({ sampleNo }, 'Sample details retrieved from cache');
         return cached;
       }
     }
@@ -85,7 +85,7 @@ export class ResultServiceImpl implements ResultService {
       include: {
         wellPredictions: true,
         rowCounts: true,
-        interfaceResults: true,
+        inferenceResults: true,
       }
     });
 
@@ -95,18 +95,18 @@ export class ResultServiceImpl implements ResultService {
     // Transform to response format
     const result: SampleDetails = {
       ...summary,
-      submissionNo: runs[0]?.submissionNo,
+      ...(runs[0]?.submissionNo ? { submissionNo: runs[0].submissionNo } : {}),
       firstRunAt: runs[runs.length - 1]?.predictAt || null,
       status: this.determineSampleStatus(runs),
-      runs: runs.map(run => this.transformRunSummary(run)),
-    };
+      runs: runs.map((run: any) => this.transformRunSummary(run)),
+    } as SampleDetails;
 
     // Cache result
     if (config.features.caching) {
       await this.cache.set(cacheKey, result, config.cache.ttl);
     }
 
-    logger.info('Sample details retrieved', { sampleNo, totalRuns: runs.length });
+    logger.info({ sampleNo, totalRuns: runs.length }, 'Sample details retrieved');
     return result;
   }
 
@@ -133,7 +133,7 @@ export class ResultServiceImpl implements ResultService {
       })
     ]);
 
-    const data = runs.map(run => this.transformRunSummary(run));
+    const data = runs.map((run: any) => this.transformRunSummary(run));
 
     const result: PaginatedResult<PredictionRunSummary> = {
       data,
@@ -147,7 +147,7 @@ export class ResultServiceImpl implements ResultService {
       }
     };
 
-    logger.info('Sample runs retrieved', { sampleNo, page, limit, total });
+    logger.info({ sampleNo, page, limit, total }, 'Sample runs retrieved');
     return result;
   }
 
@@ -158,7 +158,7 @@ export class ResultServiceImpl implements ResultService {
     if (config.features.caching) {
       const cached = await this.cache.get<PredictionRunDetails>(cacheKey);
       if (cached) {
-        logger.debug('Run details retrieved from cache', { runId });
+        logger.debug({ runId }, 'Run details retrieved from cache');
         return cached;
       }
     }
@@ -168,7 +168,7 @@ export class ResultServiceImpl implements ResultService {
       include: {
         wellPredictions: true,
         rowCounts: true,
-        interfaceResults: true,
+        inferenceResults: true,
         imageFiles: {
           select: {
             fileType: true,
@@ -191,7 +191,7 @@ export class ResultServiceImpl implements ResultService {
       await this.cache.set(cacheKey, result, config.cache.ttl);
     }
 
-    logger.info('Run details retrieved', { runId, sampleNo: run.sampleNo });
+    logger.info({ runId, sampleNo: run.sampleNo }, 'Run details retrieved');
     return result;
   }
 
@@ -202,7 +202,7 @@ export class ResultServiceImpl implements ResultService {
     if (config.features.caching) {
       const cached = await this.cache.get<PredictionRunSummary>(cacheKey);
       if (cached) {
-        logger.debug('Last run retrieved from cache', { sampleNo });
+        logger.debug({ sampleNo }, 'Last run retrieved from cache');
         return cached;
       }
     }
@@ -234,7 +234,7 @@ export class ResultServiceImpl implements ResultService {
       await this.cache.set(cacheKey, result, config.cache.ttl);
     }
 
-    logger.info('Last run retrieved', { sampleNo, runId: run.id });
+    logger.info({ sampleNo, runId: run.id }, 'Last run retrieved');
     return result;
   }
 
@@ -279,7 +279,7 @@ export class ResultServiceImpl implements ResultService {
       this.prisma.sampleSummary.count({ where })
     ]);
 
-    const data = samples.map(sample => ({
+    const data = samples.map((sample: any) => ({
       sampleNo: sample.sampleNo,
       summary: sample.summary as any,
       totalRuns: sample.totalRuns,
@@ -301,7 +301,7 @@ export class ResultServiceImpl implements ResultService {
       }
     };
 
-    logger.info('Samples retrieved', { page, limit, total, filters });
+    logger.info({ page, limit, total, filters }, 'Samples retrieved');
     return result;
   }
 
@@ -312,7 +312,7 @@ export class ResultServiceImpl implements ResultService {
     if (config.features.caching) {
       const cached = await this.cache.get<SystemStatistics>(cacheKey);
       if (cached) {
-        logger.debug('System statistics retrieved from cache');
+        logger.debug({}, 'System statistics retrieved from cache');
         return cached;
       }
     }
@@ -372,7 +372,7 @@ export class ResultServiceImpl implements ResultService {
 
     // Calculate averages
     const averageProcessingTimeMs = runsWithTime.length > 0
-      ? runsWithTime.reduce((sum, run) => sum + (run.processingTimeMs || 0), 0) / runsWithTime.length
+      ? runsWithTime.reduce((sum: number, run: { processingTimeMs: number | null }) => sum + (run.processingTimeMs || 0), 0) / runsWithTime.length
       : 0;
 
     const successRate = totalRuns > 0 ? completedRuns / totalRuns : 0;
@@ -382,7 +382,7 @@ export class ResultServiceImpl implements ResultService {
 
     // Transform model performance data
     const modelPerformance: Record<string, any> = {};
-    modelStats.forEach(stat => {
+    modelStats.forEach((stat: any) => {
       if (stat.modelVersion) {
         modelPerformance[stat.modelVersion] = {
           totalRuns: stat._count.id,
@@ -409,7 +409,7 @@ export class ResultServiceImpl implements ResultService {
       await this.cache.set(cacheKey, result, config.cache.ttl);
     }
 
-    logger.info('System statistics retrieved', { totalSamples, totalRuns });
+    logger.info({ totalSamples, totalRuns }, 'System statistics retrieved');
     return result;
   }
 
@@ -420,7 +420,7 @@ export class ResultServiceImpl implements ResultService {
     if (config.features.caching) {
       const cached = await this.cache.get<SampleTrends>(cacheKey);
       if (cached) {
-        logger.debug('Sample trends retrieved from cache', { sampleNo });
+        logger.debug({ sampleNo }, 'Sample trends retrieved from cache');
         return cached;
       }
     }
@@ -430,19 +430,19 @@ export class ResultServiceImpl implements ResultService {
       orderBy: { predictAt: 'asc' },
       include: {
         wellPredictions: true,
-        interfaceResults: true,
+        inferenceResults: true,
       }
     });
 
-    const confidenceTrend = runs.map(run => ({
+    const confidenceTrend = runs.map((run: any) => ({
       runId: run.id,
       predictAt: run.predictAt,
       averageConfidence: this.calculateAverageConfidence(run.wellPredictions),
     }));
 
-    const distributionTrend = runs.map(run => {
-      const interfaceResult = run.interfaceResults[0];
-      const distribution = interfaceResult?.results as any;
+    const distributionTrend = runs.map((run: any) => {
+      const inferenceResult = run.inferenceResults[0];
+      const distribution = inferenceResult?.results as any;
       
       return {
         runId: run.id,
@@ -465,7 +465,7 @@ export class ResultServiceImpl implements ResultService {
       await this.cache.set(cacheKey, result, config.cache.ttl);
     }
 
-    logger.info('Sample trends retrieved', { sampleNo, runCount: runs.length });
+    logger.info({ sampleNo, runCount: runs.length }, 'Sample trends retrieved');
     return result;
   }
 
@@ -488,7 +488,7 @@ export class ResultServiceImpl implements ResultService {
 
   private transformRunDetails(run: any): PredictionRunDetails {
     const rowCounts = run.rowCounts[0]?.counts || {};
-    const interfaceResults = run.interfaceResults[0]?.results || {};
+    const inferenceResults = run.inferenceResults[0]?.results || {};
     
     const rawImage = run.imageFiles.find((img: any) => img.fileType === 'raw');
     const annotatedImage = run.imageFiles.find((img: any) => img.fileType === 'annotated');
@@ -513,7 +513,7 @@ export class ResultServiceImpl implements ResultService {
         averageConfidence: 0,
       },
       rowCounts: rowCounts as Record<string, number>,
-      interfaceResults: interfaceResults as any,
+      inferenceResults: inferenceResults as any,
       wellPredictions: run.wellPredictions.map((wp: any) => ({
         wellId: wp.wellId,
         label: wp.label,
@@ -549,7 +549,7 @@ export class ResultServiceImpl implements ResultService {
   private calculateAverageConfidence(wellPredictions: any[]): number {
     if (wellPredictions.length === 0) return 0;
     
-    const totalConfidence = wellPredictions.reduce((sum, wp) => sum + wp.confidence, 0);
+    const totalConfidence = wellPredictions.reduce((sum: number, wp: any) => sum + wp.confidence, 0);
     return totalConfidence / wellPredictions.length;
   }
 
@@ -584,16 +584,16 @@ export class ResultServiceImpl implements ResultService {
     ];
 
     await Promise.all(keys.map(key => this.cache.del(key)));
-    logger.info('Sample cache invalidated', { sampleNo });
+    logger.info({ sampleNo }, 'Sample cache invalidated');
   }
 
   async invalidateRunCache(runId: number): Promise<void> {
     await this.cache.del(`run:${runId}:details`);
-    logger.info('Run cache invalidated', { runId });
+    logger.info({ runId }, 'Run cache invalidated');
   }
 
   async invalidateSystemCache(): Promise<void> {
     await this.cache.del('system:statistics');
-    logger.info('System cache invalidated');
+    logger.info({}, 'System cache invalidated');
   }
 }
