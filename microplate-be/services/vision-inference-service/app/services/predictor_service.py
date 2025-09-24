@@ -1,5 +1,6 @@
 ## app/services/predictor_service.py
 import os
+import glob
 import cv2
 import tempfile
 from ultralytics import YOLO
@@ -16,9 +17,25 @@ class Predictor:
     รัน YOLO prediction และ annotate บนภาพ
     """
     def __init__(self, model_path, confidence_threshold=0.5):
-        self.model = YOLO(model_path)
+        weights_path = self._resolve_weights_path(model_path)
+        logger.info(f"Loading YOLO weights from: {weights_path}")
+        self.model = YOLO(weights_path)
         self.model.to('cpu')  # บังคับใช้ CPU
         self.confidence_threshold = confidence_threshold
+
+    @staticmethod
+    def _resolve_weights_path(model_path: str) -> str:
+        """
+        Resolve actual .pt file path. If a directory is provided, pick the first *.pt inside.
+        """
+        if os.path.isdir(model_path):
+            candidates = sorted(glob.glob(os.path.join(model_path, "*.pt")))
+            if not candidates:
+                raise FileNotFoundError(f"No .pt weights found in directory: {model_path}")
+            return candidates[0]
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model weights file not found: {model_path}")
+        return model_path
 
     def predict(self, image, wells):
         # บันทึกเป็นไฟล์ชั่วคราว

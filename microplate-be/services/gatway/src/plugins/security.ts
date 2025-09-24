@@ -18,6 +18,7 @@ export async function registerSecurityPlugins(app: any, cfg: EnvConfig) {
     max: cfg.rateLimit.global.max,
     timeWindow: cfg.rateLimit.global.windowMs
   } as any);
+
 }
 
 

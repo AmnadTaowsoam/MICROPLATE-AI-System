@@ -3,6 +3,81 @@ import { prisma } from '../server';
 import { logger } from '../utils/logger';
 
 export async function predictionRoutes(fastify: FastifyInstance) {
+  // Create a new prediction run (alias 1)
+  fastify.post('/', async (
+    request: FastifyRequest<{ Body: {
+      sampleNo: string;
+      submissionNo?: string;
+      description?: string;
+      rawImagePath?: string;
+      modelVersion?: string;
+      status?: string;
+      confidenceThreshold?: number;
+    } }>,
+    reply: FastifyReply
+  ) => {
+    const body = request.body;
+    if (!body?.sampleNo) {
+      return reply.status(400).send({ error: 'sampleNo is required' });
+    }
+
+    try {
+      const run = await prisma.predictionRun.create({
+        data: {
+          sampleNo: body.sampleNo,
+          submissionNo: body.submissionNo ?? null,
+          description: body.description || null,
+          rawImagePath: body.rawImagePath || null,
+          modelVersion: body.modelVersion || null,
+          status: body.status || 'pending',
+          confidenceThreshold: body.confidenceThreshold ?? null,
+        },
+      });
+
+      return reply.status(201).send({ success: true, data: { id: run.id, sampleNo: run.sampleNo } });
+    } catch (error) {
+      logger.error('Failed to create prediction run:', error);
+      return reply.status(500).send({ error: 'Failed to create prediction run' });
+    }
+  });
+
+  // Create a new prediction run (alias 2: /runs)
+  fastify.post('/runs', async (
+    request: FastifyRequest<{ Body: {
+      sampleNo: string;
+      submissionNo?: string;
+      description?: string;
+      rawImagePath?: string;
+      modelVersion?: string;
+      status?: string;
+      confidenceThreshold?: number;
+    } }>,
+    reply: FastifyReply
+  ) => {
+    const body = request.body;
+    if (!body?.sampleNo) {
+      return reply.status(400).send({ error: 'sampleNo is required' });
+    }
+
+    try {
+      const run = await prisma.predictionRun.create({
+        data: {
+          sampleNo: body.sampleNo,
+          submissionNo: body.submissionNo ?? null,
+          description: body.description || null,
+          rawImagePath: body.rawImagePath || null,
+          modelVersion: body.modelVersion || null,
+          status: body.status || 'pending',
+          confidenceThreshold: body.confidenceThreshold ?? null,
+        },
+      });
+
+      return reply.status(201).send({ success: true, data: { id: run.id, sampleNo: run.sampleNo } });
+    } catch (error) {
+      logger.error('Failed to create prediction run:', error);
+      return reply.status(500).send({ error: 'Failed to create prediction run' });
+    }
+  });
   // Get all prediction runs with pagination
   fastify.get('/', async (request: FastifyRequest<{
     Querystring: {
@@ -260,6 +335,141 @@ export async function predictionRoutes(fastify: FastifyInstance) {
         error: 'Failed to delete prediction run',
         timestamp: new Date().toISOString(),
       });
+    }
+  });
+
+  // Update a prediction run
+  fastify.put('/runs/:id', async (
+    request: FastifyRequest<{ Params: { id: string }, Body: {
+      status?: string;
+      processingTimeMs?: number;
+      errorMsg?: string;
+      annotatedImagePath?: string;
+    } }>,
+    reply: FastifyReply
+  ) => {
+    const runId = parseInt(request.params.id);
+    if (isNaN(runId)) {
+      return reply.status(400).send({ error: 'Invalid run ID' });
+    }
+
+    const data: any = {};
+    if (request.body.status !== undefined) data.status = request.body.status;
+    if (request.body.processingTimeMs !== undefined) data.processingTimeMs = request.body.processingTimeMs;
+    if (request.body.errorMsg !== undefined) data.errorMsg = request.body.errorMsg;
+    if (request.body.annotatedImagePath !== undefined) data.annotatedImagePath = request.body.annotatedImagePath;
+
+    try {
+      const updated = await prisma.predictionRun.update({
+        where: { id: runId },
+        data,
+      });
+      return { success: true, data: { id: updated.id, status: updated.status } };
+    } catch (error) {
+      logger.error(`Failed to update prediction run ${runId}:`, error);
+      return reply.status(500).send({ error: 'Failed to update prediction run' });
+    }
+  });
+
+  // Create image file metadata for a run
+  fastify.post('/:id/images', async (
+    request: FastifyRequest<{ Params: { id: string }, Body: {
+      sampleNo: string;
+      fileType: string; // raw | annotated | thumbnail
+      fileName: string;
+      filePath: string;
+      fileSize?: number;
+      mimeType?: string;
+      width?: number;
+      height?: number;
+      bucketName?: string;
+      objectKey?: string;
+      signedUrl?: string;
+      urlExpiresAt?: string;
+    } }>, reply: FastifyReply
+  ) => {
+    const runId = parseInt(request.params.id);
+    if (isNaN(runId)) return reply.status(400).send({ error: 'Invalid run ID' });
+    const body = request.body;
+    try {
+      const created = await prisma.imageFile.create({
+        data: {
+          runId,
+          sampleNo: body.sampleNo,
+          fileType: body.fileType,
+          fileName: body.fileName,
+          filePath: body.filePath,
+          fileSize: (body.fileSize as any) ?? undefined,
+          mimeType: body.mimeType ?? null,
+          width: body.width ?? null,
+          height: body.height ?? null,
+          bucketName: body.bucketName ?? null,
+          objectKey: body.objectKey ?? null,
+          signedUrl: body.signedUrl ?? null,
+          urlExpiresAt: body.urlExpiresAt ? new Date(body.urlExpiresAt) : null,
+        }
+      });
+      return { success: true, data: { id: created.id } };
+    } catch (error) {
+      logger.error(`Failed to create image file for run ${runId}:`, error);
+      return reply.status(500).send({ error: 'Failed to create image file' });
+    }
+  });
+
+  // Create well predictions for a run (bulk)
+  fastify.post('/:id/wells', async (
+    request: FastifyRequest<{ Params: { id: string }, Body: { predictions: Array<{ wellId: string; label: string; class: string; confidence: number; bbox: any; }> } }>,
+    reply: FastifyReply
+  ) => {
+    const runId = parseInt(request.params.id);
+    if (isNaN(runId)) return reply.status(400).send({ error: 'Invalid run ID' });
+    const { predictions } = request.body || { predictions: [] };
+    try {
+      if (predictions.length === 0) return { success: true, data: { inserted: 0 } };
+      await prisma.wellPrediction.createMany({
+        data: predictions.map(p => ({
+          runId,
+          wellId: p.wellId,
+          label: p.label,
+          class_: p.class,
+          confidence: p.confidence,
+          bbox: p.bbox,
+        }))
+      });
+      return { success: true, data: { inserted: predictions.length } };
+    } catch (error) {
+      logger.error(`Failed to create well predictions for run ${runId}:`, error);
+      return reply.status(500).send({ error: 'Failed to create well predictions' });
+    }
+  });
+
+  // Create row counts for a run
+  fastify.post('/:id/counts', async (
+    request: FastifyRequest<{ Params: { id: string }, Body: { counts: any } }>, reply: FastifyReply
+  ) => {
+    const runId = parseInt(request.params.id);
+    if (isNaN(runId)) return reply.status(400).send({ error: 'Invalid run ID' });
+    try {
+      const created = await prisma.rowCounts.create({ data: { runId, counts: request.body.counts } });
+      return { success: true, data: { id: created.id } };
+    } catch (error) {
+      logger.error(`Failed to create row counts for run ${runId}:`, error);
+      return reply.status(500).send({ error: 'Failed to create row counts' });
+    }
+  });
+
+  // Create inference results for a run
+  fastify.post('/:id/results', async (
+    request: FastifyRequest<{ Params: { id: string }, Body: { results: any } }>, reply: FastifyReply
+  ) => {
+    const runId = parseInt(request.params.id);
+    if (isNaN(runId)) return reply.status(400).send({ error: 'Invalid run ID' });
+    try {
+      const created = await prisma.inferenceResult.create({ data: { runId, results: request.body.results } });
+      return { success: true, data: { id: created.id } };
+    } catch (error) {
+      logger.error(`Failed to create inference results for run ${runId}:`, error);
+      return reply.status(500).send({ error: 'Failed to create inference results' });
     }
   });
 

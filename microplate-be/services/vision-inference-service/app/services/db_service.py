@@ -19,13 +19,15 @@ class DatabaseService:
 
     async def create_prediction_run(self, run_data: Dict[str, Any]) -> Dict[str, Any]:
         async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-            resp = await client.post(f"{self.base_url}/api/v1/predictions", json=run_data)
+            # Use /runs alias to be explicit
+            resp = await client.post(f"{self.base_url}/api/v1/predictions/runs", json=run_data)
             resp.raise_for_status()
             return resp.json()
 
     async def update_prediction_run(self, run_id: int, update_data: Dict[str, Any]) -> Dict[str, Any]:
         async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-            resp = await client.put(f"{self.base_url}/api/v1/predictions/{run_id}", json=update_data)
+            # Update endpoint exposed at /runs/:id
+            resp = await client.put(f"{self.base_url}/api/v1/predictions/runs/{run_id}", json=update_data)
             resp.raise_for_status()
             return resp.json()
 

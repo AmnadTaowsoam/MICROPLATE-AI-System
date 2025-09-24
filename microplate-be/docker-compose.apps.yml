@@ -60,24 +60,25 @@ services:
       retries: 3
       start_period: 40s
 
-  # labware-interface:
-  #   build:
-  #     context: ./services/labware-interface-service
-  #     dockerfile: Dockerfile
-  #   container_name: microplate-labware-interface-service
-  #   restart: unless-stopped
-  #   env_file:
-  #     - ./services/labware-interface-service/.env
-  #   ports:
-  #     - "6403:6403"
-  #   depends_on:
-  #     - gateway
-  #   healthcheck:
-  #     test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6403/healthz"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 40s
+  # Vision Inference Service (Python)
+  vision-inference:
+    build:
+      context: ./services/vision-inference-service
+      dockerfile: Dockerfile
+    container_name: microplate-vision-inference-service
+    restart: unless-stopped
+    env_file:
+      - ./services/vision-inference-service/.env
+    ports:
+      - "6403:6403"
+    depends_on:
+      - gateway
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6403/api/v1/inference/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 # Result API Service (Node.js + Prisma)
   result-api:
@@ -99,25 +100,7 @@ services:
       retries: 3
       start_period: 40s
 
-  # Vision Inference Service (Python)
-  vision-inference:
-    build:
-      context: ./services/vision-inference-service
-      dockerfile: Dockerfile
-    container_name: microplate-vision-inference-service
-    restart: unless-stopped
-    env_file:
-      - ./services/vision-inference-service/.env
-    ports:
-      - "6405:6405"
-    depends_on:
-      - gateway
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6403/api/v1/inference/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+
 
   # Prediction DB Service (Node.js + Prisma)
   prediction-db:

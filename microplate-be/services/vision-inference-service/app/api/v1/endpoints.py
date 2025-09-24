@@ -241,8 +241,8 @@ async def predict_endpoint(
                 'run_id': run_id,
                 'sample_no': sample_no,
                 'submission_no': submission_no,
-                'predict_at': run_response["data"]["predictAt"],
-                'model_version': run_response["data"]["modelVersion"],
+                'predict_at': None,
+                'model_version': (model_version or Config.MODEL_VERSION),
                 'status': 'completed',
                 'processing_time_ms': processing_time_ms,
                 'annotated_image_url': f"/api/v1/inference/images/{run_id}/annotated",
@@ -342,11 +342,11 @@ async def get_status(run_id: int):
             "success": True,
             "data": {
                 "run_id": run_id,
-                "status": run_data["data"]["status"],
+                "status": (run_data.get("run") or run_data.get("data", {})).get("status"),
                 "progress": progress_data,
                 "error": error_data,
-                "created_at": run_data["data"]["createdAt"],
-                "updated_at": run_data["data"]["updatedAt"]
+                "created_at": (run_data.get("run") or run_data.get("data", {})).get("createdAt"),
+                "updated_at": (run_data.get("run") or run_data.get("data", {})).get("updatedAt")
             }
         }
         
@@ -361,7 +361,8 @@ async def get_annotated_image(run_id: int):
     try:
         # Get run data from prediction-db-service
         run_data = await db_service.get_prediction_run(run_id)
-        annotated_path = run_data["data"].get("annotatedImagePath")
+        run_obj = (run_data.get("run") or run_data.get("data", {}))
+        annotated_path = run_obj.get("annotatedImagePath")
         
         if not annotated_path or not os.path.exists(annotated_path):
             raise HTTPException(status_code=404, detail="Annotated image not found")

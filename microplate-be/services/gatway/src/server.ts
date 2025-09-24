@@ -17,6 +17,18 @@ function buildApp() {
   });
   const cfg = loadEnv();
 
+  // Strict content-type parsers: disable defaults, re-add JSON and URL-encoded; all others (e.g., multipart) stay raw Buffer
+  app.removeAllContentTypeParsers();
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, function (_req: any, body: string, done: (err: Error | null, body: any) => void) {
+    try { done(null, body ? JSON.parse(body) : {}); } catch (e: any) { done(e, undefined as any); }
+  });
+  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, function (_req: any, body: string, done: (err: Error | null, body: any) => void) {
+    const params = new URLSearchParams(body || ''); const obj: any = {}; params.forEach((v, k) => obj[k] = v); done(null, obj);
+  });
+  app.addContentTypeParser('*', { parseAs: 'buffer' }, function (_req: any, body: Buffer, done: (err: Error | null, body: Buffer) => void) {
+    done(null, body);
+  });
+
   registerRequestLogging(app);
   registerSecurityPlugins(app, cfg);
 
