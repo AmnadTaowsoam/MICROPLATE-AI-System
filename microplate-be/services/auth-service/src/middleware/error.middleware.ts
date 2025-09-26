@@ -1,23 +1,24 @@
-import { FastifyError, FastifyRequest, FastifyReply } from 'fastify';
+import { Request, Response, NextFunction } from 'express';
 import { ApiResponse } from '../types/auth.types';
 
 export const errorHandler = (
-  error: FastifyError,
-  request: FastifyRequest,
-  reply: FastifyReply
+  error: any,
+  req: Request,
+  res: Response,
+  _next: NextFunction
 ): void => {
-  const requestId = request.id;
+  const requestId = (req as any).requestId || 'unknown';
   const timestamp = new Date().toISOString();
 
   // Log error
-  request.log.error({
+  console.error({
     error: error.message,
     stack: error.stack,
     requestId,
-    url: request.url,
-    method: request.method,
-    ip: request.ip,
-    userAgent: request.headers['user-agent']
+    url: req.url,
+    method: req.method,
+    ip: req.ip,
+    userAgent: req.headers['user-agent']
   });
 
   // Determine error code and status
@@ -147,5 +148,5 @@ export const errorHandler = (
     };
   }
 
-  reply.status(statusCode).send(errorResponse);
+  res.status(statusCode).json(errorResponse);
 };

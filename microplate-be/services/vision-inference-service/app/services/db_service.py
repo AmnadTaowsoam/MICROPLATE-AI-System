@@ -19,8 +19,8 @@ class DatabaseService:
 
     async def create_prediction_run(self, run_data: Dict[str, Any]) -> Dict[str, Any]:
         async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-            # Use /runs alias to be explicit
-            resp = await client.post(f"{self.base_url}/api/v1/predictions/runs", json=run_data)
+            # Use correct endpoint
+            resp = await client.post(f"{self.base_url}/api/v1/predictions", json=run_data)
             resp.raise_for_status()
             return resp.json()
 
@@ -65,7 +65,7 @@ class DatabaseService:
     async def health_check(self) -> Dict[str, Any]:
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(f"{self.base_url}/health")
+                resp = await client.get(f"{self.base_url}/api/v1/health")
                 resp.raise_for_status()
                 return resp.json()
         except Exception as e:

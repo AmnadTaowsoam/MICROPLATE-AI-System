@@ -1,61 +1,74 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { Request, Response } from 'express';
 import { storageConfig } from '../config/storage';
 import { ensureBuckets } from '../services/s3.service';
 import { saveImage } from '../services/upload.service';
 import { publishLog } from '../services/event-bus.service';
 
-export async function registerImageRoutes(app: FastifyInstance) {
-
-  app.post('/api/v1/images', async (request: FastifyRequest, reply: FastifyReply) => {
-    const mp = await request.file();
-    if (!mp) return reply.badRequest('No file uploaded');
-
-    const { fields } = mp as any;
-    const getField = (name: string): string => {
-      const f = fields?.[name];
-      if (!f) return '';
-      if (Array.isArray(f)) return String(f[0]?.value ?? '');
-      return String(f?.value ?? '');
-    };
-
-    const sampleNo = getField('sample_no').trim();
-    const runId = getField('run_id').trim();
-    const fileType = (getField('file_type') || 'raw').trim() as any;
-    const description = getField('description').trim();
-
-    if (!sampleNo) return reply.badRequest('sample_no is required');
-    if (!['raw', 'annotated', 'thumbnail'].includes(fileType)) return reply.badRequest('invalid file_type');
-
-    const buffer = await mp.toBuffer();
-
-    const data = await saveImage({
-      sampleNo,
-      runId,
-      fileType,
-      buffer,
-      filename: mp.filename,
-      mimeType: mp.mimetype,
-      description
+export const imageRoutes = (req: Request, res: Response) => {
+  const file = req.file;
+  if (!file) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'NO_FILE_UPLOADED',
+        message: 'No file uploaded'
+      }
     });
+  }
 
-    publishLog({
-      level: 'info',
-      event: 'image_uploaded',
-      meta: { sampleNo, runId, fileType, fileName: data.fileName, size: data.fileSize }
-    }).catch(() => {});
+  const sampleNo = req.body.sample_no?.trim();
+  const runId = req.body.run_id?.trim();
+  const fileType = (req.body.file_type || 'raw').trim();
+  const description = req.body.description?.trim();
 
-    return reply.status(201).send({ success: true, data });
-  });
+  if (!sampleNo) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'MISSING_SAMPLE_NO',
+        message: 'sample_no is required'
+      }
+    });
+  }
 
-  app.get('/healthz', async () => ({ status: 'ok' }));
-  app.get('/readyz', async () => {
-    try {
-      await ensureBuckets();
-      return { status: 'ready' };
-    } catch (err) {
-      return { status: 'not-ready' };
-    }
-  });
-}
+  if (!['raw', 'annotated', 'thumbnail'].includes(fileType)) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'INVALID_FILE_TYPE',
+        message: 'invalid file_type'
+      }
+    });
+  }
+
+  saveImage({
+    sampleNo,
+    runId,
+    fileType,
+    buffer: file.buffer,
+    filename: file.originalname,
+    mimeType: file.mimetype,
+    description
+  })
+    .then(data => {
+      publishLog({
+        level: 'info',
+        event: 'image_uploaded',
+        meta: { sampleNo, runId, fileType, fileName: data.fileName, size: data.fileSize }
+      }).catch(() => {});
+
+      res.status(201).json({ success: true, data });
+    })
+    .catch(error => {
+      console.error('Error saving image:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'SAVE_ERROR',
+          message: 'Failed to save image'
+        }
+      });
+    });
+};
 
 

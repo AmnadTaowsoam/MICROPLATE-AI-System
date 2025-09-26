@@ -1,20 +1,22 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { Router, Request, Response } from 'express';
 import { prisma } from '../server';
 import { logger } from '../utils/logger';
 
-export async function healthRoutes(fastify: FastifyInstance) {
+export function healthRoutes(): Router {
+  const router = Router();
+
   // Basic health check
-  fastify.get('/', async (_request: FastifyRequest, _reply: FastifyReply) => {
-    return {
+  router.get('/', async (_request: Request, response: Response) => {
+    response.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
       service: 'prediction-db-service',
       version: '1.0.0',
-    };
+    });
   });
 
   // Detailed health check with database status
-  fastify.get('/detailed', async (_request: FastifyRequest, reply: FastifyReply) => {
+  router.get('/detailed', async (_request: Request, response: Response) => {
     const health = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
@@ -31,7 +33,7 @@ export async function healthRoutes(fastify: FastifyInstance) {
       await prisma.$queryRaw`SELECT 1`;
       health.checks.database = 'healthy';
     } catch (error) {
-      logger.error('Database health check failed:', error);
+      logger.error('Database health check failed:', String(error));
       health.checks.database = 'unhealthy';
       health.status = 'unhealthy';
     }
@@ -41,25 +43,25 @@ export async function healthRoutes(fastify: FastifyInstance) {
       // TODO: Implement Redis health check
       health.checks.redis = 'not_implemented';
     } catch (error) {
-      logger.error('Redis health check failed:', error);
+      logger.error('Redis health check failed:', String(error));
       health.checks.redis = 'unhealthy';
     }
 
     const statusCode = health.status === 'healthy' ? 200 : 503;
-    return reply.status(statusCode).send(health);
+    response.status(statusCode).json(health);
   });
 
   // Readiness check
-  fastify.get('/ready', async (_request: FastifyRequest, reply: FastifyReply) => {
+  router.get('/ready', async (_request: Request, response: Response) => {
     try {
       await prisma.$queryRaw`SELECT 1`;
-      return reply.status(200).send({
+      response.status(200).json({
         status: 'ready',
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      logger.error('Readiness check failed:', error);
-      return reply.status(503).send({
+      logger.error('Readiness check failed:', String(error));
+      response.status(503).json({
         status: 'not_ready',
         timestamp: new Date().toISOString(),
         error: 'Database connection failed',
@@ -68,10 +70,12 @@ export async function healthRoutes(fastify: FastifyInstance) {
   });
 
   // Liveness check
-  fastify.get('/live', async (_request: FastifyRequest, reply: FastifyReply) => {
-    return reply.status(200).send({
+  router.get('/live', async (_request: Request, response: Response) => {
+    response.status(200).json({
       status: 'alive',
       timestamp: new Date().toISOString(),
     });
   });
+
+  return router;
 }

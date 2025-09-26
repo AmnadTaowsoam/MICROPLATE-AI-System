@@ -5,7 +5,7 @@ import shutil
 import cv2
 import logging
 import time
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Query
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
@@ -25,6 +25,38 @@ logger = logging.getLogger(__name__)
 # Security setup: verify JWT from auth-service using HS256
 bearer_scheme = HTTPBearer()
 
+# JWT verification function
+async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+    """Verify JWT token from auth-service"""
+    try:
+        token = credentials.credentials
+        secret = os.getenv('JWT_ACCESS_SECRET', 'your-secret-key')
+        issuer = os.getenv('JWT_ISSUER')
+        audience = os.getenv('JWT_AUDIENCE')
+        
+        # Verify token
+        payload = jwt.decode(
+            token, 
+            secret, 
+            algorithms=['HS256'],
+            issuer=issuer,
+            audience=audience
+        )
+        
+        # Return user info
+        return {
+            'id': payload.get('sub') or payload.get('id'),
+            'email': payload.get('email'),
+            'role': payload.get('role', 'user')
+        }
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except jwt.JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        logger.error(f"Token verification error: {e}")
+        raise HTTPException(status_code=401, detail="Authentication failed")
+
 # Create router
 router = APIRouter()
 
@@ -41,12 +73,14 @@ processor = ResultProcessor()
 
 @router.post("/predict")
 async def predict_endpoint(
+    request: Request,
     sample_no: str = Form(...),
     submission_no: Optional[str] = Form(None),
     file: UploadFile = File(...),
     model_version: Optional[str] = Form(None),
     confidence_threshold: Optional[float] = Form(None),
-    description: Optional[str] = Form(None)
+    description: Optional[str] = Form(None),
+    user: Dict[str, Any] = Depends(verify_token)
 ):
     logger.info("Starting prediction for sample_no=%s", sample_no)
     start_time = time.time()
@@ -85,12 +119,20 @@ async def predict_endpoint(
 
     # 2.1 Upload original image to image-ingesion-service (raw)
     try:
+        # Get JWT token from request headers
+        jwt_token = None
+        if hasattr(request, 'headers') and 'authorization' in request.headers:
+            auth_header = request.headers['authorization']
+            if auth_header.startswith('Bearer '):
+                jwt_token = auth_header[7:]  # Remove 'Bearer ' prefix
+        
         await image_uploader.upload_image(
             sample_no=sample_no,
             run_id=run_id,
             file_path=file_path,
             file_type="raw",
-            description=description or "original image"
+            description=description or "original image",
+            jwt_token=jwt_token
         )
         logger.info("Original image uploaded to image-ingesion-service for run_id=%s", run_id)
     except Exception as e:
@@ -184,7 +226,8 @@ async def predict_endpoint(
                 run_id=run_id,
                 file_path=annotated_path,
                 file_type="annotated",
-                description="annotated image"
+                description="annotated image",
+                jwt_token=jwt_token
             )
             logger.info("Annotated image uploaded to image-ingesion-service for run_id=%s", run_id)
         except Exception as e:
@@ -296,7 +339,7 @@ async def predict_endpoint(
         })
 
 @router.get("/models")
-async def get_models():
+async def get_models(user: Dict[str, Any] = Depends(verify_token)):
     """Get available model versions and their status"""
     try:
         # Check if model file exists
@@ -326,7 +369,7 @@ async def get_models():
         raise HTTPException(status_code=500, detail="Failed to get model information")
 
 @router.get("/status/{run_id}")
-async def get_status(run_id: int):
+async def get_status(run_id: int, user: Dict[str, Any] = Depends(verify_token)):
     """Get the status of an inference run"""
     try:
         # Get run data from prediction-db-service
@@ -356,7 +399,7 @@ async def get_status(run_id: int):
         raise HTTPException(status_code=500, detail="Failed to get run status")
 
 @router.get("/images/{run_id}/annotated")
-async def get_annotated_image(run_id: int):
+async def get_annotated_image(run_id: int, user: Dict[str, Any] = Depends(verify_token)):
     """Serve the annotated image file"""
     try:
         # Get run data from prediction-db-service

@@ -1,21 +1,39 @@
-import { FastifyRequest, FastifyReply } from 'fastify';
+import { Request, Response, NextFunction } from 'express';
 
-export const requestLogger = async (request: FastifyRequest, _reply: FastifyReply) => {
+export const requestLogger = (req: Request, res: Response, next: NextFunction) => {
   const startTime = Date.now();
+  const requestId = Math.random().toString(36).substring(7);
 
   // Add request ID to request object
-  (request as any).requestId = request.id;
+  (req as any).requestId = requestId;
 
   // Log request start
-  request.log.info({
-    requestId: request.id,
-    method: request.method,
-    url: request.url,
-    ip: request.ip,
-    userAgent: request.headers['user-agent'],
+  console.log({
+    requestId,
+    method: req.method,
+    url: req.url,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
     timestamp: new Date().toISOString()
   }, 'Request started');
 
   // Store start time for response logging
-  (request as any).startTime = startTime;
+  (req as any).startTime = startTime;
+
+  // Log response when finished
+  res.on('finish', () => {
+    const duration = Date.now() - startTime;
+    console.log({
+      requestId,
+      method: req.method,
+      url: req.url,
+      statusCode: res.statusCode,
+      duration: `${duration}ms`,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+      timestamp: new Date().toISOString()
+    }, 'Request completed');
+  });
+
+  next();
 };

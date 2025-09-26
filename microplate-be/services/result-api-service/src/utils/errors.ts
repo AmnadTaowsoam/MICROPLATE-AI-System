@@ -1,4 +1,4 @@
-import { FastifyError, FastifyRequest, FastifyReply } from 'fastify';
+import { Request, Response, NextFunction } from 'express';
 import { ApiError, ErrorResponse } from '@/types/result.types';
 
 // Custom error classes
@@ -92,14 +92,15 @@ export class WebSocketError extends AppError {
 
 // Error handler middleware
 export const errorHandler = (
-  error: FastifyError,
-  request: FastifyRequest,
-  reply: FastifyReply
+  error: Error,
+  request: Request,
+  response: Response,
+  next: NextFunction
 ) => {
-  const requestId = request.id;
+  const requestId = (request as any).id || 'unknown';
   
   // Log the error
-  request.log.error({
+  console.error('Request error occurred:', {
     error: {
       name: error.name,
       message: error.message,
@@ -108,11 +109,11 @@ export const errorHandler = (
     requestId,
     method: request.method,
     url: request.url,
-    statusCode: error.statusCode || 500,
-  }, 'Request error occurred');
+    statusCode: (error as any).statusCode || 500,
+  });
 
   // Determine error response
-  let statusCode = error.statusCode || 500;
+  let statusCode = (error as any).statusCode || 500;
   let code = 'INTERNAL_ERROR';
   let message = error.message || 'Internal server error';
   let details: any = undefined;
@@ -125,11 +126,11 @@ export const errorHandler = (
     details = error.details;
   }
   // Handle validation errors
-  else if (error.validation) {
+  else if ((error as any).validation) {
     statusCode = 400;
     code = 'VALIDATION_ERROR';
     message = 'Validation failed';
-    details = error.validation;
+    details = (error as any).validation;
   }
   // Handle JWT errors
   else if (error.name === 'UnauthorizedError') {
@@ -138,13 +139,13 @@ export const errorHandler = (
     message = 'Invalid or missing authentication token';
   }
   // Handle rate limit errors
-  else if (error.statusCode === 429) {
+  else if ((error as any).statusCode === 429) {
     statusCode = 429;
     code = 'RATE_LIMIT_EXCEEDED';
     message = 'Too many requests';
   }
   // Handle not found errors
-  else if (error.statusCode === 404) {
+  else if ((error as any).statusCode === 404) {
     statusCode = 404;
     code = 'NOT_FOUND';
     message = 'Resource not found';
@@ -163,14 +164,14 @@ export const errorHandler = (
   };
 
   // Send response
-  reply.status(statusCode).send(errorResponse);
+  response.status(statusCode).json(errorResponse);
 };
 
 // Async error wrapper
 export const asyncHandler = (fn: Function) => {
-  return (request: FastifyRequest, reply: FastifyReply) => {
-    return Promise.resolve(fn(request, reply)).catch((error) => {
-      errorHandler(error, request, reply);
+  return (request: Request, response: Response, next: NextFunction) => {
+    return Promise.resolve(fn(request, response, next)).catch((error) => {
+      errorHandler(error, request, response, next);
     });
   };
 };
@@ -191,23 +192,23 @@ export const createError = {
 };
 
 // Error response helpers
-export const sendError = (reply: FastifyReply, error: AppError) => {
+export const sendError = (response: Response, error: AppError) => {
   const errorResponse: ErrorResponse = {
     success: false,
     error: {
       code: error.code,
       message: error.message,
       details: error.details,
-      requestId: reply.request.id,
+      requestId: (response as any).request?.id || 'unknown',
       timestamp: new Date(),
     },
   };
 
-  reply.status(error.statusCode).send(errorResponse);
+  response.status(error.statusCode).json(errorResponse);
 };
 
-export const sendSuccess = <T>(reply: FastifyReply, data: T, statusCode: number = 200) => {
-  reply.status(statusCode).send({
+export const sendSuccess = <T>(response: Response, data: T, statusCode: number = 200) => {
+  response.status(statusCode).json({
     success: true,
     data,
   });

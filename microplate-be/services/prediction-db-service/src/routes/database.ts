@@ -1,10 +1,12 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { Router, Request, Response } from 'express';
 import { prisma } from '../server';
 import { logger } from '../utils/logger';
 
-export async function databaseRoutes(fastify: FastifyInstance) {
+export function databaseRoutes(): Router {
+  const router = Router();
+
   // Get database status
-  fastify.get('/status', async (_request: FastifyRequest, reply: FastifyReply) => {
+  router.get('/status', async (_request: Request, response: Response) => {
     try {
       const result = await prisma.$queryRaw`
         SELECT 
@@ -16,17 +18,17 @@ export async function databaseRoutes(fastify: FastifyInstance) {
         ORDER BY schemaname, tablename;
       `;
 
-      return {
+      response.json({
         status: 'connected',
         schemas: {
           prediction_result: (result as any[]).filter(r => r.schemaname === 'prediction_result'),
           public: (result as any[]).filter(r => r.schemaname === 'public'),
         },
         timestamp: new Date().toISOString(),
-      };
+      });
     } catch (error) {
-      logger.error('Database status check failed:', error);
-      return reply.status(500).send({
+      logger.error('Database status check failed:', String(error));
+      response.status(500).json({
         status: 'error',
         error: 'Failed to get database status',
         timestamp: new Date().toISOString(),
@@ -35,11 +37,11 @@ export async function databaseRoutes(fastify: FastifyInstance) {
   });
 
   // Get table information
-  fastify.get('/tables/:schema', async (request: FastifyRequest<{ Params: { schema: string } }>, reply: FastifyReply) => {
+  router.get('/tables/:schema', async (request: Request, response: Response) => {
     const { schema } = request.params;
 
-    if (!['prediction_result', 'public'].includes(schema)) {
-      return reply.status(400).send({
+    if (!schema || !['prediction_result', 'public'].includes(schema)) {
+      return response.status(400).json({
         error: 'Invalid schema. Must be "prediction_result" or "public"',
       });
     }
@@ -57,14 +59,14 @@ export async function databaseRoutes(fastify: FastifyInstance) {
         ORDER BY table_name, ordinal_position;
       `;
 
-      return {
+      return response.json({
         schema,
         tables,
         timestamp: new Date().toISOString(),
-      };
+      });
     } catch (error) {
-      logger.error(`Failed to get tables for schema ${schema}:`, error);
-      return reply.status(500).send({
+      logger.error(`Failed to get tables for schema ${schema}:`, String(error));
+      return response.status(500).json({
         error: 'Failed to get table information',
         timestamp: new Date().toISOString(),
       });
@@ -72,7 +74,7 @@ export async function databaseRoutes(fastify: FastifyInstance) {
   });
 
   // Get prediction runs count
-  fastify.get('/stats/predictions', async (_request: FastifyRequest, reply: FastifyReply) => {
+  router.get('/stats/predictions', async (_request: Request, response: Response) => {
     try {
       const stats = await prisma.predictionRun.groupBy({
         by: ['status'],
@@ -90,15 +92,15 @@ export async function databaseRoutes(fastify: FastifyInstance) {
         },
       });
 
-      return {
+      response.json({
         totalRuns,
         recentRuns,
         statusBreakdown: stats,
         timestamp: new Date().toISOString(),
-      };
+      });
     } catch (error) {
-      logger.error('Failed to get prediction stats:', error);
-      return reply.status(500).send({
+      logger.error('Failed to get prediction stats:', String(error));
+      response.status(500).json({
         error: 'Failed to get prediction statistics',
         timestamp: new Date().toISOString(),
       });
@@ -106,8 +108,8 @@ export async function databaseRoutes(fastify: FastifyInstance) {
   });
 
   // Get sample summary stats (moved to result-api-service)
-  fastify.get('/stats/samples', async (_request: FastifyRequest, reply: FastifyReply) => {
-    return reply.status(501).send({
+  router.get('/stats/samples', async (_request: Request, response: Response) => {
+    response.status(501).json({
       error: 'Endpoint moved to result-api-service',
       hint: 'Use result-api-service /api/v1/... endpoints for sample summaries',
       timestamp: new Date().toISOString(),
@@ -115,7 +117,7 @@ export async function databaseRoutes(fastify: FastifyInstance) {
   });
 
   // Database maintenance operations
-  fastify.post('/maintenance/cleanup', async (_request: FastifyRequest, reply: FastifyReply) => {
+  router.post('/maintenance/cleanup', async (_request: Request, response: Response) => {
     try {
       // Clean up old health checks (older than 7 days)
       const healthCheckResult = await prisma.healthCheck.deleteMany({
@@ -136,20 +138,22 @@ export async function databaseRoutes(fastify: FastifyInstance) {
         },
       });
 
-      return {
+      response.json({
         message: 'Database cleanup completed',
         results: {
           healthChecksDeleted: healthCheckResult.count,
           failedRunsDeleted: failedRunsResult.count,
         },
         timestamp: new Date().toISOString(),
-      };
+      });
     } catch (error) {
-      logger.error('Database cleanup failed:', error);
-      return reply.status(500).send({
+      logger.error('Database cleanup failed:', String(error));
+      response.status(500).json({
         error: 'Database cleanup failed',
         timestamp: new Date().toISOString(),
       });
     }
   });
+
+  return router;
 }

@@ -65,8 +65,8 @@ export const config: Config = {
   rateLimitMaxRequests: parseInt(process.env['RATE_LIMIT_MAX_REQUESTS'] || '100'),
 
   // CORS
-  corsOrigin: process.env['CORS_ORIGIN'] || 'http://localhost:3000',
-  corsCredentials: process.env['CORS_CREDENTIALS'] === 'true',
+  corsOrigin: process.env['CORS_ORIGIN'] || true, // Allow all origins in development
+  corsCredentials: process.env['CORS_CREDENTIALS'] === 'true' || true,
 
   // Logging
   logLevel: process.env['LOG_LEVEL'] || 'info',

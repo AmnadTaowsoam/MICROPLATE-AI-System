@@ -1,6 +1,7 @@
 ## /app/main.py
 import os
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
  
 import logging
 from app.config import Config
@@ -12,7 +13,14 @@ app = FastAPI()
 # Initialize Logger
 logger = logging.getLogger(__name__)
 
-# CORS is handled at the gateway; no CORS middleware here
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify exact origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Health Check Endpoint
 @app.get("/health", tags=["Health Check"])

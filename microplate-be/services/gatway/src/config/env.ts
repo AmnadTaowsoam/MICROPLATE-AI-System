@@ -33,12 +33,12 @@ export function loadEnv(): EnvConfig {
     readyPath: process.env.READINESS_CHECK_PATH || '/readyz',
     metricsEnabled: (process.env.METRICS_ENABLED || 'true') === 'true',
     metricsPath: process.env.METRICS_PATH || '/metrics',
-    corsOrigin: process.env.CORS_ORIGIN || '*',
+    corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:6410',
     corsCredentials: (process.env.CORS_CREDENTIALS || 'true') === 'true',
     helmetEnabled: (process.env.HELMET_ENABLED || 'true') === 'true',
     services: {
       // Support new env names with fallback to previous ones
-      auth: process.env.AUTH_URL || process.env.AUTH_SERVICE_URL || 'http://auth-service:6401',
+      auth: process.env.AUTH_URL || process.env.AUTH_SERVICE_URL || 'http://localhost:6401',
       images: process.env.IMAGE_INGESION_URL || process.env.IMAGE_SERVICE_URL || 'http://image-ingestion-service:6402',
       inference: process.env.VISION_INFERENCE_URL || process.env.INFERENCE_SERVICE_URL || 'http://vision-inference-service:6403',
       results: process.env.RESULT_API_URL || process.env.RESULT_SERVICE_URL || 'http://result-api-service:6404',

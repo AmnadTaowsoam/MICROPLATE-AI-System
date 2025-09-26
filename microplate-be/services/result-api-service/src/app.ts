@@ -1,4 +1,4 @@
 // Main application entry point
-// This file exports the Fastify instance for testing and external use
+// This file exports the Express app instance for testing and external use
 
-export { fastify, prisma } from './server';
+export { app, server, prisma } from './server';

@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1
 FROM node:20-alpine AS base
 WORKDIR /app
-COPY package.json tsconfig.json ./
-RUN npm set fund false && npm set audit false
-RUN npm install --production=false
+COPY package.json yarn.lock tsconfig.json ./
+RUN yarn config set network-timeout 300000
+RUN yarn install
 COPY src ./src
-RUN npm run build
+RUN yarn build
 
 FROM node:20-alpine
 WORKDIR /app

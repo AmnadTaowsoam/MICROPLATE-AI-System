@@ -27,6 +27,7 @@ class ImageUploaderService:
         file_path: str,
         file_type: str,
         description: Optional[str] = None,
+        jwt_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
@@ -53,12 +54,17 @@ class ImageUploaderService:
         elif filename.lower().endswith(('.tif', '.tiff')):
             mime_type = 'image/tiff'
 
+        # Prepare headers with JWT token if provided
+        headers = {}
+        if jwt_token:
+            headers['Authorization'] = f'Bearer {jwt_token}'
+
         async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             with open(file_path, 'rb') as f:
                 files = {
                     'file': (filename, f, mime_type)
                 }
-                resp = await client.post(url, data=form_fields, files=files)
+                resp = await client.post(url, data=form_fields, files=files, headers=headers)
                 resp.raise_for_status()
                 data = resp.json()
                 logger.info("Uploaded image to image-ingesion-service: %s", data.get('data', {}))

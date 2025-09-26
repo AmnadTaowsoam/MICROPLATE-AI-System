@@ -1,23 +1,39 @@
-FROM node:20-alpine AS base
+###########
+# DEPS    #
+###########
+FROM node:20-alpine AS deps
 WORKDIR /app
+RUN apk add --no-cache openssl libc6-compat ca-certificates
 
-# Install deps and generate lockfile
-COPY package.json tsconfig.json ./
-RUN npm install --ignore-scripts --no-audit --fund=false && npm ci --ignore-scripts
+COPY package.json yarn.lock ./
+RUN yarn install --frozen-lockfile   # ลงทั้ง dev+prod (มี typescript, tsc-alias)
 
-COPY src ./src
+###########
+# BUILDER #
+###########
+FROM node:20-alpine AS builder
+WORKDIR /app
+RUN apk add --no-cache openssl libc6-compat ca-certificates
 
-RUN npm run build
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
 
-FROM node:20-alpine
+# กันหลง build เก่า
+RUN rm -rf dist && yarn build && (echo "=== ls dist ===" && ls -la dist || true)
+
+###########
+# RUNTIME #
+###########
+FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apk add --no-cache openssl libc6-compat ca-certificates
 
-# Install only production deps
-COPY package.json ./package.json
-RUN npm install --omit=dev --ignore-scripts --no-audit --fund=false
+COPY package.json yarn.lock ./
+RUN yarn install --frozen-lockfile --production && yarn cache clean
 
-COPY --from=base /app/dist ./dist
+COPY --from=builder /app/dist ./dist
+
 EXPOSE 6402
-CMD ["node", "dist/server.js"]
-
+# ✅ รัน Express อันเดียว (ไม่ fallback ไปไฟล์เก่าอีก)
+CMD ["node","dist/src/server.js"]

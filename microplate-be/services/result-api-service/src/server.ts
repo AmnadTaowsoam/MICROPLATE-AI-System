@@ -1,8 +1,12 @@
-import Fastify from 'fastify';
-import helmet from '@fastify/helmet';
-import websocket from '@fastify/websocket';
-import swagger from '@fastify/swagger';
-import swaggerUi from '@fastify/swagger-ui';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import morgan from 'morgan';
+import swaggerUi from 'swagger-ui-express';
+import swaggerJsdoc from 'swagger-jsdoc';
+import { createServer } from 'http';
+import { WebSocketServer } from 'ws';
 
 // Import services and controllers
 import { PrismaClient } from '@prisma/client';
@@ -21,160 +25,142 @@ import { errorHandler } from '@/utils/errors';
 import { requestLogger, responseLogger } from '@/utils/logger';
 import { cacheService } from '@/utils/redis';
 import { config } from '@/config/config';
+// import { authenticateToken } from '../../shared/auth-middleware';
 
 // Initialize Prisma Client
 export const prisma = new PrismaClient({
   log: config.server.nodeEnv === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
 });
 
-// Initialize Fastify
-const fastify = Fastify({
-  logger: config.logging.format === 'pretty' ? {
-    level: config.logging.level,
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        translateTime: 'SYS:standard',
-        ignore: 'pid,hostname'
-      }
+// Initialize Express
+const app = express();
+const server = createServer(app);
+
+// Basic middleware
+app.use(helmet());
+app.use(cors({
+  origin: true, // Allow all origins for now
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID']
+}));
+
+// Body parsing
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Logging
+app.use(morgan('combined'));
+app.use(requestLogger);
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: {
+    success: false,
+    error: {
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: 'Too many requests'
     }
-  } : {
-    level: config.logging.level
-  },
-  requestIdHeader: 'x-request-id',
-  requestIdLogLabel: 'requestId',
-  genReqId: () => `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-});
-
-// Register error handler
-fastify.setErrorHandler(errorHandler);
-
-// Register request/response logging
-fastify.addHook('onRequest', requestLogger);
-fastify.addHook('onSend', responseLogger);
-
-// Register plugins
-const registerPlugins = async () => {
-  // Security headers (minimal since gateway handles most security)
-  await fastify.register(helmet, {
-    contentSecurityPolicy: false, // Let gateway handle CSP
-  });
-
-  // WebSocket support
-  if (config.features.websocket) {
-    await fastify.register(websocket, {
-      options: {
-        maxPayload: 16 * 1024, // 16KB
-      }
-    });
   }
+});
+app.use(limiter);
 
-  // Swagger documentation
-  await fastify.register(swagger, {
-    openapi: {
-      openapi: '3.0.0',
-      info: {
-        title: 'Result API Service',
-        description: 'Data aggregation and querying service for the Microplate AI System',
-        version: '1.0.0',
-        contact: {
-          name: 'Microplate AI Team',
-          email: 'support@microplate.ai',
-        },
-        license: {
-          name: 'MIT',
-          url: 'https://opensource.org/licenses/MIT',
-        },
+// Authentication middleware
+const authConfig = {
+  jwtSecret: process.env.JWT_ACCESS_SECRET || 'your-secret-key',
+  jwtIssuer: process.env.JWT_ISSUER,
+  jwtAudience: process.env.JWT_AUDIENCE
+};
+
+// Swagger documentation
+const swaggerOptions = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'Result API Service',
+      description: 'Data aggregation and querying service for the Microplate AI System',
+      version: '1.0.0',
+      contact: {
+        name: 'Microplate AI Team',
+        email: 'support@microplate.ai',
       },
-      servers: [
-        {
-          url: `http://localhost:${config.server.port}`,
-          description: 'Development server'
+      license: {
+        name: 'MIT',
+        url: 'https://opensource.org/licenses/MIT',
+      },
+    },
+    servers: [
+      {
+        url: `http://localhost:${config.server.port}`,
+        description: 'Development server'
+      },
+      {
+        url: `https://api.microplate.ai`,
+        description: 'Production server'
+      }
+    ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: 'JWT access token'
         },
-        {
-          url: `https://api.microplate.ai`,
-          description: 'Production server'
+        serviceAuth: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'X-Service-Token',
+          description: 'Service-to-service authentication token'
         }
-      ],
-      components: {
-        securitySchemes: {
-          bearerAuth: {
-            type: 'http',
-            scheme: 'bearer',
-            bearerFormat: 'JWT',
-            description: 'JWT access token'
-          },
-          serviceAuth: {
-            type: 'apiKey',
-            in: 'header',
-            name: 'X-Service-Token',
-            description: 'Service-to-service authentication token'
-          }
-        },
-        schemas: {
-          ErrorResponse: {
-            type: 'object',
-            properties: {
-              success: { type: 'boolean', example: false },
-              error: {
-                type: 'object',
-                properties: {
-                  code: { type: 'string', example: 'VALIDATION_ERROR' },
-                  message: { type: 'string', example: 'Validation failed' },
-                  details: { type: 'object' },
-                  requestId: { type: 'string' },
-                  timestamp: { type: 'string', format: 'date-time' },
-                },
+      },
+      schemas: {
+        ErrorResponse: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: false },
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string', example: 'VALIDATION_ERROR' },
+                message: { type: 'string', example: 'Validation failed' },
+                details: { type: 'object' },
+                requestId: { type: 'string' },
+                timestamp: { type: 'string', format: 'date-time' },
               },
             },
           },
-          SuccessResponse: {
-            type: 'object',
-            properties: {
-              success: { type: 'boolean', example: true },
-              data: { type: 'object' },
-            },
+        },
+        SuccessResponse: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: true },
+            data: { type: 'object' },
           },
         },
       },
-      tags: [
-        { name: 'Samples', description: 'Sample management and querying' },
-        { name: 'Runs', description: 'Prediction run management' },
-        { name: 'Statistics', description: 'System statistics and analytics' },
-        { name: 'WebSocket Subscriptions', description: 'Real-time subscription management' },
-        { name: 'WebSocket Management', description: 'WebSocket connection management' },
-        { name: 'Cache', description: 'Cache management operations' },
-        { name: 'Health', description: 'Health and monitoring endpoints' },
-        { name: 'Monitoring', description: 'Service monitoring and metrics' },
-      ],
-    }
-  });
-
-  await fastify.register(swaggerUi, {
-    routePrefix: '/docs',
-    uiConfig: {
-      docExpansion: 'list',
-      deepLinking: false,
-      defaultModelsExpandDepth: 2,
-      defaultModelExpandDepth: 2,
     },
-    uiHooks: {
-      onRequest: function (_request, _reply, next) {
-        next();
-      },
-      preHandler: function (_request, _reply, next) {
-        next();
-      }
-    },
-    staticCSP: true,
-    transformStaticCSP: (header) => header,
-    transformSpecification: (swaggerObject) => {
-      return swaggerObject;
-    },
-    transformSpecificationClone: true
-  });
+    tags: [
+      { name: 'Samples', description: 'Sample management and querying' },
+      { name: 'Runs', description: 'Prediction run management' },
+      { name: 'Statistics', description: 'System statistics and analytics' },
+      { name: 'WebSocket Subscriptions', description: 'Real-time subscription management' },
+      { name: 'WebSocket Management', description: 'WebSocket connection management' },
+      { name: 'Cache', description: 'Cache management operations' },
+      { name: 'Health', description: 'Health and monitoring endpoints' },
+      { name: 'Monitoring', description: 'Service monitoring and metrics' },
+    ],
+  },
+  apis: ['./src/routes/*.ts', './src/controllers/*.ts']
 };
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+app.get('/docs', (_req, res) => {
+  res.setHeader('Content-Type', 'text/html');
+  res.send(swaggerUi.generateHTML(swaggerSpec));
+});
 
 // Initialize services and controllers
 const initializeServices = () => {
@@ -187,24 +173,69 @@ const initializeServices = () => {
   const resultController = new ResultController(resultService, websocketService);
   const websocketController = new WebSocketController(websocketService);
 
-  // Register services and controllers with Fastify instance
-  fastify.decorate('resultService', resultService);
-  fastify.decorate('websocketService', websocketService);
-  fastify.decorate('aggregationService', aggregationService);
-  fastify.decorate('resultController', resultController);
-  fastify.decorate('websocketController', websocketController);
-  fastify.decorate('cacheService', cacheService);
+  // Make services available to routes
+  app.locals.resultService = resultService;
+  app.locals.websocketService = websocketService;
+  app.locals.aggregationService = aggregationService;
+  app.locals.resultController = resultController;
+  app.locals.websocketController = websocketController;
+  app.locals.cacheService = cacheService;
 };
 
-// Register routes
-const registerRoutes = async () => {
-  // Register API routes
-  await fastify.register(resultRoutes as any, { prefix: '/api/v1/results' });
-  
-  if (config.features.websocket) {
-    await fastify.register(websocketRoutes as any, { prefix: '/api/v1/results' });
-  }
-};
+// Routes will be registered after services are initialized
+
+// WebSocket setup
+if (config.features.websocket) {
+  const wss = new WebSocketServer({ 
+    server,
+    path: config.websocket.path || '/ws'
+  });
+
+  wss.on('connection', (ws, req) => {
+    // Handle WebSocket authentication
+    const token = req.url?.split('token=')[1];
+    if (!token) {
+      ws.close(1008, 'Authentication required');
+      return;
+    }
+
+    try {
+      const jwt = require('jsonwebtoken');
+      const decoded = jwt.verify(token, authConfig.jwtSecret);
+      
+      // Add user info to WebSocket connection
+      (ws as any).user = {
+        id: decoded.sub || decoded.id,
+        email: decoded.email,
+        role: decoded.role || 'user'
+      };
+
+      // Handle WebSocket messages
+      ws.on('message', (message) => {
+        try {
+          const data = JSON.parse(message.toString());
+          // Handle WebSocket message routing
+          const { websocketMessageHandlers } = require('@/routes/websocket.routes');
+          websocketMessageHandlers.handleMessage(ws, data);
+        } catch (error) {
+          ws.send(JSON.stringify({
+            success: false,
+            error: { code: 'INVALID_MESSAGE', message: 'Invalid message format' }
+          }));
+        }
+      });
+
+      ws.on('close', () => {
+        // Handle WebSocket disconnection
+        const { websocketMessageHandlers } = require('@/routes/websocket.routes');
+        websocketMessageHandlers.handleDisconnect(ws);
+      });
+
+    } catch (error) {
+      ws.close(1008, 'Invalid token');
+    }
+  });
+}
 
 // Database notification listener for real-time updates
 const setupDatabaseNotifications = async () => {
@@ -229,11 +260,11 @@ const setupDatabaseNotifications = async () => {
 
           if (run) {
             // Update sample summary
-            await (fastify as any).aggregationService.updateSampleSummary(run.sampleNo);
+            await app.locals.aggregationService.updateSampleSummary(run.sampleNo);
             
             // Broadcast WebSocket updates
             if (config.features.websocket) {
-              const websocketController = (fastify as any).websocketController as WebSocketController;
+              const websocketController = app.locals.websocketController as WebSocketController;
               await websocketController.broadcastSampleUpdate(run.sampleNo, {
                 sampleNo: run.sampleNo,
                 runId,
@@ -243,70 +274,80 @@ const setupDatabaseNotifications = async () => {
           }
         }
       } catch (error) {
-        fastify.log.error({ error }, 'Error handling database notification');
+        console.error('Error handling database notification:', error);
       }
     };
 
     // This would need to be implemented with a proper PostgreSQL LISTEN/NOTIFY handler
     // For now, we'll log that it's set up
-    fastify.log.info('Database notifications configured');
+    console.log('Database notifications configured');
 
   } catch (error) {
-    fastify.log.error({ error }, 'Failed to setup database notifications');
+    console.error('Failed to setup database notifications:', error);
   }
 };
+
+// Error handling
+app.use(errorHandler);
+
+// 404 handler
+app.use('*', (_req, res) => {
+  res.status(404).json({
+    success: false,
+    error: {
+      code: 'NOT_FOUND',
+      message: 'Route not found'
+    }
+  });
+});
 
 // Start server
 const start = async () => {
   try {
     // Connect to database
     await prisma.$connect();
-    fastify.log.info('Database connected successfully');
+    console.log('Database connected successfully');
 
     // Test cache connection
     const cacheHealthy = await cacheService.healthCheck();
     if (cacheHealthy) {
-      fastify.log.info('Cache connected successfully');
+      console.log('Cache connected successfully');
     } else {
-      fastify.log.warn('Cache connection failed - continuing without cache');
+      console.warn('Cache connection failed - continuing without cache');
     }
-
-    // Register plugins
-    await registerPlugins();
 
     // Initialize services and controllers
     initializeServices();
 
+    // Register routes after services are initialized
+    app.use('/api/v1/results', resultRoutes(app.locals.resultController));
+
     // Setup database notifications
     await setupDatabaseNotifications();
 
-    // Register routes
-    await registerRoutes();
-
     // Start server
-    await fastify.listen({ 
-      port: config.server.port, 
-      host: config.server.host 
+    server.listen(config.server.port, config.server.host, () => {
+      console.log(`Result API Service running on port ${config.server.port}`);
+      console.log(`API documentation available at http://localhost:${config.server.port}/docs`);
+      if (config.features.websocket) {
+        console.log(`WebSocket endpoint available at ws://localhost:${config.server.port}${config.websocket.path}`);
+      }
+      console.log(`Environment: ${config.server.nodeEnv}`);
     });
 
-    fastify.log.info(`Result API Service running on port ${config.server.port}`);
-    fastify.log.info(`API documentation available at http://localhost:${config.server.port}/docs`);
-    fastify.log.info(`WebSocket endpoint available at ws://localhost:${config.server.port}${config.websocket.path}`);
-    fastify.log.info(`Environment: ${config.server.nodeEnv}`);
-
   } catch (err) {
-    fastify.log.error({ err }, 'Startup error');
+    console.error('Startup error:', err);
     process.exit(1);
   }
 };
 
 // Graceful shutdown
 const gracefulShutdown = async (signal: string) => {
-  fastify.log.info(`Received ${signal}, shutting down gracefully...`);
+  console.log(`Received ${signal}, shutting down gracefully...`);
   
   try {
-    // Close Fastify server
-    await fastify.close();
+    // Close HTTP server
+    server.close();
     
     // Disconnect from database
     await prisma.$disconnect();
@@ -314,10 +355,10 @@ const gracefulShutdown = async (signal: string) => {
     // Disconnect from cache
     await cacheService.clear();
     
-    fastify.log.info('Graceful shutdown completed');
+    console.log('Graceful shutdown completed');
     process.exit(0);
   } catch (error) {
-    fastify.log.error({ error }, 'Error during graceful shutdown');
+    console.error('Error during graceful shutdown:', error);
     process.exit(1);
   }
 };
@@ -328,13 +369,13 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-  fastify.log.error({ error }, 'Uncaught Exception');
+  console.error('Uncaught Exception:', error);
   gracefulShutdown('uncaughtException');
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  fastify.log.error({ promise, reason }, 'Unhandled Rejection');
+  console.error('Unhandled Rejection:', promise, 'reason:', reason);
   gracefulShutdown('unhandledRejection');
 });
 
@@ -342,4 +383,4 @@ process.on('unhandledRejection', (reason, promise) => {
 start();
 
 // Export for testing
-export { fastify };
+export { app, server };

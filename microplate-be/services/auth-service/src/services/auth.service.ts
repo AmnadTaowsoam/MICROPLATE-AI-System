@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { PasswordUtil } from '../utils/password.util';
 import { TokenUtil } from '../utils/token.util';
 import { AuditService } from './audit.service';
+import { InvalidCredentialsError, UserAlreadyExistsError, ValidationError } from '../utils/errors';
 import { 
   LoginCredentials, 
   RegisterData, 
@@ -121,7 +122,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new Error('INVALID_CREDENTIALS');
+      throw new InvalidCredentialsError('Invalid username or password');
     }
 
     // Verify password
@@ -136,7 +137,7 @@ export class AuthService {
         ipAddress: deviceInfo?.ipAddress || 'unknown',
         userAgent: deviceInfo?.userAgent || 'unknown'
       });
-      throw new Error('INVALID_CREDENTIALS');
+      throw new InvalidCredentialsError('Invalid username or password');
     }
 
     // Generate tokens

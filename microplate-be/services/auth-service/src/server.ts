@@ -1,192 +1,123 @@
-import Fastify from 'fastify';
-import cors from '@fastify/cors';
-import helmet from '@fastify/helmet';
-import rateLimit from '@fastify/rate-limit';
-import jwt from '@fastify/jwt';
-import swagger from '@fastify/swagger';
-import swaggerUi from '@fastify/swagger-ui';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import morgan from 'morgan';
+import swaggerUi from 'swagger-ui-express';
+import swaggerJsdoc from 'swagger-jsdoc';
 
 import { authRoutes } from './routes/auth.routes';
 import { healthRoutes } from './routes/health.routes';
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logging.middleware';
 import { config } from './config/config';
-import { bindJwt } from './utils/token.util';
 
-const fastify = Fastify({
-  logger: config.logFormat === 'pretty' ? {
-    level: config.logLevel,
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        translateTime: 'SYS:standard',
-        ignore: 'pid,hostname'
-      }
+const app = express();
+
+// Basic middleware
+app.use(helmet());
+app.use(cors({
+  origin: config.corsOrigin,
+  credentials: config.corsCredentials,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID']
+}));
+
+// Body parsing
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Logging
+app.use(morgan('combined'));
+app.use(requestLogger);
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: config.rateLimitWindowMs,
+  max: config.rateLimitMaxRequests,
+  message: {
+    success: false,
+    error: {
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: 'Too many requests'
     }
-  } : {
-    level: config.logLevel
   }
 });
+app.use(limiter);
 
-// Register error handler
-fastify.setErrorHandler(errorHandler);
-
-// Register request logger
-fastify.addHook('onRequest', requestLogger);
-
-// Register response logger
-fastify.addHook('onSend', (request, reply, _payload, done) => {
-  const startTime = (request as any).startTime;
-  if (startTime) {
-    const duration = Date.now() - startTime;
-    request.log.info({
-      requestId: request.id,
-      method: request.method,
-      url: request.url,
-      statusCode: reply.statusCode,
-      duration: `${duration}ms`,
-      ip: request.ip,
-      userAgent: request.headers['user-agent'],
-      timestamp: new Date().toISOString()
-    }, 'Request completed');
-  }
-  done();
-});
-
-// Register plugins
-const registerPlugins = async () => {
-  // CORS
-  await fastify.register(cors, {
-    origin: config.corsOrigin,
-    credentials: config.corsCredentials,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID']
-  });
-
-  // Security headers
-  await fastify.register(helmet, {
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "https:"]
+// Swagger documentation
+const swaggerOptions = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'Auth Service API',
+      description: 'Authentication and Authorization Service for Microplate AI',
+      version: '1.0.0'
+    },
+    servers: [
+      {
+        url: `http://localhost:${config.port}`,
+        description: 'Development server'
       }
-    }
-  });
-
-  // Rate limiting
-  await fastify.register(rateLimit, {
-    max: config.rateLimitMaxRequests,
-    timeWindow: config.rateLimitWindowMs,
-    errorResponseBuilder: (_request, _context) => ({
-      success: false,
-      error: {
-        code: 'RATE_LIMIT_EXCEEDED',
-        message: 'Too many requests'
-      }
-    })
-  });
-
-  // JWT
-  await fastify.register(jwt, {
-    secret: config.jwtAccessSecret,
-    sign: {
-      expiresIn: config.tokenExpiryAccess
-    }
-  });
-  // Bind JWT to token util helpers
-  bindJwt(fastify);
-
-  // Swagger documentation
-  await fastify.register(swagger, {
-    openapi: {
-      openapi: '3.0.0',
-      info: {
-        title: 'Auth Service API',
-        description: 'Authentication and Authorization Service for Microplate AI',
-        version: '1.0.0'
-      },
-      servers: [
-        {
-          url: `http://localhost:${config.port}`,
-          description: 'Development server'
-        }
-      ],
-      components: {
-        securitySchemes: {
-          bearerAuth: {
-            type: 'http',
-            scheme: 'bearer',
-            bearerFormat: 'JWT'
-          }
+    ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT'
         }
       }
     }
-  });
-
-  await fastify.register(swaggerUi, {
-    routePrefix: '/docs',
-    uiConfig: {
-      docExpansion: 'list',
-      deepLinking: false
-    },
-    uiHooks: {
-      onRequest: function (_request, _reply, next) {
-        next();
-      },
-      preHandler: function (_request, _reply, next) {
-        next();
-      }
-    },
-    staticCSP: true,
-    transformStaticCSP: (header) => header,
-    transformSpecification: (swaggerObject, _request, _reply) => {
-      return swaggerObject;
-    },
-    transformSpecificationClone: true
-  });
+  },
+  apis: ['./src/routes/*.ts', './src/schemas/*.ts']
 };
 
-// Register routes
-const registerRoutes = async () => {
-  // Health check routes (no auth required)
-  await fastify.register(healthRoutes, { prefix: '' });
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+app.get('/docs', (_req, res) => {
+  res.setHeader('Content-Type', 'text/html');
+  res.send(swaggerUi.generateHTML(swaggerSpec));
+});
 
-  // Auth routes (no auth required)
-  await fastify.register(authRoutes, { prefix: '/api/v1/auth' });
-};
+// Routes
+app.use('/', healthRoutes);
+app.use('/api/v1/auth', authRoutes);
+
+// Error handling
+app.use(errorHandler);
+
+// 404 handler
+app.use('*', (_req, res) => {
+  res.status(404).json({
+    success: false,
+    error: {
+      code: 'NOT_FOUND',
+      message: 'Route not found'
+    }
+  });
+});
 
 // Start server
 const start = async () => {
   try {
-    await registerPlugins();
-    await registerRoutes();
-
-    await fastify.listen({ 
-      port: config.port, 
-      host: '0.0.0.0' 
+    app.listen(config.port, '0.0.0.0', () => {
+      console.log(`Auth service running on port ${config.port}`);
+      console.log(`API documentation available at http://localhost:${config.port}/docs`);
     });
-
-    fastify.log.info(`Auth service running on port ${config.port}`);
-    fastify.log.info(`API documentation available at http://localhost:${config.port}/docs`);
   } catch (err) {
-    fastify.log.error(err);
+    console.error('Failed to start server:', err);
     process.exit(1);
   }
 };
 
 // Graceful shutdown
-process.on('SIGINT', async () => {
-  fastify.log.info('Received SIGINT, shutting down gracefully...');
-  await fastify.close();
+process.on('SIGINT', () => {
+  console.log('Received SIGINT, shutting down gracefully...');
   process.exit(0);
 });
 
-process.on('SIGTERM', async () => {
-  fastify.log.info('Received SIGTERM, shutting down gracefully...');
-  await fastify.close();
+process.on('SIGTERM', () => {
+  console.log('Received SIGTERM, shutting down gracefully...');
   process.exit(0);
 });
 

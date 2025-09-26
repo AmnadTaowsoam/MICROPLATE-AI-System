@@ -14,12 +14,12 @@ The Result API Service provides data aggregation, querying, and real-time update
 ## Technology Stack
 
 - **Runtime**: Node.js 20+
-- **Framework**: Fastify 5.x
+- **Framework**: Express 4.x
 - **Language**: TypeScript
 - **ORM**: Prisma 5.x
 - **Database**: PostgreSQL 17
 - **Cache**: Redis
-- **WebSocket**: @fastify/websocket
+- **WebSocket**: ws
 - **Validation**: Zod
 - **Documentation**: OpenAPI 3.0
 

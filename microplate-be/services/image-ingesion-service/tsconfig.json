@@ -1,17 +1,23 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "CommonJS",            // ⬅️ เปลี่ยนเป็น CJS
-    "moduleResolution": "Node",      // ⬅️ ใช้ Node resolver
-    "outDir": "dist",
-    "rootDir": "./src",
-    "strict": true,
+    "module": "commonjs",
+    "target": "ES2022",
+    "rootDir": "./",            // ครอบทั้ง src + shared
+    "outDir": "./dist",
     "esModuleInterop": true,
+    "strict": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "baseUrl": "./src"               // ถ้าใช้ path alias
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["src/*"],
+      "@shared/*": ["shared/*"]
+    }
   },
-  "include": ["src"]
+  "include": ["src/**/*", "shared/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }
+
+
+
 
 

@@ -1,57 +1,93 @@
-import Fastify from 'fastify';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { loadEnv } from './config/env';
-import { registerSecurityPlugins } from './plugins/security';
 import { registerProxyRoutes } from './routes/proxy';
-import { registerRequestLogging } from './plugins/logging';
 import { registerLogRoutes } from './routes/logs';
-
-type ProxyRoute = {
-  prefix: string;
-  target: string;
-  skipAuthPaths?: string[];
-};
+import { registerRequestLogging } from './middleware/logging';
+import { registerSecurityPlugins } from './middleware/security';
 
 function buildApp() {
-  const app = Fastify({
-    logger: true
-  });
+  const app = express();
   const cfg = loadEnv();
 
-  // Strict content-type parsers: disable defaults, re-add JSON and URL-encoded; all others (e.g., multipart) stay raw Buffer
-  app.removeAllContentTypeParsers();
-  app.addContentTypeParser('application/json', { parseAs: 'string' }, function (_req: any, body: string, done: (err: Error | null, body: any) => void) {
-    try { done(null, body ? JSON.parse(body) : {}); } catch (e: any) { done(e, undefined as any); }
-  });
-  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, function (_req: any, body: string, done: (err: Error | null, body: any) => void) {
-    const params = new URLSearchParams(body || ''); const obj: any = {}; params.forEach((v, k) => obj[k] = v); done(null, obj);
-  });
-  app.addContentTypeParser('*', { parseAs: 'buffer' }, function (_req: any, body: Buffer, done: (err: Error | null, body: Buffer) => void) {
-    done(null, body);
-  });
+  // Basic middleware
+  app.use(helmet());
+  app.use(cors());
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
+  // Request logging
   registerRequestLogging(app);
+
+  // Security plugins
   registerSecurityPlugins(app, cfg);
 
-  app.get(cfg.healthPath, async () => ({ status: 'ok' }));
-  app.get(cfg.readyPath, async () => ({ ready: true }));
+  // Health check endpoints
+  app.get(cfg.healthPath, async (req, res) => {
+    res.json({ status: 'ok' });
+  });
 
+  app.get(cfg.readyPath, async (req, res) => {
+    res.json({ ready: true });
+  });
+
+  // Metrics endpoint
   if (cfg.metricsEnabled) {
-    app.get(cfg.metricsPath, async () => '# minimal metrics placeholder\n');
+    app.get(cfg.metricsPath, async (req, res) => {
+      res.set('Content-Type', 'text/plain');
+      res.send('# minimal metrics placeholder\n');
+    });
   }
 
+  // Register proxy routes
   registerProxyRoutes(app, cfg);
+
+  // Register log routes
   registerLogRoutes(app);
+
+  // Global error handler
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('Global error handler:', err);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Internal server error'
+      }
+    });
+  });
+
+  // 404 handler
+  app.use('*', (req, res) => {
+    res.status(404).json({
+      success: false,
+      error: {
+        code: 'NOT_FOUND',
+        message: 'Route not found'
+      }
+    });
+  });
 
   return app;
 }
 
-function start() {
+async function start() {
   const app = buildApp();
   const cfg = loadEnv();
-  app.listen({ port: cfg.port, host: '0.0.0.0' }).catch((err: any) => {
-    app.log.error(err);
+
+  try {
+    app.listen(cfg.port, '0.0.0.0', () => {
+      console.log(`Server listening at http://0.0.0.0:${cfg.port}`);
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err);
     process.exit(1);
-  });
+  }
 }
 
-start();
+// Start server if this file is run directly
+start().catch(console.error);
+
+export { buildApp, start };

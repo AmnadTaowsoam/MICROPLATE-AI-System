@@ -1,0 +1,443 @@
+# API Reference - Microplate System
+
+## Overview
+This document provides a comprehensive reference for all APIs used in the Microplate system. All APIs are accessed through the Gateway at `http://localhost:8080`.
+
+## Authentication
+
+### Register User
+```http
+POST /api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "username": "username",
+  "password": "password123",
+  "firstName": "John",
+  "lastName": "Doe"
+}
+```
+
+### Login User
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{
+  "username": "username",
+  "password": "password123"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "token_type": "Bearer",
+    "expires_in": 900
+  }
+}
+```
+
+## Image Management
+
+### Upload Image
+```http
+POST /api/v1/images
+Authorization: Bearer {token}
+Content-Type: multipart/form-data
+
+Fields:
+- sample_no: string (required)
+- run_id: string (optional)
+- file_type: "raw" | "annotated" | "thumbnail" (default: "raw")
+- description: string (optional)
+- file: File (required)
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "sampleNo": "sample_01",
+    "fileType": "raw",
+    "fileName": "image.jpg",
+    "filePath": "/uploads/image.jpg",
+    "fileSize": 12345,
+    "mimeType": "image/jpeg",
+    "width": 1920,
+    "height": 1080,
+    "bucketName": "microplate-images",
+    "objectKey": "raw/sample_01/image.jpg",
+    "signedUrl": "https://minio...",
+    "urlExpiresAt": "2025-09-25T12:00:00Z",
+    "createdAt": "2025-09-25T11:00:00Z"
+  }
+}
+```
+
+## Vision Inference
+
+### Run Prediction
+```http
+POST /api/v1/inference/predict
+Authorization: Bearer {token}
+Content-Type: multipart/form-data
+
+Fields:
+- sample_no: string (required)
+- submission_no: string (optional)
+- file: File (required)
+- model_version: string (optional, default: "v1.2.0")
+- confidence_threshold: number (optional, default: 0.5)
+- description: string (optional)
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "run_id": 53,
+    "sample_no": "sample_04",
+    "status": "completed",
+    "processing_time_ms": 1500,
+    "model_version": "v1.2.0",
+    "confidence_threshold": 0.5,
+    "well_predictions": [
+      {
+        "well_id": "A1",
+        "class": "positive",
+        "confidence": 0.95,
+        "bbox": [100, 150, 200, 250],
+        "label": "cell"
+      }
+    ],
+    "row_counts": {
+      "A": 8,
+      "B": 7,
+      "C": 9
+    },
+    "inference_results": {
+      "total_wells": 96,
+      "positive_wells": 45,
+      "negative_wells": 51,
+      "confidence_scores": [0.95, 0.87, 0.92]
+    },
+    "raw_image_path": "/uploads/raw_image.jpg",
+    "annotated_image_path": "/uploads/annotated_image.jpg",
+    "created_at": "2025-09-25T11:00:00Z",
+    "updated_at": "2025-09-25T11:00:15Z"
+  }
+}
+```
+
+## Prediction Data
+
+### Get Prediction Run
+```http
+GET /api/v1/predictions/{run_id}
+Authorization: Bearer {token}
+```
+
+**Response:**
+```json
+{
+  "run": {
+    "id": 53,
+    "sampleNo": "sample_04",
+    "submissionNo": null,
+    "description": null,
+    "predictAt": "2025-09-25T11:00:00Z",
+    "annotatedImagePath": "/uploads/annotated_image.jpg",
+    "rawImagePath": "/uploads/raw_image.jpg",
+    "modelVersion": "v1.2.0",
+    "status": "completed",
+    "errorMsg": null,
+    "processingTimeMs": 1500,
+    "confidenceThreshold": 0.5,
+    "createdBy": null,
+    "createdAt": "2025-09-25T11:00:00Z",
+    "updatedAt": "2025-09-25T11:00:15Z",
+    "wellPredictions": [
+      {
+        "id": 1,
+        "wellId": "A1",
+        "class": "positive",
+        "confidence": 0.95,
+        "bbox": [100, 150, 200, 250],
+        "label": "cell",
+        "runId": 53,
+        "createdAt": "2025-09-25T11:00:10Z"
+      }
+    ],
+    "rowCounts": [
+      {
+        "id": 1,
+        "runId": 53,
+        "counts": {
+          "A": 8,
+          "B": 7,
+          "C": 9
+        },
+        "createdAt": "2025-09-25T11:00:12Z"
+      }
+    ],
+    "inferenceResults": [
+      {
+        "id": 1,
+        "runId": 53,
+        "results": {
+          "total_wells": 96,
+          "positive_wells": 45,
+          "negative_wells": 51
+        },
+        "createdAt": "2025-09-25T11:00:14Z"
+      }
+    ],
+    "imageFiles": [
+      {
+        "id": 1,
+        "runId": 53,
+        "sampleNo": "sample_04",
+        "fileType": "raw",
+        "fileName": "raw_image.jpg",
+        "filePath": "/uploads/raw_image.jpg",
+        "fileSize": 12345,
+        "mimeType": "image/jpeg",
+        "width": 1920,
+        "height": 1080,
+        "bucketName": "microplate-images",
+        "objectKey": "raw/sample_04/raw_image.jpg",
+        "signedUrl": "https://minio...",
+        "urlExpiresAt": "2025-09-25T12:00:00Z",
+        "createdAt": "2025-09-25T11:00:05Z"
+      }
+    ]
+  },
+  "timestamp": "2025-09-25T11:00:15Z"
+}
+```
+
+### List All Prediction Runs
+```http
+GET /api/v1/predictions
+Authorization: Bearer {token}
+```
+
+## Results API
+
+### Get Sample Summary
+```http
+GET /api/v1/results/samples/{sampleNo}/summary
+Authorization: Bearer {token}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "sampleNo": "sample_04",
+    "totalRuns": 1,
+    "latestRun": {
+      "id": 53,
+      "status": "completed",
+      "createdAt": "2025-09-25T11:00:00Z",
+      "processingTimeMs": 1500
+    },
+    "statistics": {
+      "totalWells": 96,
+      "positiveWells": 45,
+      "negativeWells": 51,
+      "averageConfidence": 0.87
+    }
+  }
+}
+```
+
+### Get Run Details
+```http
+GET /api/v1/results/runs/{runId}
+Authorization: Bearer {token}
+```
+
+### Get Sample Runs
+```http
+GET /api/v1/results/samples/{sampleNo}/runs
+Authorization: Bearer {token}
+```
+
+## Health Checks
+
+### Gateway Health
+```http
+GET /healthz
+```
+
+### Service Health
+```http
+GET /api/v1/health
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "status": "healthy",
+    "timestamp": 1758800129.781865,
+    "services": {
+      "auth": {
+        "status": "healthy",
+        "responseTime": 45
+      },
+      "images": {
+        "status": "healthy",
+        "responseTime": 32
+      },
+      "inference": {
+        "status": "healthy",
+        "responseTime": 28
+      },
+      "results": {
+        "status": "healthy",
+        "responseTime": 38
+      }
+    }
+  }
+}
+```
+
+## Error Responses
+
+### Standard Error Format
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human readable error message",
+    "details": {
+      "field": "Additional error details"
+    }
+  }
+}
+```
+
+### Common Error Codes
+- `UNAUTHORIZED` - Missing or invalid authentication token
+- `FORBIDDEN` - Insufficient permissions
+- `NOT_FOUND` - Resource not found
+- `VALIDATION_ERROR` - Invalid request data
+- `INFERENCE_FAILED` - Model inference failed
+- `INTERNAL_ERROR` - Server internal error
+
+## Rate Limiting
+
+- **Default:** 100 requests per minute per IP
+- **Authentication:** 10 requests per minute per IP
+- **Inference:** 5 requests per minute per user
+
+## CORS
+
+The Gateway supports CORS for the following origins:
+- `http://localhost:3000` (Development)
+- `http://localhost:3001` (Alternative dev port)
+- Production domains (configured in environment)
+
+## WebSocket Support
+
+### Real-time Updates
+```javascript
+const ws = new WebSocket('ws://localhost:8080/ws');
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log('Real-time update:', data);
+};
+```
+
+**Message Types:**
+- `inference_progress` - Inference processing updates
+- `prediction_complete` - Prediction completion notifications
+- `system_status` - System health updates
+
+## File Upload Limits
+
+- **Maximum file size:** 50MB
+- **Supported formats:** JPG, JPEG, PNG, TIFF
+- **Minimum resolution:** 640x480
+- **Maximum resolution:** 8192x8192
+
+## Authentication Token
+
+- **Type:** JWT (JSON Web Token)
+- **Expiration:** 15 minutes
+- **Refresh:** Use login endpoint to get new token
+- **Header:** `Authorization: Bearer {token}`
+
+## Example Frontend Integration
+
+### React/JavaScript Example
+```javascript
+// Login
+const login = async (username, password) => {
+  const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ username, password })
+  });
+  const data = await response.json();
+  localStorage.setItem('token', data.data.access_token);
+  return data;
+};
+
+// Upload and Predict
+const predictImage = async (sampleNo, file) => {
+  const token = localStorage.getItem('token');
+  const formData = new FormData();
+  formData.append('sample_no', sampleNo);
+  formData.append('file', file);
+  
+  const response = await fetch('http://localhost:8080/api/v1/inference/predict', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  });
+  
+  return await response.json();
+};
+
+// Get Results
+const getResults = async (runId) => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`http://localhost:8080/api/v1/results/runs/${runId}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  
+  return await response.json();
+};
+```
+
+## Notes
+
+1. All timestamps are in ISO 8601 format (UTC)
+2. File paths are relative to the service's upload directory
+3. Signed URLs expire after 1 hour
+4. Confidence scores range from 0.0 to 1.0
+5. Well IDs follow the format: A1, A2, ..., H12 (8 rows x 12 columns)
+6. Bounding boxes are in format: [x, y, width, height]
+7. All services support graceful degradation and health checks
+

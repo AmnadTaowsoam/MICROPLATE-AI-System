@@ -1,57 +1,62 @@
-import pino from 'pino';
+import { Request, Response, NextFunction } from 'express';
 import { config } from '@/config/config';
 
-// Create logger instance
-const options: pino.LoggerOptions = {
-  level: config.logging.level,
-  formatters: {
-    level: (label) => {
-      return { level: label };
-    },
-  },
-  timestamp: pino.stdTimeFunctions.isoTime,
-  serializers: {
-    req: (req) => ({
-      method: req.method,
-      url: req.url,
-      headers: {
-        'user-agent': req.headers['user-agent'],
-        'content-type': req.headers['content-type'],
-      },
-      remoteAddress: req.remoteAddress,
-      remotePort: req.remotePort,
-    }),
-    res: (res) => ({
-      statusCode: res.statusCode,
-      headers: {
-        'content-type': (res as any).headers['content-type'],
-      },
-    }),
-    err: pino.stdSerializers.err,
-  },
-};
-
-if (config.logging.format === 'pretty') {
-  (options as any).transport = {
-    target: 'pino-pretty',
-    options: {
-      colorize: true,
-      translateTime: 'SYS:standard',
-      ignore: 'pid,hostname',
-      messageFormat: '[{time}] {level}: {msg}',
-    }
-  };
+// Simple logger interface
+interface Logger {
+  info: (obj: any, msg?: string) => void;
+  error: (obj: any, msg?: string) => void;
+  warn: (obj: any, msg?: string) => void;
+  debug: (obj: any, msg?: string) => void;
 }
 
-export const logger = pino(options);
+// Console-based logger implementation
+class ConsoleLogger implements Logger {
+  private formatMessage(level: string, obj: any, msg?: string): string {
+    const timestamp = new Date().toISOString();
+    const message = msg || '';
+    const data = typeof obj === 'object' ? JSON.stringify(obj, null, 2) : obj;
+    
+    if (config.logging.format === 'pretty') {
+      return `[${timestamp}] ${level.toUpperCase()}: ${message}\n${data}`;
+    }
+    
+    return JSON.stringify({
+      timestamp,
+      level: level.toUpperCase(),
+      message,
+      data: obj
+    });
+  }
 
-// Request logger middleware
-export const requestLogger = (request: any, reply: any, done: () => void) => {
+  info(obj: any, msg?: string): void {
+    console.log(this.formatMessage('info', obj, msg));
+  }
+
+  error(obj: any, msg?: string): void {
+    console.error(this.formatMessage('error', obj, msg));
+  }
+
+  warn(obj: any, msg?: string): void {
+    console.warn(this.formatMessage('warn', obj, msg));
+  }
+
+  debug(obj: any, msg?: string): void {
+    if (config.logging.level === 'debug') {
+      console.debug(this.formatMessage('debug', obj, msg));
+    }
+  }
+}
+
+export const logger = new ConsoleLogger();
+
+// Request logger middleware for Express
+export const requestLogger = (request: Request, response: Response, next: NextFunction) => {
   const startTime = Date.now();
-  request.startTime = startTime;
+  (request as any).startTime = startTime;
+  (request as any).id = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   logger.info({
-    requestId: request.id,
+    requestId: (request as any).id,
     method: request.method,
     url: request.url,
     ip: request.ip,
@@ -59,23 +64,29 @@ export const requestLogger = (request: any, reply: any, done: () => void) => {
     timestamp: new Date().toISOString(),
   }, 'Request started');
 
-  done();
+  next();
 };
 
-// Response logger middleware
-export const responseLogger = (request: any, reply: any, payload: any, done: () => void) => {
-  const duration = Date.now() - (request.startTime || Date.now());
+// Response logger middleware for Express
+export const responseLogger = (request: Request, response: Response, next: NextFunction) => {
+  const originalSend = response.send;
   
-  logger.info({
-    requestId: request.id,
-    method: request.method,
-    url: request.url,
-    statusCode: reply.statusCode,
-    duration: `${duration}ms`,
-    timestamp: new Date().toISOString(),
-  }, 'Request completed');
+  response.send = function(data: any) {
+    const duration = Date.now() - ((request as any).startTime || Date.now());
+    
+    logger.info({
+      requestId: (request as any).id,
+      method: request.method,
+      url: request.url,
+      statusCode: response.statusCode,
+      duration: `${duration}ms`,
+      timestamp: new Date().toISOString(),
+    }, 'Request completed');
 
-  done();
+    return originalSend.call(this, data);
+  };
+
+  next();
 };
 
 // Error logger
