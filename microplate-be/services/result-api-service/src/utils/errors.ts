@@ -186,6 +186,7 @@ export const createError = {
   rateLimit: (message?: string) => new RateLimitError(message),
   database: (message: string, details?: any) => new DatabaseError(message, details),
   cache: (message: string, details?: any) => new CacheError(message, details),
+  internal: (message: string, details?: any) => new AppError(message, 500, 'INTERNAL_ERROR', details),
   externalService: (service: string, message: string, details?: any) => 
     new ExternalServiceError(service, message, details),
   websocket: (message: string, details?: any) => new WebSocketError(message, details),

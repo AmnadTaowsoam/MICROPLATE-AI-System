@@ -57,24 +57,16 @@ CREATE TABLE "prediction_result"."well_prediction" (
 );
 
 -- CreateTable
-CREATE TABLE "prediction_result"."image_file" (
-    "id" SERIAL NOT NULL,
-    "run_id" INTEGER NOT NULL,
+CREATE TABLE "prediction_result"."sample_summary" (
     "sample_no" TEXT NOT NULL,
-    "file_type" TEXT NOT NULL,
-    "file_name" TEXT NOT NULL,
-    "file_path" TEXT NOT NULL,
-    "file_size" BIGINT,
-    "mime_type" TEXT,
-    "width" INTEGER,
-    "height" INTEGER,
-    "bucket_name" TEXT,
-    "object_key" TEXT,
-    "signed_url" TEXT,
-    "url_expires_at" TIMESTAMP(3),
+    "summary" JSONB NOT NULL,
+    "total_runs" INTEGER NOT NULL DEFAULT 0,
+    "last_run_at" TIMESTAMP(3),
+    "last_run_id" INTEGER,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "image_file_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "sample_summary_pkey" PRIMARY KEY ("sample_no")
 );
 
 -- CreateTable
@@ -126,13 +118,7 @@ CREATE INDEX "well_prediction_well_id_idx" ON "prediction_result"."well_predicti
 CREATE INDEX "well_prediction_class_idx" ON "prediction_result"."well_prediction"("class");
 
 -- CreateIndex
-CREATE INDEX "image_file_run_id_idx" ON "prediction_result"."image_file"("run_id");
-
--- CreateIndex
-CREATE INDEX "image_file_sample_no_idx" ON "prediction_result"."image_file"("sample_no");
-
--- CreateIndex
-CREATE INDEX "image_file_file_type_idx" ON "prediction_result"."image_file"("file_type");
+CREATE INDEX "sample_summary_last_run_at_idx" ON "prediction_result"."sample_summary"("last_run_at");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "system_config_key_key" ON "prediction_result"."system_config"("key");
@@ -151,6 +137,3 @@ ALTER TABLE "prediction_result"."inference_results" ADD CONSTRAINT "inference_re
 
 -- AddForeignKey
 ALTER TABLE "prediction_result"."well_prediction" ADD CONSTRAINT "well_prediction_run_id_fkey" FOREIGN KEY ("run_id") REFERENCES "prediction_result"."prediction_run"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "prediction_result"."image_file" ADD CONSTRAINT "image_file_run_id_fkey" FOREIGN KEY ("run_id") REFERENCES "prediction_result"."prediction_run"("id") ON DELETE CASCADE ON UPDATE CASCADE;

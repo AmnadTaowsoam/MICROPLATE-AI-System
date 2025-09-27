@@ -9,6 +9,8 @@ interface SampleInformationProps {
   setSampleNo: (value: string) => void;
   submissionNo: string;
   setSubmissionNo: (value: string) => void;
+  description: string;
+  setDescription: (value: string) => void;
   onSampleEnter: (sampleNo: string) => void;
   uploadError?: Error | null;
 }
@@ -18,10 +20,14 @@ export default function SampleInformation({
   setSampleNo,
   submissionNo,
   setSubmissionNo,
+  description,
+  setDescription,
   onSampleEnter,
   uploadError
 }: SampleInformationProps) {
   const [barcodeInput, setBarcodeInput] = useState('');
+  
+  console.log('SampleInformation rendered with description:', description, 'at', new Date().toISOString());
 
   const handleScanQR = () => {
     if (barcodeInput.trim()) {
@@ -40,7 +46,7 @@ export default function SampleInformation({
 
   return (
     <Card className="col-span-12 md:col-span-3 xl:col-span-2 p-5">
-      <h2 className="text-lg font-semibold mb-6">Sample Information</h2>
+      <h2 className="text-lg font-semibold mb-6">Sample Information - UPDATED</h2>
       <div className="space-y-4">
         <Input 
           placeholder="Sample Number" 
@@ -56,6 +62,12 @@ export default function SampleInformation({
           placeholder="Submission Number" 
           value={submissionNo}
           onChange={(e) => setSubmissionNo(e.target.value)}
+        />
+        <Input 
+          placeholder="Description (Optional) - TEST" 
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          style={{ backgroundColor: 'yellow', border: '2px solid red' }}
         />
         <Input 
           placeholder="Barcode Scanner Input" 

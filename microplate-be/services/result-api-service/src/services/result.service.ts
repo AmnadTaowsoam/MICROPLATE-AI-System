@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import axios from 'axios';
 import { 
   ResultService, 
   SampleSummary, 
@@ -16,10 +17,14 @@ import { logger } from '@/utils/logger';
 import { config } from '@/config/config';
 
 export class ResultServiceImpl implements ResultService {
+  private predictionDbServiceUrl: string;
+
   constructor(
     private prisma: PrismaClient,
     private cache: CacheService
-  ) {}
+  ) {
+    this.predictionDbServiceUrl = process.env.PREDICTION_DB_SERVICE_URL || 'http://localhost:6406';
+  }
 
   async getSampleSummary(sampleNo: string): Promise<SampleSummary> {
     const cacheKey = `sample:${sampleNo}:summary`;
@@ -114,41 +119,47 @@ export class ResultServiceImpl implements ResultService {
     sampleNo: string, 
     options: PaginationOptions
   ): Promise<PaginatedResult<PredictionRunSummary>> {
-    const { page, limit, sortBy = 'predictAt', sortOrder = 'desc' } = options;
-    const skip = (page - 1) * limit;
+    const { page, limit, sortBy = 'createdAt', sortOrder = 'desc' } = options;
+    
+    try {
+      // Call prediction-db-service to get runs for specific sample
+      const predictionResponse = await axios.get(`${this.predictionDbServiceUrl}/api/v1/predictions/sample/${sampleNo}`, {
+        params: {
+          page,
+          limit,
+          sortBy,
+          sortOrder,
+        },
+      });
 
-    const [runs, total] = await Promise.all([
-      this.prisma.predictionRun.findMany({
-        where: { sampleNo },
-        orderBy: { [sortBy]: sortOrder },
-        skip,
-        take: limit,
-        include: {
-          wellPredictions: true,
-          rowCounts: true,
-        }
-      }),
-      this.prisma.predictionRun.count({
-        where: { sampleNo }
-      })
-    ]);
-
-    const data = runs.map((run: any) => this.transformRunSummary(run));
-
-    const result: PaginatedResult<PredictionRunSummary> = {
-      data,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: page < Math.ceil(total / limit),
-        hasPrev: page > 1,
+      if (!predictionResponse.data.success) {
+        throw new Error('Failed to fetch sample runs');
       }
-    };
 
-    logger.info({ sampleNo, page, limit, total }, 'Sample runs retrieved');
-    return result;
+      const predictionData = predictionResponse.data.data;
+      const runs = predictionData.runs || [];
+      const pagination = predictionData.pagination || {};
+
+      const data = runs.map((run: any) => this.transformRunSummary(run));
+
+      const result: PaginatedResult<PredictionRunSummary> = {
+        data,
+        pagination: {
+          page: pagination.page || page,
+          limit: pagination.limit || limit,
+          total: pagination.total || 0,
+          totalPages: pagination.totalPages || 0,
+          hasNext: pagination.hasNext || false,
+          hasPrev: pagination.hasPrev || false,
+        },
+      };
+
+      logger.info({ sampleNo, page, limit, total: result.pagination.total }, 'Sample runs retrieved from prediction-db-service');
+      return result;
+    } catch (error) {
+      logger.error(`Failed to get runs for sample ${sampleNo}:`, String(error));
+      throw new Error('Failed to fetch sample runs');
+    }
   }
 
   async getRunDetails(runId: number): Promise<PredictionRunDetails> {
@@ -163,36 +174,28 @@ export class ResultServiceImpl implements ResultService {
       }
     }
 
-    const run = await this.prisma.predictionRun.findUnique({
-      where: { id: runId },
-      include: {
-        wellPredictions: true,
-        rowCounts: true,
-        inferenceResults: true,
-        imageFiles: {
-          select: {
-            fileType: true,
-            signedUrl: true,
-            urlExpiresAt: true,
-          }
-        }
+    try {
+      // Call prediction-db-service to get run details
+      const predictionResponse = await axios.get(`${this.predictionDbServiceUrl}/api/v1/predictions/${runId}`);
+
+      if (!predictionResponse.data.success) {
+        throw new Error('Failed to fetch run details');
       }
-    });
 
-    if (!run) {
-      throw createError.notFound('Prediction run', runId);
+      const run = predictionResponse.data.data;
+      const result = this.transformRunDetails(run);
+
+      // Cache result
+      if (config.features.caching) {
+        await this.cache.set(cacheKey, result, config.cache.ttl);
+      }
+
+      logger.info({ runId, sampleNo: run.sampleNo }, 'Run details retrieved from prediction-db-service');
+      return result;
+    } catch (error) {
+      logger.error(`Failed to get run details for ${runId}:`, String(error));
+      throw new Error('Failed to fetch run details');
     }
-
-    // Transform to response format
-    const result = this.transformRunDetails(run);
-
-    // Cache result
-    if (config.features.caching) {
-      await this.cache.set(cacheKey, result, config.cache.ttl);
-    }
-
-    logger.info({ runId, sampleNo: run.sampleNo }, 'Run details retrieved');
-    return result;
   }
 
   async getLastRun(sampleNo: string): Promise<PredictionRunSummary> {
@@ -212,14 +215,7 @@ export class ResultServiceImpl implements ResultService {
       orderBy: { predictAt: 'desc' },
       include: {
         wellPredictions: true,
-        rowCounts: true,
-        imageFiles: {
-          where: { fileType: 'annotated' },
-          select: {
-            signedUrl: true,
-            urlExpiresAt: true,
-          }
-        }
+        rowCounts: true
       }
     });
 
@@ -241,68 +237,91 @@ export class ResultServiceImpl implements ResultService {
   async getSamples(
     options: PaginationOptions & { filters?: any }
   ): Promise<PaginatedResult<SampleSummary>> {
-    const { page, limit, sortBy = 'lastRunAt', sortOrder = 'desc', filters = {} } = options;
-    const skip = (page - 1) * limit;
+    const { page, limit, sortBy = 'createdAt', sortOrder = 'desc', filters = {} } = options;
 
-    // Build where clause
-    const where: any = {};
-    
-    if (filters.search) {
-      where.sampleNo = {
-        contains: filters.search,
-        mode: 'insensitive'
+    try {
+      // Call prediction-db-service to get prediction runs
+      const predictionResponse = await axios.get(`${this.predictionDbServiceUrl}/api/v1/predictions`, {
+        params: {
+          page,
+          limit,
+          sortBy,
+          sortOrder,
+          ...(filters.search && { sampleNo: filters.search }),
+          ...(filters.status && { status: filters.status }),
+          ...(filters.dateFrom && { startDate: filters.dateFrom }),
+          ...(filters.dateTo && { endDate: filters.dateTo }),
+        },
+      });
+
+      if (!predictionResponse.data.success) {
+        throw new Error('Failed to fetch prediction runs');
+      }
+
+      const predictionData = predictionResponse.data.data;
+      const runs = predictionData.runs || [];
+      const pagination = predictionData.pagination || {};
+
+      // Group runs by sampleNo and create sample summaries
+      const sampleMap = new Map<string, any>();
+      
+      for (const run of runs) {
+        const sampleNo = run.sampleNo;
+        if (!sampleMap.has(sampleNo)) {
+          sampleMap.set(sampleNo, {
+            sampleNo,
+            summary: { distribution: {} },
+            totalRuns: 0,
+            lastRunAt: null,
+            lastRunId: null,
+            createdAt: run.createdAt,
+            updatedAt: run.updatedAt,
+          });
+        }
+        
+        const sample = sampleMap.get(sampleNo);
+        sample.totalRuns++;
+        
+        // Update last run info
+        if (!sample.lastRunAt || new Date(run.createdAt) > new Date(sample.lastRunAt)) {
+          sample.lastRunAt = run.createdAt;
+          sample.lastRunId = run.id;
+        }
+        
+        // Update summary from inference results
+        if (run.inferenceResults && run.inferenceResults.length > 0) {
+          const inferenceResult = run.inferenceResults[0];
+          if (inferenceResult.results && inferenceResult.results.distribution) {
+            const dist = inferenceResult.results.distribution;
+            for (const [key, value] of Object.entries(dist)) {
+              if (key !== 'total') {
+                sample.summary.distribution[key] = (sample.summary.distribution[key] || 0) + (value as number);
+              }
+            }
+          }
+        }
+      }
+
+      const data = Array.from(sampleMap.values());
+
+      const result: PaginatedResult<SampleSummary> = {
+        data,
+        pagination: {
+          page: pagination.page || page,
+          limit: pagination.limit || limit,
+          total: pagination.total || data.length,
+          totalPages: pagination.totalPages || Math.ceil((pagination.total || data.length) / limit),
+          hasNext: pagination.hasNext || false,
+          hasPrev: pagination.hasPrev || false,
+        },
       };
+
+      logger.info({ page, limit, total: result.pagination.total, filters }, 'Samples retrieved from prediction-db-service');
+      return result;
+    } catch (error) {
+      logger.error('Failed to get samples from prediction-db-service:', String(error));
+      throw new Error('Failed to fetch samples');
     }
-
-    if (filters.status) {
-      // This would need to be implemented based on business logic
-      // For now, we'll skip status filtering
-    }
-
-    if (filters.dateFrom || filters.dateTo) {
-      where.lastRunAt = {};
-      if (filters.dateFrom) {
-        where.lastRunAt.gte = new Date(filters.dateFrom);
-      }
-      if (filters.dateTo) {
-        where.lastRunAt.lte = new Date(filters.dateTo);
-      }
-    }
-
-    const [samples, total] = await Promise.all([
-      this.prisma.sampleSummary.findMany({
-        where,
-        orderBy: { [sortBy]: sortOrder },
-        skip,
-        take: limit,
-      }),
-      this.prisma.sampleSummary.count({ where })
-    ]);
-
-    const data = samples.map((sample: any) => ({
-      sampleNo: sample.sampleNo,
-      summary: sample.summary as any,
-      totalRuns: sample.totalRuns,
-      lastRunAt: sample.lastRunAt,
-      lastRunId: sample.lastRunId,
-      createdAt: sample.createdAt,
-      updatedAt: sample.updatedAt,
-    }));
-
-    const result: PaginatedResult<SampleSummary> = {
-      data,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: page < Math.ceil(total / limit),
-        hasPrev: page > 1,
-      }
-    };
-
-    logger.info({ page, limit, total, filters }, 'Samples retrieved');
-    return result;
   }
 
   async getSystemStatistics(filters?: any): Promise<SystemStatistics> {
@@ -482,16 +501,15 @@ export class ResultServiceImpl implements ResultService {
         positiveCount: 0,
         negativeCount: 0,
         averageConfidence: 0,
-      }
+      },
+      inferenceResults: run.inferenceResults || [],
+      wellPredictions: run.wellPredictions || []
     };
   }
 
   private transformRunDetails(run: any): PredictionRunDetails {
     const rowCounts = run.rowCounts[0]?.counts || {};
     const inferenceResults = run.inferenceResults[0]?.results || {};
-    
-    const rawImage = run.imageFiles.find((img: any) => img.fileType === 'raw');
-    const annotatedImage = run.imageFiles.find((img: any) => img.fileType === 'annotated');
 
     return {
       runId: run.id,
@@ -503,8 +521,8 @@ export class ResultServiceImpl implements ResultService {
       status: run.status,
       processingTimeMs: run.processingTimeMs,
       errorMsg: run.errorMsg,
-      rawImageUrl: rawImage?.signedUrl,
-      annotatedImageUrl: annotatedImage?.signedUrl,
+      rawImageUrl: run.rawImagePath,
+      annotatedImageUrl: run.annotatedImagePath,
       statistics: this.calculateRunStatistics([run])[0] || {
         totalDetections: 0,
         positiveCount: 0,
@@ -595,5 +613,24 @@ export class ResultServiceImpl implements ResultService {
   async invalidateSystemCache(): Promise<void> {
     await this.cache.del('system:statistics');
     logger.info({}, 'System cache invalidated');
+  }
+
+  async getInterfaceFiles(sampleNo: string): Promise<any[]> {
+    try {
+      // Call labware-interface-service to get interface files
+      const labwareResponse = await axios.get(`${process.env.LABWARE_SERVICE_URL || 'http://localhost:6405'}/api/v1/interface/files/${sampleNo}`);
+
+      if (!labwareResponse.data.success) {
+        throw new Error('Failed to fetch interface files');
+      }
+
+      const files = labwareResponse.data.data || [];
+      logger.info({ sampleNo, fileCount: files.length }, 'Interface files retrieved from labware-service');
+      return files;
+    } catch (error) {
+      logger.error(`Failed to get interface files for sample ${sampleNo}:`, String(error));
+      // Return empty array if service is not available
+      return [];
+    }
   }
 }

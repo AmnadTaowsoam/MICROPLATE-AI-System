@@ -21,6 +21,10 @@ echo "MinIO is ready. Creating buckets..."
 mc mb -p "$MINIO_ALIAS/raw-images" || true
 mc mb -p "$MINIO_ALIAS/annotated-images" || true
 
+# Set CORS policy for frontend access
+mc anonymous set download "$MINIO_ALIAS/raw-images" || true
+mc anonymous set download "$MINIO_ALIAS/annotated-images" || true
+
 # Keep default private policy; presigned URLs are used for access
 
 echo "Buckets created successfully:"

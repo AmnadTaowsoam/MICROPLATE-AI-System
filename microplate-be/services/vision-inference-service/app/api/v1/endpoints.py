@@ -16,6 +16,7 @@ from app.services.predictor_service import Predictor
 from app.services.result_processor_service import ResultProcessor
 from app.services.redis_service import redis_service
 from app.services.db_service import db_service
+from app.services.image_service import ImageService
 from app.services.image_uploader_service import image_uploader
 from app.config import Config
 
@@ -70,6 +71,7 @@ if not model_path:
 grid_builder = GridBuilder()
 predictor = Predictor(model_path, Config.CONFIDENCE_THRESHOLD)
 processor = ResultProcessor()
+image_service = ImageService()
 
 @router.post("/predict")
 async def predict_endpoint(
@@ -103,7 +105,8 @@ async def predict_endpoint(
         "rawImagePath": file_path,
         "modelVersion": model_version or Config.MODEL_VERSION,
         "status": "pending",
-        "confidenceThreshold": confidence_threshold or Config.CONFIDENCE_THRESHOLD
+        "confidenceThreshold": confidence_threshold or Config.CONFIDENCE_THRESHOLD,
+        "createdBy": user.get('id')  # Add user ID from JWT token
     }
     
     try:
@@ -118,6 +121,7 @@ async def predict_endpoint(
     redis_service.log_progress(run_id, 10, "Image uploaded and prediction run created")
 
     # 2.1 Upload original image to image-ingesion-service (raw)
+    minio_raw_path = None
     try:
         # Get JWT token from request headers
         jwt_token = None
@@ -126,7 +130,7 @@ async def predict_endpoint(
             if auth_header.startswith('Bearer '):
                 jwt_token = auth_header[7:]  # Remove 'Bearer ' prefix
         
-        await image_uploader.upload_image(
+        upload_result = await image_uploader.upload_image(
             sample_no=sample_no,
             run_id=run_id,
             file_path=file_path,
@@ -134,7 +138,12 @@ async def predict_endpoint(
             description=description or "original image",
             jwt_token=jwt_token
         )
-        logger.info("Original image uploaded to image-ingesion-service for run_id=%s", run_id)
+        # Extract MinIO path from upload result
+        if upload_result.get('success') and upload_result.get('data', {}).get('filePath'):
+            minio_raw_path = upload_result['data']['filePath']
+            logger.info("Original image uploaded to image-ingesion-service for run_id=%s, MinIO path: %s", run_id, minio_raw_path)
+        else:
+            logger.warning("Upload succeeded but no MinIO path returned for run_id=%s", run_id)
     except Exception as e:
         logger.warning("Failed to upload original image to image-ingesion-service: %s", e)
 
@@ -143,13 +152,23 @@ async def predict_endpoint(
         "sampleNo": sample_no,
         "fileType": "raw",
         "fileName": filename,
-        "filePath": file_path,
+        "filePath": minio_raw_path if minio_raw_path else file_path,
         "fileSize": os.path.getsize(file_path),
         "mimeType": file.content_type
     }
     
+    # Add MinIO metadata if available
+    if upload_result.get('success') and upload_result.get('data'):
+        minio_data = upload_result['data']
+        image_data.update({
+            "bucketName": minio_data.get('bucketName'),
+            "objectKey": minio_data.get('objectKey'),
+            "signedUrl": minio_data.get('signedUrl'),
+            "urlExpiresAt": minio_data.get('urlExpiresAt')
+        })
+    
     try:
-        await db_service.create_image_file(run_id, image_data)
+        await image_service.create_image_file(image_data, jwt_token)
         logger.debug("Original image logged in ImageFile for run_id=%s", run_id)
     except Exception as e:
         logger.warning(f"Failed to log image file: {e}")
@@ -198,30 +217,11 @@ async def predict_endpoint(
         annotated_path = os.path.join(upload_dir, annotated_filename)
         cv2.imwrite(annotated_path, annotated_img)
         
-        # Record annotated image via prediction-db-service
-        annotated_image_data = {
-            "sampleNo": sample_no,
-            "fileType": "annotated",
-            "fileName": annotated_filename,
-            "filePath": annotated_path,
-            "fileSize": os.path.getsize(annotated_path),
-            "mimeType": "image/jpeg"
-        }
-        
-        try:
-            await db_service.create_image_file(run_id, annotated_image_data)
-            logger.info("Annotated image saved to %s and logged", annotated_path)
-        except Exception as e:
-            logger.warning(f"Failed to log annotated image: {e}")
-
-        # Update run with annotated image path
-        update_data = {"annotatedImagePath": annotated_path}
-        await db_service.update_prediction_run(run_id, update_data)
-        redis_service.log_progress(run_id, 80, "Annotated image saved")
-
         # 5.1 Upload annotated image to image-ingesion-service (annotated)
+        minio_annotated_path = None
+        annotated_upload_result = None
         try:
-            await image_uploader.upload_image(
+            annotated_upload_result = await image_uploader.upload_image(
                 sample_no=sample_no,
                 run_id=run_id,
                 file_path=annotated_path,
@@ -229,9 +229,50 @@ async def predict_endpoint(
                 description="annotated image",
                 jwt_token=jwt_token
             )
-            logger.info("Annotated image uploaded to image-ingesion-service for run_id=%s", run_id)
+            # Extract MinIO signedUrl from upload result
+            if annotated_upload_result.get('success') and annotated_upload_result.get('data', {}).get('signedUrl'):
+                minio_annotated_path = annotated_upload_result['data']['signedUrl']
+                logger.info("Annotated image uploaded to image-ingesion-service for run_id=%s, MinIO signedUrl: %s", run_id, minio_annotated_path)
+            else:
+                logger.warning("Upload succeeded but no MinIO signedUrl returned for run_id=%s", run_id)
+                # Use direct MinIO URL as fallback
+                if annotated_upload_result.get('success') and annotated_upload_result.get('data', {}).get('objectKey'):
+                    object_key = annotated_upload_result['data']['objectKey']
+                    minio_annotated_path = f"http://minio:9000/annotated-images/{object_key}"
+                    logger.info("Using direct MinIO URL as fallback: %s", minio_annotated_path)
         except Exception as e:
             logger.warning("Failed to upload annotated image to image-ingesion-service: %s", e)
+
+        # Record annotated image via prediction-db-service
+        annotated_image_data = {
+            "sampleNo": sample_no,
+            "fileType": "annotated",
+            "fileName": annotated_filename,
+            "filePath": minio_annotated_path if minio_annotated_path else annotated_path,
+            "fileSize": os.path.getsize(annotated_path),
+            "mimeType": "image/jpeg"
+        }
+        
+        # Add MinIO metadata if available
+        if annotated_upload_result and annotated_upload_result.get('success') and annotated_upload_result.get('data'):
+            minio_data = annotated_upload_result['data']
+            annotated_image_data.update({
+                "bucketName": minio_data.get('bucketName'),
+                "objectKey": minio_data.get('objectKey'),
+                "signedUrl": minio_data.get('signedUrl'),
+                "urlExpiresAt": minio_data.get('urlExpiresAt')
+            })
+        
+        try:
+            await image_service.create_image_file(annotated_image_data, jwt_token)
+            logger.info("Annotated image saved to %s and logged", annotated_path)
+        except Exception as e:
+            logger.warning(f"Failed to log annotated image: {e}")
+
+        # Store annotated image path for later update (use MinIO path if available, otherwise local path)
+        annotated_image_path = minio_annotated_path if minio_annotated_path else annotated_path
+        logger.info("Final annotated_image_url for response: %s", minio_annotated_path)
+        redis_service.log_progress(run_id, 80, "Annotated image saved")
 
         # 6. Process results: count by row and last positions
         counts = processor.count_by_row(wells)
@@ -268,10 +309,13 @@ async def predict_endpoint(
         # Calculate processing time
         processing_time_ms = int((time.time() - start_time) * 1000)
         
-        # Update run status to completed
+        # Update run status to completed with all fields
         update_data = {
             "status": "completed",
-            "processingTimeMs": processing_time_ms
+            "processingTimeMs": processing_time_ms,
+            "annotatedImagePath": annotated_image_path,
+            "rawImagePath": minio_raw_path if minio_raw_path else file_path,
+            "createdBy": user.get('id')
         }
         await db_service.update_prediction_run(run_id, update_data)
 
@@ -288,7 +332,7 @@ async def predict_endpoint(
                 'model_version': (model_version or Config.MODEL_VERSION),
                 'status': 'completed',
                 'processing_time_ms': processing_time_ms,
-                'annotated_image_url': f"/api/v1/inference/images/{run_id}/annotated",
+                'annotated_image_url': minio_annotated_path if minio_annotated_path else f"/api/v1/inference/images/{run_id}/annotated",
                 'statistics': {
                     'total_detections': len([p for well in wells for p in well.get('predictions', [])]),
                     'wells_analyzed': len(wells),

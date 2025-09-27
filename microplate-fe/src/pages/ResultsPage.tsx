@@ -7,19 +7,19 @@ import WellGrid from '../components/results/WellGrid';
 import ConfidenceChart from '../components/results/ConfidenceChart';
 import { useSampleResult } from '../hooks/useResults';
 
-type SampleData = {
-  lastRun?: {
-    statistics: {
-      totalDetections: number
-      positiveCount: number
-      negativeCount: number
-      averageConfidence: number
-    }
-    wellPredictions: Array<{ id: string; confidence: number; label: 'positive' | 'negative' }>
-    status: string
-    predictAt: string
-  }
-}
+// type SampleData = {
+//   lastRun?: {
+//     statistics: {
+//       totalDetections: number
+//       positiveCount: number
+//       negativeCount: number
+//       averageConfidence: number
+//     }
+//     wellPredictions: Array<{ id: string; confidence: number; label: 'positive' | 'negative' }>
+//     status: string
+//     predictAt: string
+//   }
+// }
 
 export default function ResultsPage() {
   const { sampleNo } = useParams<{ sampleNo: string }>();

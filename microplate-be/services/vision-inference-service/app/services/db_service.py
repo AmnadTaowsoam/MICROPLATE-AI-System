@@ -38,11 +38,6 @@ class DatabaseService:
             resp.raise_for_status()
             return resp.json()
 
-    async def create_image_file(self, run_id: int, image_data: Dict[str, Any]) -> Dict[str, Any]:
-        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-            resp = await client.post(f"{self.base_url}/api/v1/predictions/{run_id}/images", json=image_data)
-            resp.raise_for_status()
-            return resp.json()
 
     async def create_row_counts(self, run_id: int, counts_data: Dict[str, Any]) -> Dict[str, Any]:
         async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:

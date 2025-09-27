@@ -6,7 +6,9 @@ import morgan from 'morgan';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import { imageRoutes } from './routes/image.routes';
+import { imageFileRoutes } from './routes/imageFile.routes';
 import { ensureBuckets } from './services/s3.service';
+import { databaseService } from './services/database.service';
 import { authenticateToken } from '../shared/auth-middleware';
 
 dotenv.config();
@@ -17,7 +19,7 @@ const PORT = Number(process.env.PORT || 6402);
 // Basic middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || true,
+  origin: process.env.CORS_ORIGIN === 'true' ? true : process.env.CORS_ORIGIN || 'http://localhost:6410',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID']
@@ -60,6 +62,7 @@ const authConfig = {
 
 // Routes
 app.use('/api/v1/images', authenticateToken(authConfig), upload.single('file') as any, imageRoutes);
+app.use('/api/v1/image-files', authenticateToken(authConfig), imageFileRoutes());
 
 // Health check routes
 app.get('/healthz', (_req: express.Request, res: express.Response) => {
@@ -101,7 +104,14 @@ app.use((_req: express.Request, res: express.Response) => {
 // Start server
 const start = async () => {
   try {
+    // Connect to database
+    await databaseService.connect();
+    console.log('Database connected successfully');
+
+    // Ensure MinIO buckets exist
     await ensureBuckets();
+    console.log('MinIO buckets ensured');
+
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Image ingestion service running on port ${PORT}`);
     });
@@ -112,13 +122,15 @@ const start = async () => {
 };
 
 // Graceful shutdown
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('Received SIGINT, shutting down gracefully...');
+  await databaseService.disconnect();
   process.exit(0);
 });
 
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('Received SIGTERM, shutting down gracefully...');
+  await databaseService.disconnect();
   process.exit(0);
 });
 

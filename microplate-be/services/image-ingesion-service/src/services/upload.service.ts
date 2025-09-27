@@ -45,6 +45,8 @@ export async function saveImage(params: UploadParams) {
     forcePathStyle: storageConfig.s3.forcePathStyle
   });
 
+  console.log(`Uploading to MinIO: bucket=${bucket}, key=${relPath}, size=${params.buffer.length}`);
+  
   await s3.send(new PutObjectCommand({
     Bucket: bucket,
     Key: relPath,
@@ -52,11 +54,15 @@ export async function saveImage(params: UploadParams) {
     ContentType: detectedMime
   }));
 
+  console.log(`Successfully uploaded to MinIO: ${bucket}/${relPath}`);
+
   const signedUrl = await getSignedUrl(
     s3,
     new GetObjectCommand({ Bucket: bucket, Key: relPath }),
     { expiresIn: storageConfig.s3.signedUrlExpiry }
   );
+
+  console.log(`Generated signed URL: ${signedUrl}`);
 
   return {
     sampleNo: params.sampleNo,

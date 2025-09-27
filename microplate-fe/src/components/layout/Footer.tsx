@@ -1,4 +1,4 @@
-import { MdScience, MdEmail, MdPhone, MdLocationOn } from 'react-icons/md';
+import { MdEmail, MdPhone, MdLocationOn } from 'react-icons/md';
 
 export default function Footer() {
   return (

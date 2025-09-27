@@ -220,6 +220,29 @@ export function resultRoutes(resultController: ResultController): Router {
    */
   router.get('/samples/:sampleNo/trends', resultController.getSampleTrends.bind(resultController));
 
+  // POST /api/v1/results/samples/:sampleNo/update - Update sample summary (internal)
+  router.post('/samples/:sampleNo/update', resultController.updateSampleSummary.bind(resultController));
+
+  // GET /api/v1/results/samples/:sampleNo/interface-files - Get interface files for a sample
+  /**
+   * @swagger
+   * /api/v1/results/samples/{sampleNo}/interface-files:
+   *   get:
+   *     tags: [Samples]
+   *     summary: Get interface files
+   *     description: Get interface files for a specific sample
+   *     parameters:
+   *       - in: path
+   *         name: sampleNo
+   *         required: true
+   *         schema:
+   *           type: string
+   *     responses:
+   *       200:
+   *         description: Successfully retrieved interface files
+   */
+  router.get('/samples/:sampleNo/interface-files', resultController.getInterfaceFiles.bind(resultController));
+
   // =========================
   // Run Routes
   // =========================
@@ -362,6 +385,52 @@ export function resultRoutes(resultController: ResultController): Router {
    *         description: Successfully retrieved metrics
    */
   router.get('/metrics', resultController.getMetrics.bind(resultController));
+
+  // =========================
+  // System Logs Routes
+  // =========================
+
+  // GET /api/v1/results/logs - Get system logs
+  /**
+   * @swagger
+   * /api/v1/results/logs:
+   *   get:
+   *     tags: [Logs]
+   *     summary: Get system logs
+   *     description: Get system logs with optional filtering
+   *     parameters:
+   *       - in: query
+   *         name: level
+   *         schema:
+   *           type: string
+   *           enum: [info, warn, error, all]
+   *           default: all
+   *       - in: query
+   *         name: limit
+   *         schema:
+   *           type: integer
+   *           minimum: 1
+   *           maximum: 1000
+   *           default: 100
+   *     responses:
+   *       200:
+   *         description: Successfully retrieved logs
+   */
+  router.get('/logs', resultController.getLogs.bind(resultController));
+
+  // DELETE /api/v1/results/logs - Clear system logs
+  /**
+   * @swagger
+   * /api/v1/results/logs:
+   *   delete:
+   *     tags: [Logs]
+   *     summary: Clear system logs
+   *     description: Clear all system logs
+   *     responses:
+   *       200:
+   *         description: Successfully cleared logs
+   */
+  router.delete('/logs', resultController.clearLogs.bind(resultController));
 
   return router;
 }

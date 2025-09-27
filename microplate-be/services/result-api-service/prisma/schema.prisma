@@ -37,7 +37,6 @@ model PredictionRun {
   rowCounts            RowCounts[]
   inferenceResults     InferenceResult[]
   wellPredictions      WellPrediction[]
-  imageFiles           ImageFile[]
   
   @@map("prediction_run")
   @@schema("prediction_result")
@@ -94,32 +93,6 @@ model WellPrediction {
   @@index([class_])
 }
 
-model ImageFile {
-  id           Int      @id @default(autoincrement())
-  runId        Int      @map("run_id")
-  sampleNo     String   @map("sample_no")
-  fileType     String   @map("file_type") // raw, annotated, thumbnail
-  fileName     String   @map("file_name")
-  filePath     String   @map("file_path")
-  fileSize     BigInt?  @map("file_size")
-  mimeType     String?  @map("mime_type")
-  width        Int?
-  height       Int?
-  bucketName   String?  @map("bucket_name")
-  objectKey    String?  @map("object_key")
-  signedUrl    String?  @map("signed_url")
-  urlExpiresAt DateTime? @map("url_expires_at")
-  createdAt    DateTime @default(now()) @map("created_at")
-  
-  // Relations
-  run          PredictionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  
-  @@map("image_file")
-  @@schema("prediction_result")
-  @@index([runId])
-  @@index([sampleNo])
-  @@index([fileType])
-}
 
 model SampleSummary {
   sampleNo     String    @id @map("sample_no")
@@ -135,24 +108,6 @@ model SampleSummary {
   @@index([lastRunAt])
 }
 
-model InterfaceFile {
-  id           String   @id @default(uuid()) @db.Uuid
-  sampleNo     String   @map("sample_no")
-  fileName     String   @map("file_name")
-  filePath     String   @map("file_path")
-  fileSize     BigInt?  @map("file_size")
-  status       String   @default("pending") // pending, generated, delivered, failed
-  generatedAt  DateTime? @map("generated_at")
-  deliveredAt  DateTime? @map("delivered_at")
-  errorMsg     String?  @map("error_msg")
-  createdBy    String?  @db.Uuid @map("created_by")
-  createdAt    DateTime @default(now()) @map("created_at")
-  
-  @@map("interface_file")
-  @@schema("prediction_result")
-  @@index([sampleNo])
-  @@index([status])
-}
 
 model SystemConfig {
   id          String   @id @default(uuid()) @db.Uuid

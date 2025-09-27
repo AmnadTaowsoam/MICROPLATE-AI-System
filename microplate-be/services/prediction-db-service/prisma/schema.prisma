@@ -37,7 +37,6 @@ model PredictionRun {
   rowCounts            RowCounts[]
   inferenceResults     InferenceResult[]
   wellPredictions      WellPrediction[]
-  imageFiles           ImageFile[]
   
   @@map("prediction_run")
   @@schema("prediction_result")
@@ -94,32 +93,21 @@ model WellPrediction {
   @@index([class_])
 }
 
-model ImageFile {
-  id           Int      @id @default(autoincrement())
-  runId        Int      @map("run_id")
-  sampleNo     String   @map("sample_no")
-  fileType     String   @map("file_type") // raw, annotated, thumbnail
-  fileName     String   @map("file_name")
-  filePath     String   @map("file_path")
-  fileSize     BigInt?  @map("file_size")
-  mimeType     String?  @map("mime_type")
-  width        Int?
-  height       Int?
-  bucketName   String?  @map("bucket_name")
-  objectKey    String?  @map("object_key")
-  signedUrl    String?  @map("signed_url")
-  urlExpiresAt DateTime? @map("url_expires_at")
-  createdAt    DateTime @default(now()) @map("created_at")
-  
-  // Relations
-  run          PredictionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  
-  @@map("image_file")
+
+model SampleSummary {
+  sampleNo     String    @id @map("sample_no")
+  summary      Json      @map("summary") // {"distribution": {"positive": 37, "negative": 59}}
+  totalRuns    Int       @default(0) @map("total_runs")
+  lastRunAt    DateTime? @map("last_run_at")
+  lastRunId    Int?      @map("last_run_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("sample_summary")
   @@schema("prediction_result")
-  @@index([runId])
-  @@index([sampleNo])
-  @@index([fileType])
+  @@index([lastRunAt])
 }
+
 
 model SystemConfig {
   id          String   @id @default(uuid()) @db.Uuid

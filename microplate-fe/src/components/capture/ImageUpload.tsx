@@ -15,14 +15,18 @@ type Props = {
   canRunPrediction?: boolean
   isPredicting?: boolean
   actionText?: string
+  annotatedImageUrl?: string | null
 }
 
-export default function ImageUpload({ onSelect, onCaptured, className, sampleNo, disabled, onRunPrediction, onReset, canRunPrediction, isPredicting, actionText }: Props) {
+export default function ImageUpload({ onSelect, onCaptured, className, sampleNo, disabled, onRunPrediction, onReset, canRunPrediction, isPredicting, actionText, annotatedImageUrl }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   // Keep only preview; parent manages upload state
   const [isCapturing, setIsCapturing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  console.log('ImageUpload render - annotatedImageUrl:', annotatedImageUrl);
+  console.log('ImageUpload render - preview:', preview);
 
   const handleChoose = () => inputRef.current?.click()
 
@@ -62,8 +66,22 @@ export default function ImageUpload({ onSelect, onCaptured, className, sampleNo,
   return (
     <Card className={`p-0 overflow-hidden ${className || ''}`}>
       <div className="bg-gray-50 dark:bg-gray-700 flex items-center justify-center" style={{ height: '640px' }}>
-        {preview ? (
-          <img src={preview} alt="preview" className="w-full h-full object-contain" />)
+        {annotatedImageUrl || preview ? (
+          <img 
+            src={annotatedImageUrl || preview} 
+            alt={annotatedImageUrl ? "Annotated Result" : "Original Image"} 
+            className="w-full h-full object-contain"
+            onLoad={() => {
+              const currentSrc = annotatedImageUrl || preview;
+              console.log('ImageUpload: Image loaded successfully:', currentSrc);
+              console.log('ImageUpload: Is annotated image?', !!annotatedImageUrl);
+            }}
+            onError={(e) => {
+              console.error('ImageUpload: Image failed to load:', e.currentTarget.src);
+              console.error('ImageUpload: Annotated URL:', annotatedImageUrl);
+              console.error('ImageUpload: Preview URL:', preview);
+            }}
+          />)
           : (<div className="text-gray-400 dark:text-gray-500 text-sm">No image selected</div>)}
         <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleChange} />
       </div>

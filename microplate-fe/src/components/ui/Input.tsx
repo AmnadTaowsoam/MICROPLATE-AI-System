@@ -1,4 +1,4 @@
-import { forwardRef, InputHTMLAttributes } from 'react'
+import { forwardRef, type InputHTMLAttributes } from 'react'
 import clsx from 'classnames'
 
 type Props = InputHTMLAttributes<HTMLInputElement> & {

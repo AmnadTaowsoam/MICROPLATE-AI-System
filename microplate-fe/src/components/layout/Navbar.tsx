@@ -10,10 +10,10 @@ const navigationLinks = [
   { name: 'Reports', href: '/reports', icon: MdDescription },
 ];
 
-const userNavigation = [
-  { name: 'Your Profile', href: '/settings' },
-  { name: 'Sign out', href: '#' },
-];
+// const userNavigation = [
+//   { name: 'Your Profile', href: '/settings' },
+//   { name: 'Sign out', href: '#' },
+// ];
 
 function classNames(...classes: string[]) {
   return classes.filter(Boolean).join(' ');

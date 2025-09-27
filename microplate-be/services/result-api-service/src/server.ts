@@ -13,6 +13,7 @@ import { PrismaClient } from '@prisma/client';
 import { ResultServiceImpl } from '@/services/result.service';
 import { WebSocketServiceImpl } from '@/services/websocket.service';
 import { AggregationServiceImpl } from '@/services/aggregation.service';
+import { LogsService } from '@/services/logs.service';
 import { ResultController } from '@/controllers/result.controller';
 import { WebSocketController } from '@/controllers/websocket.controller';
 
@@ -53,10 +54,10 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(morgan('combined'));
 app.use(requestLogger);
 
-// Rate limiting
+// Rate limiting - more permissive for development
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 1000, // limit each IP to 1000 requests per windowMs (increased from 100)
   message: {
     success: false,
     error: {
@@ -168,6 +169,7 @@ const initializeServices = () => {
   const resultService = new ResultServiceImpl(prisma, cacheService);
   const websocketService = new WebSocketServiceImpl();
   const aggregationService = new AggregationServiceImpl(prisma);
+  const logsService = new LogsService(process.env.REDIS_URL || 'redis://redis:6379');
 
   // Initialize controllers
   const resultController = new ResultController(resultService, websocketService);
@@ -177,6 +179,7 @@ const initializeServices = () => {
   app.locals.resultService = resultService;
   app.locals.websocketService = websocketService;
   app.locals.aggregationService = aggregationService;
+  app.locals.logsService = logsService;
   app.locals.resultController = resultController;
   app.locals.websocketController = websocketController;
   app.locals.cacheService = cacheService;
@@ -287,20 +290,6 @@ const setupDatabaseNotifications = async () => {
   }
 };
 
-// Error handling
-app.use(errorHandler);
-
-// 404 handler
-app.use('*', (_req, res) => {
-  res.status(404).json({
-    success: false,
-    error: {
-      code: 'NOT_FOUND',
-      message: 'Route not found'
-    }
-  });
-});
-
 // Start server
 const start = async () => {
   try {
@@ -319,11 +308,28 @@ const start = async () => {
     // Initialize services and controllers
     initializeServices();
 
+    // Add sample logs for testing
+    await app.locals.logsService.addSampleLogs();
+
     // Register routes after services are initialized
     app.use('/api/v1/results', resultRoutes(app.locals.resultController));
 
     // Setup database notifications
     await setupDatabaseNotifications();
+
+    // Error handling (after routes)
+    app.use(errorHandler);
+
+    // 404 handler (after all routes)
+    app.use('*', (_req, res) => {
+      res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Route not found'
+        }
+      });
+    });
 
     // Start server
     server.listen(config.server.port, config.server.host, () => {

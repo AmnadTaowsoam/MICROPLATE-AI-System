@@ -7,6 +7,7 @@ import { registerProxyRoutes } from './routes/proxy';
 import { registerLogRoutes } from './routes/logs';
 import { registerRequestLogging } from './middleware/logging';
 import { registerSecurityPlugins } from './middleware/security';
+import { logStore } from './services/log.store';
 
 function buildApp() {
   const app = express();
@@ -46,6 +47,9 @@ function buildApp() {
 
   // Register log routes
   registerLogRoutes(app);
+
+  // Add sample logs for testing
+  logStore.addSampleLogs();
 
   // Global error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

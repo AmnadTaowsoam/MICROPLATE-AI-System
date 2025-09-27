@@ -22,8 +22,8 @@ export class ResultController {
     try {
       const query = request.query as any;
       const options: PaginationOptions = {
-        page: query.page,
-        limit: query.limit,
+        page: parseInt(query.page) || 1,
+        limit: parseInt(query.limit) || 20,
         ...(query.sortBy ? { sortBy: query.sortBy } : {}),
         ...(query.sortOrder ? { sortOrder: query.sortOrder } : {}),
       };
@@ -100,8 +100,8 @@ export class ResultController {
       const query = request.query as any;
       
       const options: PaginationOptions = {
-        page: query.page,
-        limit: query.limit,
+        page: parseInt(query.page) || 1,
+        limit: parseInt(query.limit) || 20,
         ...(query.sortBy ? { sortBy: query.sortBy } : {}),
         ...(query.sortOrder ? { sortOrder: query.sortOrder } : {}),
       };
@@ -388,6 +388,125 @@ export class ResultController {
       return sendSuccess(response, metrics);
     } catch (error) {
       logger.error({ requestId: (request as any).id || 'unknown', error }, 'Failed to get metrics');
+      return sendError(response, error as any);
+    }
+  }
+
+  async updateSampleSummary(request: Request, response: Response) {
+    try {
+      const { sampleNo } = request.params;
+      const { runId } = request.body;
+
+      logger.info({ sampleNo, runId }, 'Received sample summary update request');
+
+      // Get aggregation service from app locals
+      const aggregationService = (request.app as any).locals.aggregationService;
+      
+      if (!aggregationService) {
+        logger.error('Aggregation service not available');
+        return response.status(500).json({ 
+          success: false, 
+          error: { code: 'SERVICE_UNAVAILABLE', message: 'Aggregation service not available' } 
+        });
+      }
+
+      // Update sample summary
+      await aggregationService.updateSampleSummary(sampleNo);
+
+      logger.info({ sampleNo, runId }, 'Sample summary updated successfully');
+
+      return response.json({ 
+        success: true, 
+        message: 'Sample summary updated successfully',
+        sampleNo,
+        runId,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      logger.error({ requestId: (request as any).id || 'unknown', error }, 'Failed to update sample summary');
+      return response.status(500).json({ 
+        success: false, 
+        error: { code: 'UPDATE_FAILED', message: 'Failed to update sample summary' } 
+      });
+    }
+  }
+
+  // =========================
+  // System Logs Endpoints
+  // =========================
+
+  async getLogs(request: Request, response: Response) {
+    try {
+      const { level = 'all', limit = '100' } = request.query as { level?: string; limit?: string };
+      const limitNum = Math.min(parseInt(limit, 10) || 100, 1000);
+
+      // Get logs service from app locals
+      const logsService = (request.app as any).locals.logsService;
+      
+      if (!logsService) {
+        logger.error('Logs service not available');
+        return response.status(500).json({ 
+          success: false, 
+          error: { code: 'SERVICE_UNAVAILABLE', message: 'Logs service not available' } 
+        });
+      }
+
+      const logs = await logsService.getLogs(level === 'all' ? undefined : level as any, limitNum);
+
+      logger.info({ 
+        requestId: (request as any).id || 'unknown',
+        level,
+        limit: limitNum,
+        total: logs.length
+      }, 'Logs retrieved');
+
+      return sendSuccess(response, {
+        logs,
+        total: logs.length,
+        level,
+        limit: limitNum
+      });
+    } catch (error) {
+      logger.error({ requestId: (request as any).id || 'unknown', error }, 'Failed to get logs');
+      return sendError(response, error as any);
+    }
+  }
+
+  async clearLogs(request: Request, response: Response) {
+    try {
+      // Get logs service from app locals
+      const logsService = (request.app as any).locals.logsService;
+      
+      if (!logsService) {
+        logger.error('Logs service not available');
+        return response.status(500).json({ 
+          success: false, 
+          error: { code: 'SERVICE_UNAVAILABLE', message: 'Logs service not available' } 
+        });
+      }
+
+      await logsService.clearLogs();
+
+      logger.info({ requestId: (request as any).id || 'unknown' }, 'Logs cleared');
+
+      return sendSuccess(response, { message: 'Logs cleared successfully' });
+    } catch (error) {
+      logger.error({ requestId: (request as any).id || 'unknown', error }, 'Failed to clear logs');
+      return sendError(response, error as any);
+    }
+  }
+
+  async getInterfaceFiles(request: Request, response: Response) {
+    try {
+      const { sampleNo } = request.params as { sampleNo: string };
+      
+      logger.info({ sampleNo }, 'Getting interface files for sample');
+      
+      const files = await this.resultService.getInterfaceFiles(sampleNo);
+      
+      return sendSuccess(response, files);
+    } catch (error) {
+      logger.error({ sampleNo: (request.params as any)?.sampleNo, error }, 'Failed to get interface files');
       return sendError(response, error as any);
     }
   }

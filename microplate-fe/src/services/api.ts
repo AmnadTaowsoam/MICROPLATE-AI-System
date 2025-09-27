@@ -6,7 +6,7 @@ export class ApiError extends Error {
   }
 }
 
-class ApiService {
+export class ApiService {
   private baseURL: string
   private accessToken: string | null = null
 
@@ -18,7 +18,7 @@ class ApiService {
     this.accessToken = token
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseURL}${endpoint}`
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -40,6 +40,14 @@ class ApiService {
   }
   post<T>(endpoint: string, data?: any) {
     return this.request<T>(endpoint, { method: 'POST', body: data ? JSON.stringify(data) : undefined })
+  }
+
+  put<T>(endpoint: string, data?: any) {
+    return this.request<T>(endpoint, { method: 'PUT', body: data ? JSON.stringify(data) : undefined })
+  }
+
+  delete<T>(endpoint: string) {
+    return this.request<T>(endpoint, { method: 'DELETE' })
   }
 
   // For multipart form data uploads (images)

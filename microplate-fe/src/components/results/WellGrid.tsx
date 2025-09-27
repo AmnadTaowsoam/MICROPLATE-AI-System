@@ -8,6 +8,10 @@ type Props = {
 
 export default function WellGrid({ predictions, columns = 12 }: Props) {
   // Render a simple grid: green for positive, gray for negative; intensity by confidence
+  if (!predictions || !Array.isArray(predictions)) {
+    return <div className="text-gray-500 text-sm">No prediction data available</div>;
+  }
+  
   return (
     <div
       className="grid gap-2"

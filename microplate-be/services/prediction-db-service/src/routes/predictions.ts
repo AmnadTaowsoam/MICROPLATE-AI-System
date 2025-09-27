@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../server';
 import { logger } from '../utils/logger';
+import { notificationService } from '../services/notification.service';
 
 export function predictionRoutes(): Router {
   const router = Router();
@@ -22,8 +23,12 @@ export function predictionRoutes(): Router {
           modelVersion: body.modelVersion || null,
           status: body.status || 'pending',
           confidenceThreshold: body.confidenceThreshold ?? null,
+          createdBy: body.createdBy || null,
         },
       });
+
+      // Notify result-api-service about new prediction run
+      notificationService.notifyResultApiService(run.sampleNo, run.id);
 
       return response.status(201).json({ success: true, data: { id: run.id, sampleNo: run.sampleNo } });
     } catch (error) {
@@ -49,8 +54,12 @@ export function predictionRoutes(): Router {
           modelVersion: body.modelVersion || null,
           status: body.status || 'pending',
           confidenceThreshold: body.confidenceThreshold ?? null,
+          createdBy: body.createdBy || null,
         },
       });
+
+      // Notify result-api-service about new prediction run
+      notificationService.notifyResultApiService(run.sampleNo, run.id);
 
       return response.status(201).json({ success: true, data: { id: run.id, sampleNo: run.sampleNo } });
     } catch (error) {
@@ -95,7 +104,6 @@ export function predictionRoutes(): Router {
           orderBy: { [sortBy as string]: sortOrder },
           include: {
             wellPredictions: true,
-            imageFiles: true,
             rowCounts: true,
             inferenceResults: true,
           },
@@ -136,7 +144,6 @@ export function predictionRoutes(): Router {
         where: { id: parseInt(id, 10) },
         include: {
           wellPredictions: true,
-          imageFiles: true,
           rowCounts: true,
           inferenceResults: true,
         },
@@ -153,49 +160,6 @@ export function predictionRoutes(): Router {
     }
   });
 
-  // Create image file for prediction
-  router.post('/:id/images', async (request: Request, response: Response) => {
-    const { id } = request.params;
-    
-    if (!id || isNaN(parseInt(id, 10))) {
-      return response.status(400).json({ error: 'Invalid prediction ID' });
-    }
-    
-    const runId = parseInt(id, 10);
-    const body = request.body;
-
-    if (!body?.sampleNo || !body?.fileType || !body?.fileName) {
-      return response.status(400).json({ error: 'sampleNo, fileType, and fileName are required' });
-    }
-
-    try {
-      const imageFile = await prisma.imageFile.create({
-        data: {
-          runId: runId,
-          sampleNo: body.sampleNo,
-          fileType: body.fileType,
-          fileName: body.fileName,
-          filePath: body.filePath || null,
-          fileSize: body.fileSize || null,
-          mimeType: body.mimeType || null,
-        },
-      });
-
-      // Convert BigInt to string for JSON serialization
-      const serializedImageFile = {
-        ...imageFile,
-        id: imageFile.id.toString(),
-        runId: imageFile.runId.toString(),
-        fileSize: imageFile.fileSize?.toString() || null,
-        createdAt: imageFile.createdAt.toISOString()
-      };
-      
-      return response.status(201).json({ success: true, data: serializedImageFile });
-    } catch (error) {
-      logger.error('Failed to create image file:', String(error));
-      return response.status(500).json({ error: 'Failed to create image file' });
-    }
-  });
 
   // Get prediction runs by sample number
   router.get('/sample/:sampleNo', async (request: Request, response: Response) => {
@@ -219,7 +183,6 @@ export function predictionRoutes(): Router {
           orderBy: { createdAt: 'desc' },
           include: {
             wellPredictions: true,
-            imageFiles: true,
             rowCounts: true,
             inferenceResults: true,
           },
@@ -311,7 +274,6 @@ export function predictionRoutes(): Router {
 
       // Delete related data first (cascade should handle this, but being explicit)
       await prisma.wellPrediction.deleteMany({ where: { runId: parseInt(id, 10) } });
-      await prisma.imageFile.deleteMany({ where: { runId: parseInt(id, 10) } });
       await prisma.rowCounts.deleteMany({ where: { runId: parseInt(id, 10) } });
       await prisma.inferenceResult.deleteMany({ where: { runId: parseInt(id, 10) } });
 
@@ -353,8 +315,17 @@ export function predictionRoutes(): Router {
           ...(body.modelVersion && { modelVersion: body.modelVersion }),
           ...(body.confidenceThreshold !== undefined && { confidenceThreshold: body.confidenceThreshold }),
           ...(body.rawImagePath && { rawImagePath: body.rawImagePath }),
+          ...(body.annotatedImagePath && { annotatedImagePath: body.annotatedImagePath }),
+          ...(body.processingTimeMs !== undefined && { processingTimeMs: body.processingTimeMs }),
+          ...(body.errorMsg && { errorMsg: body.errorMsg }),
+          ...(body.createdBy && { createdBy: body.createdBy }),
         },
       });
+
+      // Notify result-api-service about updated prediction run (only if status is completed)
+      if (body.status === 'completed') {
+        notificationService.notifyResultApiService(updatedRun.sampleNo, updatedRun.id);
+      }
 
       return response.json({ success: true, data: updatedRun });
     } catch (error) {
@@ -363,52 +334,6 @@ export function predictionRoutes(): Router {
     }
   });
 
-  // Add images to a prediction run
-  router.post('/:id/images', async (request: Request, response: Response) => {
-    const { id } = request.params;
-    const { images } = request.body;
-
-    if (!id || isNaN(parseInt(id, 10))) {
-      return response.status(400).json({ error: 'Valid ID is required' });
-    }
-
-    if (!Array.isArray(images)) {
-      return response.status(400).json({ error: 'images must be an array' });
-    }
-
-    try {
-      const run = await prisma.predictionRun.findUnique({
-        where: { id: parseInt(id, 10) },
-      });
-
-      if (!run) {
-        return response.status(404).json({ error: 'Prediction run not found' });
-      }
-
-      const createdImages = await prisma.imageFile.createMany({
-        data: images.map((img: any) => ({
-          runId: parseInt(id, 10),
-          sampleNo: run.sampleNo,
-          fileType: img.imageType || 'original',
-          fileName: img.fileName || `image_${Date.now()}.jpg`,
-          filePath: img.imagePath,
-          fileSize: img.fileSize || null,
-          mimeType: img.mimeType || 'image/jpeg',
-          width: img.width || null,
-          height: img.height || null,
-          bucketName: img.bucketName || null,
-          objectKey: img.objectKey || null,
-          signedUrl: img.signedUrl || null,
-          urlExpiresAt: img.urlExpiresAt || null,
-        })),
-      });
-
-      return response.json({ success: true, data: { count: createdImages.count } });
-    } catch (error) {
-      logger.error(`Failed to add images to run ${id}:`, String(error));
-      return response.status(500).json({ error: 'Failed to add images' });
-    }
-  });
 
   // Add wells to a prediction run
   router.post('/:id/wells', async (request: Request, response: Response) => {

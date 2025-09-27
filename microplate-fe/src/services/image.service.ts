@@ -16,21 +16,36 @@ export type PredictionRequest = {
 
 export type PredictionResponse = {
   success: boolean
-  message: string
-  predictionId?: string
-  status?: 'pending' | 'processing' | 'completed' | 'failed'
-  results?: {
-    wellPredictions: Array<{
-      id: string
-      confidence: number
-      label: 'positive' | 'negative'
-    }>
+  data?: {
+    run_id: number
+    sample_no: string
+    submission_no?: string
+    predict_at?: string
+    model_version: string
+    status: 'completed' | 'failed' | 'pending' | 'processing'
+    processing_time_ms: number
+    annotated_image_url: string
     statistics: {
-      totalDetections: number
-      positiveCount: number
-      negativeCount: number
-      averageConfidence: number
+      total_detections: number
+      wells_analyzed: number
+      average_confidence: number
     }
+    well_predictions: Array<{
+      wellId: string
+      label: string
+      class: string
+      confidence: number
+      bbox: any
+    }>
+    row_counts: any
+    inference_results: {
+      distribution: any
+    }
+  }
+  error?: {
+    code: string
+    message: string
+    details?: any
   }
 }
 
@@ -42,12 +57,15 @@ export type CaptureResponse = {
 
 export const imageService = {
   // Upload image to image-ingestion-service directly
-  async uploadImage(file: File, sampleNo: string, submissionNo?: string): Promise<ImageUploadResponse> {
+  async uploadImage(file: File, sampleNo: string, submissionNo?: string, description?: string): Promise<ImageUploadResponse> {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('sample_no', sampleNo)
     if (submissionNo) {
       formData.append('submission_no', submissionNo)
+    }
+    if (description) {
+      formData.append('description', description)
     }
     formData.append('file_type', 'raw')
 
@@ -55,19 +73,22 @@ export const imageService = {
   },
 
   // Run prediction via vision-inference-service directly
-  async runPrediction(request: PredictionRequest): Promise<PredictionResponse> {
+  async runPrediction(_request: PredictionRequest): Promise<PredictionResponse> {
     // For prediction, we need to send the image file directly to vision-inference-service
     // This should be called after image upload, but we need the file to send to prediction endpoint
     throw new Error('runPrediction should be called with file upload directly to vision-inference-service')
   },
 
   // Upload image and run prediction in one call to vision-inference-service
-  async uploadAndPredict(file: File, sampleNo: string, submissionNo?: string): Promise<PredictionResponse> {
+  async uploadAndPredict(file: File, sampleNo: string, submissionNo?: string, description?: string): Promise<PredictionResponse> {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('sample_no', sampleNo)
     if (submissionNo) {
       formData.append('submission_no', submissionNo)
+    }
+    if (description) {
+      formData.append('description', description)
     }
 
     return visionApi.postFormData<PredictionResponse>('/api/v1/inference/predict', formData)

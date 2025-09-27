@@ -10,10 +10,13 @@ export default function ConfidenceChart({ predictions }: Props) {
     bucket: `${i * 10}-${(i + 1) * 10}%`,
     count: 0,
   }))
-  predictions.forEach((p) => {
-    const idx = Math.min(9, Math.floor(p.confidence * 10))
-    bins[idx].count += 1
-  })
+  
+  if (predictions && Array.isArray(predictions)) {
+    predictions.forEach((p) => {
+      const idx = Math.min(9, Math.floor(p.confidence * 10))
+      bins[idx].count += 1
+    })
+  }
 
   return (
     <div className="h-64">

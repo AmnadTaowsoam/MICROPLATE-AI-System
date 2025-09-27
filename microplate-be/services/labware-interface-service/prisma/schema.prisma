@@ -1,4 +1,5 @@
-// Prisma schema for Labware Interface Service (InterfaceFile)
+// Prisma schema for Labware Interface Service
+// This service provides CSV file generation from prediction results
 
 generator client {
   provider = "prisma-client-js"
@@ -11,13 +12,31 @@ datasource db {
   schemas  = ["prediction_result", "public"]
 }
 
+// =========================
+// PREDICTION RESULT SCHEMA
+// =========================
+
+model SampleSummary {
+  sampleNo     String    @id @map("sample_no")
+  summary      Json      @map("summary") // {"distribution": {"positive": 37, "negative": 59}}
+  totalRuns    Int       @default(0) @map("total_runs")
+  lastRunAt    DateTime? @map("last_run_at")
+  lastRunId    Int?      @map("last_run_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("sample_summary")
+  @@schema("prediction_result")
+  @@index([lastRunAt])
+}
+
 model InterfaceFile {
   id           String    @id @default(uuid()) @db.Uuid
   sampleNo     String    @map("sample_no")
   fileName     String    @map("file_name")
   filePath     String    @map("file_path")
   fileSize     BigInt?   @map("file_size")
-  status       String    @default("pending")
+  status       String    @default("pending") // pending, generated, delivered, failed
   generatedAt  DateTime? @map("generated_at")
   deliveredAt  DateTime? @map("delivered_at")
   errorMsg     String?   @map("error_msg")
@@ -28,6 +47,23 @@ model InterfaceFile {
   @@schema("prediction_result")
   @@index([sampleNo])
   @@index([status])
+}
+
+// =========================
+// PUBLIC SCHEMA (Utilities)
+// =========================
+
+model HealthCheck {
+  id        String   @id @default(uuid()) @db.Uuid
+  service   String
+  status    String   // healthy, unhealthy, degraded
+  message   String?
+  timestamp DateTime @default(now())
+  
+  @@map("health_checks")
+  @@schema("public")
+  @@index([service])
+  @@index([timestamp])
 }
 
 

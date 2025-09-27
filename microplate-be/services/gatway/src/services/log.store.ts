@@ -33,7 +33,7 @@ export class InMemoryLogStore {
     }
   }
 
-  all(): GatewayLogEntry[] {
+  async all(): Promise<GatewayLogEntry[]> {
     if (this.size < this.capacity) {
       return [...this.buffer];
     }
@@ -42,10 +42,89 @@ export class InMemoryLogStore {
     return [...first, ...second];
   }
 
-  clear() {
+  async clear(): Promise<void> {
     this.buffer = [];
     this.head = 0;
     this.size = 0;
+  }
+
+  // Add sample logs for testing
+  addSampleLogs() {
+    const now = Date.now()
+    const sampleLogs: GatewayLogEntry[] = [
+      {
+        id: '1',
+        time: now - 1000,
+        level: 'info',
+        method: 'POST',
+        url: '/api/v1/inference/predict',
+        statusCode: 200,
+        latencyMs: 1500,
+        requestId: 'req_001',
+        userId: 'user_001',
+        ip: '192.168.1.100',
+        service: 'vision-inference',
+        message: 'Prediction completed successfully'
+      },
+      {
+        id: '2',
+        time: now - 2000,
+        level: 'info',
+        method: 'POST',
+        url: '/api/v1/images',
+        statusCode: 201,
+        latencyMs: 800,
+        requestId: 'req_002',
+        userId: 'user_001',
+        ip: '192.168.1.100',
+        service: 'image-ingestion',
+        message: 'Image uploaded successfully'
+      },
+      {
+        id: '3',
+        time: now - 3000,
+        level: 'error',
+        method: 'POST',
+        url: '/api/v1/inference/predict',
+        statusCode: 500,
+        latencyMs: 2000,
+        requestId: 'req_003',
+        userId: 'user_002',
+        ip: '192.168.1.101',
+        service: 'vision-inference',
+        message: 'Model inference failed'
+      },
+      {
+        id: '4',
+        time: now - 4000,
+        level: 'warn',
+        method: 'GET',
+        url: '/api/v1/results/samples/TEST001',
+        statusCode: 404,
+        latencyMs: 200,
+        requestId: 'req_004',
+        userId: 'user_003',
+        ip: '192.168.1.102',
+        service: 'result-api',
+        message: 'Sample not found'
+      },
+      {
+        id: '5',
+        time: now - 5000,
+        level: 'info',
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        statusCode: 200,
+        latencyMs: 300,
+        requestId: 'req_005',
+        userId: 'user_004',
+        ip: '192.168.1.103',
+        service: 'auth-service',
+        message: 'User login successful'
+      }
+    ]
+
+    sampleLogs.forEach(log => this.add(log))
   }
 }
 

@@ -3,6 +3,7 @@ import { storageConfig } from '../config/storage';
 import { ensureBuckets } from '../services/s3.service';
 import { saveImage } from '../services/upload.service';
 import { publishLog } from '../services/event-bus.service';
+import { databaseService } from '../services/database.service';
 
 export const imageRoutes = (req: Request, res: Response) => {
   const file = req.file;
@@ -50,7 +51,28 @@ export const imageRoutes = (req: Request, res: Response) => {
     mimeType: file.mimetype,
     description
   })
-    .then(data => {
+    .then(async data => {
+      // Save image file record to database
+      try {
+        await databaseService.createImageFile({
+          runId: runId ? parseInt(runId, 10) : undefined,
+          sampleNo,
+          fileType,
+          fileName: data.fileName,
+          filePath: data.filePath,
+          fileSize: data.fileSize ? BigInt(data.fileSize) : undefined,
+          mimeType: data.mimeType,
+          bucketName: data.bucketName,
+          objectKey: data.objectKey,
+          signedUrl: data.signedUrl,
+          urlExpiresAt: data.urlExpiresAt ? new Date(data.urlExpiresAt) : undefined,
+          description
+        });
+      } catch (dbError) {
+        console.error('Error saving image file record to database:', dbError);
+        // Continue with response even if database save fails
+      }
+
       publishLog({
         level: 'info',
         event: 'image_uploaded',

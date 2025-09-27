@@ -66,6 +66,8 @@ export interface PredictionRunSummary {
     negativeCount: number;
     averageConfidence: number;
   };
+  inferenceResults?: any[];
+  wellPredictions?: any[];
 }
 
 // =========================
@@ -280,6 +282,7 @@ export interface ResultService {
   getSamples(options: PaginationOptions & { filters?: any }): Promise<PaginatedResult<SampleSummary>>;
   getSystemStatistics(filters?: any): Promise<SystemStatistics>;
   getSampleTrends(sampleNo: string): Promise<SampleTrends>;
+  getInterfaceFiles(sampleNo: string): Promise<any[]>;
 }
 
 export interface AggregationService {
