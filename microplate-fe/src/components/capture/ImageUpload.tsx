@@ -1,14 +1,18 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import Card from '../ui/Card'
 import Button from '../ui/Button'
 import { FolderOpenIcon, CameraIcon, ArrowPathIcon, PlayCircleIcon } from '@heroicons/react/24/outline'
 import { imageService } from '../../services/image.service'
+import { useCapture } from '../../hooks/useCapture'
+import CameraStatus from './CameraStatus'
 
 type Props = {
   onSelect: (file: File) => void
   onCaptured?: (url: string) => void
   className?: string
   sampleNo?: string
+  submissionNo?: string
+  description?: string
   disabled?: boolean
   onRunPrediction?: () => void
   onReset?: () => void
@@ -18,12 +22,46 @@ type Props = {
   annotatedImageUrl?: string | null
 }
 
-export default function ImageUpload({ onSelect, onCaptured, className, sampleNo, disabled, onRunPrediction, onReset, canRunPrediction, isPredicting, actionText, annotatedImageUrl }: Props) {
+export default function ImageUpload({ 
+  onSelect, 
+  onCaptured, 
+  className, 
+  sampleNo, 
+  submissionNo, 
+  description, 
+  disabled, 
+  onRunPrediction, 
+  onReset, 
+  canRunPrediction, 
+  isPredicting, 
+  actionText, 
+  annotatedImageUrl 
+}: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
-  // Keep only preview; parent manages upload state
-  const [isCapturing, setIsCapturing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  
+  // ใช้ capture hook
+  const {
+    isCapturing,
+    captureStatus,
+    capturedImageUrl,
+    error: captureError,
+    isConnected: isServiceConnected,
+    captureImage,
+    clearError,
+    resetCapture,
+    checkConnection
+  } = useCapture({
+    onSuccess: (response) => {
+      console.log('✅ Capture successful:', response);
+      if (onCaptured) {
+        onCaptured(response.imageUrl);
+      }
+    },
+    onError: (error) => {
+      console.error('❌ Capture failed:', error);
+    }
+  });
   
   console.log('ImageUpload render - annotatedImageUrl:', annotatedImageUrl);
   console.log('ImageUpload render - preview:', preview);
@@ -42,19 +80,24 @@ export default function ImageUpload({ onSelect, onCaptured, className, sampleNo,
   // upload handled by parent when file chosen; no separate button
 
   const handleCapture = async () => {
-    if (disabled) return
+    if (disabled) {
+      return;
+    }
+    
     try {
-      setIsCapturing(true)
-      const res = await imageService.captureImage(sampleNo)
-      if (res.imageUrl) {
-        setPreview(res.imageUrl)
-        onCaptured?.(res.imageUrl)
-      }
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Capture failed'
-      setError(message)
-    } finally {
-      setIsCapturing(false)
+      // ใช้ข้อมูลที่มี หรือใช้ค่า default
+      const captureData = {
+        sampleNo: sampleNo || 'UNKNOWN',
+        submissionNo: submissionNo || 'UNKNOWN',
+        description: description || 'Captured image'
+      };
+      
+      console.log('🎥 Starting capture with data:', captureData);
+      
+      await captureImage(captureData);
+      
+    } catch (err) {
+      console.error('❌ Capture failed:', err);
     }
   }
 
@@ -86,22 +129,73 @@ export default function ImageUpload({ onSelect, onCaptured, className, sampleNo,
         <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleChange} />
       </div>
       <div className="flex flex-col items-center py-4">
+        {/* Capture Status */}
+        {isCapturing && (
+          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <span className="text-sm font-medium">
+                {captureStatus.message || 'กำลังถ่ายภาพ...'}
+              </span>
+            </div>
+            {captureStatus.progress && (
+              <div className="mt-2 w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${captureStatus.progress}%` }}
+                ></div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Capture Error */}
+        {captureError && (
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-red-700 dark:text-red-300">
+                <span className="text-sm font-medium">❌ {captureError}</span>
+              </div>
+              <button
+                onClick={clearError}
+                className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={handleChoose} className="border-gray-500 text-gray-900">
+          <Button variant="outline" onClick={handleChoose} className="border-gray-500 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700">
             <FolderOpenIcon className="h-4 w-4 mr-2" />
             Upload Image
           </Button>
-          <Button variant="outline" onClick={handleCapture} disabled={!!disabled || isCapturing} className="border-gray-500 text-gray-900">
+          <Button 
+            variant="outline" 
+            onClick={handleCapture} 
+            disabled={!!disabled || isCapturing} 
+            className="border-gray-500 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
             <CameraIcon className="h-4 w-4 mr-2" />
             {isCapturing ? 'Capturing...' : 'Capture'}
           </Button>
+          
+          {/* Camera Status */}
+          <CameraStatus
+            isConnected={isServiceConnected}
+            isCapturing={isCapturing}
+            error={captureError}
+            onCheckConnection={checkConnection}
+            className="ml-4"
+          />
           {onReset && (
             <Button 
               variant="outline" 
               onClick={handleResetClick} 
               disabled={!preview}
               title={!preview ? 'Nothing to reset' : 'Clear current image and inputs'}
-              className="border-gray-500 text-gray-900"
+              className="border-gray-500 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               <ArrowPathIcon className="h-4 w-4 mr-2" />
               Reset
@@ -109,12 +203,17 @@ export default function ImageUpload({ onSelect, onCaptured, className, sampleNo,
           )}
           {onRunPrediction && (
             <Button 
+              variant="primary"
               onClick={onRunPrediction} 
               disabled={isPredicting || !canRunPrediction}
               title={isPredicting ? 'Prediction is running' : (!sampleNo ? 'Please enter Sample Number' : (!canRunPrediction ? 'Please upload or capture an image first' : undefined))}
-              className={(isPredicting || !canRunPrediction) ? 'bg-gray-300 text-white cursor-not-allowed' : ''}
+              className={`flex items-center gap-2 ${
+                (isPredicting || !canRunPrediction) 
+                  ? 'bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
             >
-              <PlayCircleIcon className="h-4 w-4 mr-2" />
+              <PlayCircleIcon className="h-4 w-4" />
               {isPredicting ? 'Running...' : 'Run Prediction'}
             </Button>
           )}
@@ -123,7 +222,6 @@ export default function ImageUpload({ onSelect, onCaptured, className, sampleNo,
           <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center px-4">{actionText}</div>
         )}
       </div>
-      {error && <div className="p-3 text-sm text-red-500">{error}</div>}
     </Card>
   )
 }

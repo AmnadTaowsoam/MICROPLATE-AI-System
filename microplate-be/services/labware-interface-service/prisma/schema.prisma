@@ -9,26 +9,12 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["prediction_result", "public"]
+  schemas  = ["labware_interface", "prediction_result", "public"]
 }
 
 // =========================
-// PREDICTION RESULT SCHEMA
+// LABWARE INTERFACE SCHEMA
 // =========================
-
-model SampleSummary {
-  sampleNo     String    @id @map("sample_no")
-  summary      Json      @map("summary") // {"distribution": {"positive": 37, "negative": 59}}
-  totalRuns    Int       @default(0) @map("total_runs")
-  lastRunAt    DateTime? @map("last_run_at")
-  lastRunId    Int?      @map("last_run_id")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-
-  @@map("sample_summary")
-  @@schema("prediction_result")
-  @@index([lastRunAt])
-}
 
 model InterfaceFile {
   id           String    @id @default(uuid()) @db.Uuid
@@ -44,7 +30,7 @@ model InterfaceFile {
   createdAt    DateTime  @default(now()) @map("created_at")
 
   @@map("interface_file")
-  @@schema("prediction_result")
+  @@schema("labware_interface")
   @@index([sampleNo])
   @@index([status])
 }

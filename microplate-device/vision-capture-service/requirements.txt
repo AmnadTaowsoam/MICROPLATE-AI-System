@@ -1,0 +1,32 @@
+# Vision Capture Service Requirements
+
+# Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# Authentication
+PyJWT==2.8.0
+python-multipart==0.0.6
+
+# Computer Vision
+opencv-python==4.8.1.78
+Pillow==10.1.0
+numpy==1.24.3
+
+# System Monitoring
+psutil==5.9.6
+
+# Configuration
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Logging
+python-json-logger==2.0.7
+
+# Development and Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.2
+
+# Production
+gunicorn==21.2.0

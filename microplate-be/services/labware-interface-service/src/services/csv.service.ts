@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { createObjectCsvWriter } from 'csv-writer';
-import { prisma } from '../server';
 import { createSampleSummaryService, SampleSummaryData } from './sample-summary.service';
 
 export interface CsvRow {
@@ -42,31 +41,8 @@ export class CsvService {
       // Get sample summary data from result-api-service
       let sampleSummary: SampleSummaryData;
       
-      try {
-        // Try API first
-        sampleSummary = await this.sampleSummaryService.getSampleSummary(sampleNo);
-      } catch (apiError) {
-        console.warn('API call failed, falling back to direct database access:', apiError);
-        
-        // Fallback to direct database access
-        const dbSummary = await prisma.sampleSummary.findUnique({
-          where: { sampleNo },
-        });
-
-        if (!dbSummary) {
-          throw new Error(`Sample ${sampleNo} not found`);
-        }
-
-        sampleSummary = {
-          sampleNo: dbSummary.sampleNo,
-          summary: dbSummary.summary as any,
-          totalRuns: dbSummary.totalRuns,
-          lastRunAt: dbSummary.lastRunAt,
-          lastRunId: dbSummary.lastRunId,
-          createdAt: dbSummary.createdAt,
-          updatedAt: dbSummary.updatedAt,
-        };
-      }
+      // Get sample summary data from result-api-service
+      sampleSummary = await this.sampleSummaryService.getSampleSummary(sampleNo);
 
       // Parse summary data
       const summary = sampleSummary.summary;
@@ -112,90 +88,52 @@ export class CsvService {
   private generateCsvData(sampleNo: string, distribution: any): CsvRow[] {
     const csvData: CsvRow[] = [];
     
-    // Extract positive and negative counts
-    const positive = distribution.positive || 0;
-    const negative = distribution.negative || 0;
-    const invalid = distribution.invalid || 0;
-    
-    // Generate individual well data (assuming 96-well plate: 12 columns x 8 rows)
-    const totalWells = 96;
-    let wellIndex = 1;
-    
-    // Add positive wells
-    for (let i = 0; i < positive && wellIndex <= totalWells; i++) {
+    // Generate data for 12 rows from summary distribution
+    for (let row = 1; row <= 12; row++) {
+      const rowValue = distribution[row.toString()] || 0;
       csvData.push({
         SAMPLE_NUMBER: sampleNo,
         TEST_NUMBER: 'T001',
-        REPORTED_NAME: wellIndex,
-        ENTRY: 1, // Positive
+        REPORTED_NAME: row,
+        ENTRY: rowValue,
       });
-      wellIndex++;
     }
     
-    // Add negative wells
-    for (let i = 0; i < negative && wellIndex <= totalWells; i++) {
-      csvData.push({
-        SAMPLE_NUMBER: sampleNo,
-        TEST_NUMBER: 'T001',
-        REPORTED_NAME: wellIndex,
-        ENTRY: 0, // Negative
-      });
-      wellIndex++;
-    }
+    // Calculate statistics from the 12 row values
+    const values = Object.keys(distribution)
+      .filter(key => key !== 'total')
+      .map(key => distribution[key] || 0);
     
-    // Add invalid wells
-    for (let i = 0; i < invalid && wellIndex <= totalWells; i++) {
-      csvData.push({
-        SAMPLE_NUMBER: sampleNo,
-        TEST_NUMBER: 'T001',
-        REPORTED_NAME: wellIndex,
-        ENTRY: -1, // Invalid
-      });
-      wellIndex++;
-    }
-    
-    // Fill remaining wells with 0 (empty)
-    while (wellIndex <= totalWells) {
-      csvData.push({
-        SAMPLE_NUMBER: sampleNo,
-        TEST_NUMBER: 'T001',
-        REPORTED_NAME: wellIndex,
-        ENTRY: 0,
-      });
-      wellIndex++;
-    }
-    
-    // Add summary rows
-    const total = positive + negative + invalid;
-    const mean = total > 0 ? positive / total : 0;
-    const variance = this.calculateVariance(positive, negative, invalid, mean);
+    const total = values.reduce((sum, val) => sum + val, 0);
+    const mean = values.length > 0 ? total / values.length : 0;
+    const variance = this.calculateVarianceFromValues(values, mean);
     const sd = Math.sqrt(variance);
     const cv = mean > 0 ? sd / mean : 0;
     
     // Add summary data
     csvData.push({
-      SAMPLE_NUMBER: `${sampleNo}3`,
+      SAMPLE_NUMBER: sampleNo,
       TEST_NUMBER: 'T001',
-      REPORTED_NAME: 'total',
+      REPORTED_NAME: 'TOTAL',
       ENTRY: total,
     });
     
     csvData.push({
-      SAMPLE_NUMBER: `${sampleNo}4`,
+      SAMPLE_NUMBER: sampleNo,
       TEST_NUMBER: 'T001',
       REPORTED_NAME: 'MEAN',
       ENTRY: Math.round(mean * 100) / 100,
     });
     
     csvData.push({
-      SAMPLE_NUMBER: `${sampleNo}5`,
+      SAMPLE_NUMBER: sampleNo,
       TEST_NUMBER: 'T001',
       REPORTED_NAME: 'SD',
       ENTRY: Math.round(sd * 100) / 100,
     });
     
     csvData.push({
-      SAMPLE_NUMBER: `${sampleNo}6`,
+      SAMPLE_NUMBER: sampleNo,
       TEST_NUMBER: 'T001',
       REPORTED_NAME: 'CV',
       ENTRY: Math.round(cv * 100000000) / 100000000,
@@ -204,18 +142,11 @@ export class CsvService {
     return csvData;
   }
 
-  private calculateVariance(positive: number, negative: number, invalid: number, mean: number): number {
-    const total = positive + negative + invalid;
-    if (total === 0) return 0;
-    
-    const values = [
-      ...Array(positive).fill(1),
-      ...Array(negative).fill(0),
-      ...Array(invalid).fill(-1)
-    ];
+  private calculateVarianceFromValues(values: number[], mean: number): number {
+    if (values.length === 0) return 0;
     
     const sumSquaredDiffs = values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0);
-    return sumSquaredDiffs / total;
+    return sumSquaredDiffs / values.length;
   }
 
   async cleanupFile(filePath: string): Promise<void> {

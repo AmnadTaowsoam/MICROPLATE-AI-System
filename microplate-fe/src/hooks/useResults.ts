@@ -20,7 +20,7 @@ export function useSampleResult(sampleNo?: string) {
 }
 
 export function useSampleSummary(sampleNo?: string) {
-  return useQuery<SampleSummary>({
+  return useQuery<SampleSummary | null>({
     queryKey: ['sampleSummary', sampleNo],
     queryFn: async () => {
       if (!sampleNo) throw new Error('No sample number')
@@ -29,13 +29,28 @@ export function useSampleSummary(sampleNo?: string) {
         const result = await resultsService.getSampleSummary(sampleNo)
         console.log('useSampleSummary: API response:', result)
         return result
-      } catch (error) {
+      } catch (error: any) {
         console.error('useSampleSummary: API error:', error)
+        
+        // Check if it's a NOT_FOUND error (404) - sample doesn't exist yet
+        if (error?.status === 404 || error?.message?.includes('NOT_FOUND') || error?.message?.includes('Sample with ID')) {
+          console.log('useSampleSummary: Sample not found, returning null instead of throwing')
+          return null // Return null instead of throwing error
+        }
+        
+        // For other errors, still throw them
         throw error
       }
     },
     enabled: !!sampleNo,
-    retry: 3,
+    retry: (failureCount, error: any) => {
+      // Don't retry for NOT_FOUND errors (404)
+      if (error?.status === 404 || error?.message?.includes('NOT_FOUND') || error?.message?.includes('Sample with ID')) {
+        return false
+      }
+      // Retry other errors up to 3 times
+      return failureCount < 3
+    },
     retryDelay: 1000,
   })
 }

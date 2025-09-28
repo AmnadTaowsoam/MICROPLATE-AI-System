@@ -27,12 +27,11 @@ flowchart LR
     end
 
     subgraph Application Layer
-        GW[gateway (Fastify) :6400]
         AUTH[auth-service (Node/TS + Prisma) :6401]
         IMG[image-ingestion-service (Node/TS) :6402]
-        LAB[labware-interface-service (Node/TS) :6403]
+        INF[vision-inference-service (Python) :6403]
         RES[result-api-service (Node/TS) :6404]
-        INF[vision-inference-service (Python) :6405]
+        LAB[labware-interface-service (Node/TS) :6405]
         PDB[prediction-db-service (Node/TS + Prisma) :6406]
         PG[(PostgreSQL 17)]
         OBJ[(Object Storage: MinIO/S3)]
@@ -42,14 +41,14 @@ flowchart LR
         FE[React + TS + Tailwind]
     end
 
-    FE -- capture/preview --> GW -- /capture --> VC
-    FE -- upload/query --> GW -- /images --> IMG
-    FE -- predict --> GW -- /predict --> INF
+    FE -- capture/preview --> VC
+    FE -- upload/query --> IMG
+    FE -- predict --> INF
     INF -- write results --> PDB
     INF -- write annotated img --> IMG -- store --> OBJ
     RES -- read aggregates --> PDB
-    FE -- sample detail/summary --> GW -- /results --> RES
-    FE -- interface CSV --> GW -- /interface --> LAB -- write CSV --> FS[Shared Folder]
+    FE -- sample detail/summary --> RES
+    FE -- interface CSV --> LAB -- write CSV --> FS[Shared Folder]
 ```
 
 ### 1.1 Service Responsibilities
@@ -61,7 +60,6 @@ flowchart LR
 * **result-api-service (Node/TS)**: query endpoints for FE; emits/maintains aggregates (`sum_by_sample_no`) into `sample_summary` (aka `interface_data`).
 * **labware-interface-service (Node/TS)**: transforms results/summary into per-sample CSV files; writes to shared folder for Labware pickup.
 * **auth-service (Node/TS)**: users, roles, permissions, login, refresh, reset/forgot password.
-* **gateway (Node/TS)**: single entry point, rate-limit, authn/z, request-id, audit.
 
 ---
 
@@ -137,26 +135,9 @@ FOR EACH ROW EXECUTE FUNCTION microplates.fn_notify_interface_results();
 > All endpoints JSON unless noted. Use OpenAPI 3 with schemas.
 > Prefix with `/api/v1`. Every service exposes `/healthz`, `/readyz`, `/metrics`.
 
-### 5.1 gateway
-
-* **Purpose**: single public host; routes to internal services; adds rate-limit, CORS, authz.
-* **Routes (examples)**
-
-  * `POST /api/v1/auth/*` → auth-service
-  * `POST /api/v1/images/*` → image-ingestion-service
-  * `POST /api/v1/inference/*` → vision-inference-service
-  * `GET  /api/v1/results/*` → result-api-service
-  * `POST /api/v1/interface/*` → labware-interface-service
-  * `POST /api/v1/capture/*` → vision-capture-service
-
-#### Gateway concerns
-
-* Verify **access\_token**; inject `X-Request-ID`; forward `X-User-Id`, `X-Roles` after verification.
-* Maintain service registry via envs; implement retries + circuit breaker.
-
 ---
 
-### 5.2 auth-service (Fastify + Prisma)
+### 5.1 auth-service (Fastify + Prisma)
 
 **Entities**: User, Role, UserRole, RefreshToken, PasswordResetToken, EmailVerificationToken (optional)
 
@@ -180,7 +161,7 @@ FOR EACH ROW EXECUTE FUNCTION microplates.fn_notify_interface_results();
 
 ---
 
-### 5.3 image-ingestion-service (Fastify + Prisma)
+### 5.2 image-ingestion-service (Fastify + Prisma)
 
 **Responsibilities**: persist image metadata; upload to object storage; produce signed URLs; link to `prediction_run`.
 
@@ -198,7 +179,7 @@ FOR EACH ROW EXECUTE FUNCTION microplates.fn_notify_interface_results();
 
 ---
 
-### 5.4 vision-capture-service (Python)
+### 5.3 vision-capture-service (Python)
 
 **Responsibilities**: control camera; capture still image; optional preview stream.
 
@@ -215,7 +196,7 @@ FOR EACH ROW EXECUTE FUNCTION microplates.fn_notify_interface_results();
 
 ---
 
-### 5.5 vision-inference-service (Python)
+### 5.4 vision-inference-service (Python)
 
 **Responsibilities**: predict & compute logic; persist to DB; request annotated upload via image-ingestion.
 
@@ -240,7 +221,7 @@ FOR EACH ROW EXECUTE FUNCTION microplates.fn_notify_interface_results();
 
 ---
 
-### 5.6 result-api-service (Fastify + Prisma)
+### 5.5 result-api-service (Fastify + Prisma)
 
 **Responsibilities**: FE-facing queries; aggregate by sample; optional background worker reading NOTIFY.
 
@@ -257,7 +238,7 @@ FOR EACH ROW EXECUTE FUNCTION microplates.fn_notify_interface_results();
 
 ---
 
-### 5.7 labware-interface-service (Fastify + Prisma)
+### 5.6 labware-interface-service (Fastify + Prisma)
 
 **Responsibilities**: generate CSV per sample for Labware.
 
@@ -583,14 +564,27 @@ OBJECT_STORAGE_BUCKET_ANN=annotated-images
 # Database
 DATABASE_URL=postgresql://postgres:postgres@postgres:5432/microplates
 
-# Gateway
-PORT=6400
-TARGET_AUTH=http://auth-service:6401
-TARGET_IMG=http://image-ingestion-service:6402
-TARGET_LAB=http://labware-interface:6403
-TARGET_RES=http://result-api:6404
-TARGET_INF=http://vision-inference:6405
-TARGET_PDB=http://prediction-db-service:6406
+# Services (Direct Access)
+# Auth Service
+AUTH_PORT=6401
+
+# Image Ingestion Service  
+IMAGE_PORT=6402
+
+# Vision Inference Service
+INFERENCE_PORT=6403
+
+# Result API Service
+RESULT_PORT=6404
+
+# Labware Interface Service
+LABWARE_PORT=6405
+
+# Prediction DB Service
+PREDICTION_PORT=6406
+
+# Vision Capture Service
+CAPTURE_PORT=6407
 ```
 
 ### 10.2 Health/Readiness/Metrics
@@ -607,9 +601,9 @@ TARGET_PDB=http://prediction-db-service:6406
 
 ## 11) Security Details
 
-* **Access JWT** verified at Gateway; pass user claims downstream (header)
+* **Access JWT** verified at each service; pass user claims via headers
 * **Refresh JWT** handled only in `auth-service` with rotation
-* **CORS**: FE origin allowlist at gateway
+* **CORS**: FE origin allowlist at each service
 * **RBAC** roles: `admin`, `operator`, `viewer`
 * **Signed URLs** for images; no public bucket
 
@@ -631,26 +625,22 @@ TARGET_PDB=http://prediction-db-service:6406
 ```mermaid
 sequenceDiagram
   participant FE
-  participant GW as Gateway
   participant VC as vision-capture-service
   participant INF as vision-inference-service
   participant IMG as image-ingestion-service
   participant PG as Postgres
 
-  FE->>GW: POST /capture {sample_no}
-  GW->>VC: POST /api/v1/capture
-  VC-->>GW: {path, url}
-  GW-->>FE: {path, url}
-  FE->>GW: POST /inference/predict {sample_no, image_path}
-  GW->>INF: predict
+  FE->>VC: POST /api/v1/capture {sample_no}
+  VC-->>FE: {path, url}
+  FE->>INF: POST /api/v1/inference/predict {sample_no, image_path}
   INF->>PG: INSERT prediction_run, well_prediction, row_counts, interface_results
   INF->>IMG: POST /images (annotated)
   IMG->>OBJ: store annotated
   IMG-->>INF: {annotated_url}
   INF->>PG: UPDATE prediction_run.annotated_image_path
-  FE->>GW: GET /results/sample/{sample}/last
-  GW->>PG: query via RES
-  GW-->>FE: {annotated_url}
+  FE->>RES: GET /api/v1/results/sample/{sample}/last
+  RES->>PG: query
+  RES-->>FE: {annotated_url}
 ```
 
 ### 13.2 New Interface Results → Aggregate
@@ -719,12 +709,12 @@ fastify.get('/api/v1/results/sample/:sample_no/summary', async (req, reply) => {
 
 | Service | Port | Protocol | Description |
 |---------|------|----------|-------------|
-| **API Gateway** | 6400 | HTTP/HTTPS | Main entry point for all client requests |
 | **Auth Service** | 6401 | HTTP | User authentication and authorization |
 | **Image Ingestion Service** | 6402 | HTTP | Image storage and management |
-| **Labware Interface Service** | 6403 | HTTP | CSV generation and delivery |
+| **Vision Inference Service** | 6403 | HTTP | AI model inference and analysis |
 | **Result API Service** | 6404 | HTTP/WebSocket | Data aggregation and real-time updates |
-| **Vision Inference Service** | 6405 | HTTP | AI model inference and analysis |
+| **Labware Interface Service** | 6405 | HTTP | CSV generation and delivery |
 | **Prediction DB Service** | 6406 | HTTP | Database operations for prediction data |
+| **Vision Capture Service** | 6407 | HTTP/WebSocket | Camera capture and real-time status |
 
 For detailed service configuration and Docker integration, see **14-Service-Port-Allocation.md**.

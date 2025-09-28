@@ -40,7 +40,6 @@ export class SampleSummaryService {
       baseURL: config.resultApiServiceUrl,
       timeout: config.timeout || 10000,
       headers: {
-        'Authorization': `Bearer ${config.token}`,
         'Content-Type': 'application/json',
       },
     });
@@ -51,7 +50,7 @@ export class SampleSummaryService {
    */
   async getSampleSummary(sampleNo: string): Promise<SampleSummaryData> {
     try {
-      const response = await this.client.get(`/api/v1/result/samples/${sampleNo}/summary`);
+      const response = await this.client.get(`/api/v1/results/samples/${sampleNo}/summary`);
 
       if (response.data.success) {
         return response.data.data;
@@ -78,40 +77,6 @@ export class SampleSummaryService {
     }
   }
 
-  /**
-   * Get sample summary with fallback to direct database access
-   * This method tries API first, then falls back to direct database if needed
-   */
-  async getSampleSummaryWithFallback(sampleNo: string): Promise<SampleSummaryData> {
-    try {
-      // Try API first
-      return await this.getSampleSummary(sampleNo);
-    } catch (error) {
-      console.warn('API call failed, falling back to direct database access:', error);
-      
-      // Fallback to direct database access
-      // This requires the SampleSummary model to be available
-      const { prisma } = await import('../server');
-      
-      const summary = await prisma.sampleSummary.findUnique({
-        where: { sampleNo },
-      });
-
-      if (!summary) {
-        throw new Error(`Sample ${sampleNo} not found`);
-      }
-
-      return {
-        sampleNo: summary.sampleNo,
-        summary: summary.summary as any,
-        totalRuns: summary.totalRuns,
-        lastRunAt: summary.lastRunAt,
-        lastRunId: summary.lastRunId,
-        createdAt: summary.createdAt,
-        updatedAt: summary.updatedAt,
-      };
-    }
-  }
 }
 
 /**

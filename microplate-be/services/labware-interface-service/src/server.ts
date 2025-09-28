@@ -52,9 +52,9 @@ app.use(limiter);
 
 // Authentication middleware
 const authConfig = {
-  jwtSecret: process.env['JWT_SECRET'] || 'your-secret-key',
+  jwtSecret: process.env['JWT_SECRET'] || process.env['JWT_ACCESS_SECRET'] || 'your-super-secret-access-key',
   jwtIssuer: process.env['JWT_ISSUER'] || 'microplate-auth-service',
-  jwtAudience: process.env['JWT_AUDIENCE'] || 'microplate-services'
+  jwtAudience: process.env['JWT_AUDIENCE'] || 'microplate-api'
 };
 
 // Swagger documentation

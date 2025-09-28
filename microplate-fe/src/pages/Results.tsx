@@ -12,9 +12,18 @@ import {
   MdChevronLeft,
   MdChevronRight,
   MdBarChart,
-  MdFileDownload
+  MdFileDownload,
+  MdClose,
+  MdPreview,
+  MdImage,
+  MdZoomOut
 } from 'react-icons/md';
 import { resultsService, type RunDetails, type InterfaceFile } from '../services/results.service';
+import { resultsServiceNew } from '../services/results.service.new';
+import { resultsServiceDirect } from '../services/results.service.direct';
+import { labwareService, type CsvPreviewData } from '../services/labware.service';
+import { getMockInferenceResults } from '../utils/mockData';
+import { debugRunObject, validateRunData } from '../utils/debugRuns';
 import Card from '../components/ui/Card';
 import Spinner from '../components/ui/Spinner';
 // import WellGrid from '../components/results/WellGrid';
@@ -24,8 +33,10 @@ interface ExpandedSample {
   sampleNo: string;
   runs: RunDetails[];
   interfaceFiles: InterfaceFile[];
+  inferenceResults: Map<number, any>; // Map of runId to inference results
   isLoadingRuns: boolean;
   isLoadingFiles: boolean;
+  isLoadingInference: boolean;
 }
 
 export default function Results() {
@@ -35,6 +46,10 @@ export default function Results() {
   // const [selectedSample, setSelectedSample] = useState<string | null>(null);
   const [csvPreview, setCsvPreview] = useState<string | null>(null);
   const [showCsvPreview, setShowCsvPreview] = useState(false);
+  const [interfaceFiles, setInterfaceFiles] = useState<Map<string, any[]>>(new Map());
+  const [isGeneratingInterface, setIsGeneratingInterface] = useState<Set<string>>(new Set());
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string>('');
+  const [showImageModal, setShowImageModal] = useState(false);
 
   const limit = 15;
 
@@ -77,24 +92,79 @@ export default function Results() {
         sampleNo,
         runs: [],
         interfaceFiles: [],
+        inferenceResults: new Map(),
         isLoadingRuns: true,
         isLoadingFiles: true,
+        isLoadingInference: true,
       });
       setExpandedSamples(newExpanded);
 
       try {
-        // Fetch runs and interface files in parallel
-        const [runsResponse, filesResponse] = await Promise.all([
-          resultsService.getSampleRuns(sampleNo, 1, 10),
-          resultsService.getInterfaceFiles(sampleNo)
-        ]);
+        // Fetch runs using direct service (interface files removed)
+        console.log('Using direct service to fetch runs for sample:', sampleNo);
+        const runsResponse = await resultsServiceDirect.getSampleRuns(sampleNo, { page: 1, limit: 50 });
+        console.log('🔍 Raw runsResponse:', runsResponse);
+        console.log('🔍 runsResponse.data:', runsResponse.data);
+        console.log('🔍 runsResponse.data?.data:', runsResponse.data?.data);
+        const runs = runsResponse.data?.data || [];
+
+        // Fetch existing interface files for this sample
+        try {
+          const interfaceFilesResponse = await labwareService.getInterfaceFiles(sampleNo);
+          if (interfaceFilesResponse.success) {
+            setInterfaceFiles(prev => {
+              const newMap = new Map(prev);
+              newMap.set(sampleNo, interfaceFilesResponse.data);
+              return newMap;
+            });
+          }
+        } catch (interfaceError) {
+          console.warn('Failed to fetch interface files:', interfaceError);
+          // Don't fail the whole operation if interface files can't be fetched
+        }
+        const inferenceResultsMap = new Map<number, any>();
+
+        // Debug: Validate runs data
+        validateRunData(runs);
+
+        // Extract inference results from runs data (they should already be included)
+        runs.forEach((run: any) => {
+          const actualRunId = run.id || run.runId || run.run_id;
+          
+          if (!actualRunId || actualRunId === 'undefined') {
+            console.warn(`Invalid run ID for run:`, run);
+            return;
+          }
+
+          // Check if run already has inferenceResults
+          if (run.inferenceResults && Array.isArray(run.inferenceResults) && run.inferenceResults.length > 0) {
+            console.log(`Found existing inference results for run ${actualRunId}:`, run.inferenceResults[0]);
+            inferenceResultsMap.set(actualRunId, run.inferenceResults[0]);
+          } else {
+            console.log(`No inference results found for run ${actualRunId} in runs data`);
+            console.log(`Run object keys:`, Object.keys(run));
+            console.log(`Run object:`, run);
+            // Set to null if no inference results
+            inferenceResultsMap.set(actualRunId, null);
+          }
+
+          // Debug: Log image paths
+          console.log(`Run ${actualRunId} image paths:`, {
+            rawImagePath: run.rawImagePath,
+            annotatedImagePath: run.annotatedImagePath,
+            rawImageUrl: run.rawImagePath ? resultsServiceDirect.getRawImageUrl(run) : 'N/A',
+            annotatedImageUrl: run.annotatedImagePath ? resultsServiceDirect.getAnnotatedImageUrl(run) : 'N/A'
+          });
+        });
 
         newExpanded.set(sampleNo, {
           sampleNo,
-          runs: runsResponse.data?.data || [],
-          interfaceFiles: filesResponse.data?.data || [],
+          runs,
+          interfaceFiles: [], // Interface files removed
+          inferenceResults: inferenceResultsMap,
           isLoadingRuns: false,
           isLoadingFiles: false,
+          isLoadingInference: false,
         });
         setExpandedSamples(new Map(newExpanded));
       } catch (error) {
@@ -103,8 +173,10 @@ export default function Results() {
           sampleNo,
           runs: [],
           interfaceFiles: [],
+          inferenceResults: new Map(),
           isLoadingRuns: false,
           isLoadingFiles: false,
+          isLoadingInference: false,
         });
         setExpandedSamples(new Map(newExpanded));
       }
@@ -135,6 +207,69 @@ export default function Results() {
       setShowCsvPreview(true);
     } catch (error) {
       console.error('Failed to preview CSV:', error);
+    }
+  };
+
+  const handleInterfaceClick = async (sampleNo: string, runId: number) => {
+    const key = `${sampleNo}-${runId}`;
+    console.log('🎯 handleInterfaceClick called for:', { sampleNo, runId });
+    
+    try {
+      setIsGeneratingInterface(prev => new Set([...prev, key]));
+      
+      // Generate interface CSV
+      const response = await labwareService.generateInterfaceCsv(sampleNo);
+      
+      if (response.success) {
+        // Get the generated file details
+        const fileDetails = await labwareService.getInterfaceFile(response.data.id);
+        
+        if (fileDetails.success) {
+          // Update interface files state
+          setInterfaceFiles(prev => {
+            const newMap = new Map(prev);
+            const files = newMap.get(sampleNo) || [];
+            newMap.set(sampleNo, [...files, fileDetails.data]);
+            return newMap;
+          });
+          
+          // Show success message or preview
+          console.log('Interface CSV generated successfully:', fileDetails.data);
+          
+          // Optionally auto-preview the CSV
+          if (fileDetails.data.downloadUrl) {
+            try {
+              const csvResponse = await fetch(fileDetails.data.downloadUrl);
+              const csvContent = await csvResponse.text();
+              setCsvPreview(csvContent);
+              setShowCsvPreview(true);
+            } catch (previewError) {
+              console.error('Failed to preview generated CSV:', previewError);
+            }
+          }
+        }
+      } else {
+        console.error('Failed to generate interface CSV:', response.error);
+        alert(`Failed to generate interface CSV: ${response.error?.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error generating interface CSV:', error);
+      alert('Error generating interface CSV. Please try again.');
+    } finally {
+      setIsGeneratingInterface(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(key);
+        return newSet;
+      });
+    }
+  };
+
+  const handleDownloadCsv = async (downloadUrl: string, fileName: string) => {
+    try {
+      await labwareService.downloadCsvFile(downloadUrl, fileName);
+    } catch (error) {
+      console.error('Failed to download CSV:', error);
+      alert('Failed to download CSV file. Please try again.');
     }
   };
 
@@ -278,88 +413,130 @@ export default function Results() {
                       {/* Sample Summary Table */}
                       <div>
                         <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-4">
-                          Sample Summary (Row Distribution)
+                          📊 Overall Sample Distribution
                         </h4>
                         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                          <div className="grid grid-cols-12 gap-0">
-                            {Array.from({ length: 12 }, (_, i) => i + 1).map((row) => (
-                              <div key={row} className="border-r border-gray-200 dark:border-gray-700 last:border-r-0">
-                                <div className="bg-gray-50 dark:bg-gray-700 px-3 py-2 text-center text-xs font-medium text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">
-                                  Row {row}
-                                </div>
-                                <div className="px-3 py-2 text-center text-sm font-semibold text-gray-900 dark:text-white">
-                                  {distribution[row] || 0}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                          <table className="w-full">
+                            <thead className="bg-gray-50 dark:bg-gray-700">
+                              <tr>
+                                {Array.from({ length: 12 }, (_, i) => i + 1).map((row) => (
+                                  <th key={row} className="px-3 py-2 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-200 dark:border-gray-600">
+                                    Row {row}
+                                  </th>
+                                ))}
+                                <th className="px-3 py-2 text-center text-xs font-medium text-blue-700 dark:text-blue-300 uppercase tracking-wider border-r border-gray-200 dark:border-gray-600">
+                                  Total
+                                </th>
+                                <th className="px-3 py-2 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                  Actions
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                {Array.from({ length: 12 }, (_, i) => i + 1).map((row) => (
+                                  <td key={row} className="px-3 py-2 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-600">
+                                    {distribution[row] || 0}
+                                  </td>
+                                ))}
+                                <td className="px-3 py-2 text-center text-sm font-bold text-blue-600 dark:text-blue-400 border-r border-gray-200 dark:border-gray-600">
+                                  {distribution.total || Array.from({ length: 12 }, (_, index) => distribution[index + 1] || 0).reduce((sum, value) => sum + value, 0)}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button
+                                      onClick={() => handleInterfaceClick(sample.sampleNo, 0)}
+                                      disabled={isGeneratingInterface.has(`${sample.sampleNo}-0`)}
+                                      className="flex items-center justify-center gap-1 px-2 py-1 text-xs font-medium text-purple-600 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed dark:text-purple-400 dark:bg-purple-900/20 dark:border-purple-700 dark:hover:bg-purple-900/30"
+                                      title="Generate Interface CSV for this sample"
+                                    >
+                                      {isGeneratingInterface.has(`${sample.sampleNo}-0`) ? (
+                                        <>
+                                          <Spinner size="xs" />
+                                          Generating...
+                                        </>
+                                      ) : (
+                                        <>
+                                          📄 Interface
+                                        </>
+                                      )}
+                                    </button>
+                                    
+                                    {/* Preview button - always visible */}
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          // First try to get files from state
+                                          const existingFiles = interfaceFiles.get(sample.sampleNo);
+                                          
+                                          if (existingFiles && existingFiles.length > 0) {
+                                            // Use existing file from state
+                                            const latestFile = existingFiles[existingFiles.length - 1];
+                                            if (latestFile.downloadUrl) {
+                                              const response = await fetch(latestFile.downloadUrl);
+                                              const csvContent = await response.text();
+                                              setCsvPreview(csvContent);
+                                              setShowCsvPreview(true);
+                                              return;
+                                            }
+                                          }
+                                          
+                                          // If no files in state, fetch from API
+                                          const interfaceFilesResponse = await labwareService.getInterfaceFiles(sample.sampleNo);
+                                          if (interfaceFilesResponse.success && interfaceFilesResponse.data.length > 0) {
+                                            const latestFile = interfaceFilesResponse.data[interfaceFilesResponse.data.length - 1];
+                                            
+                                            // Update state
+                                            setInterfaceFiles(prev => {
+                                              const newMap = new Map(prev);
+                                              newMap.set(sample.sampleNo, interfaceFilesResponse.data);
+                                              return newMap;
+                                            });
+                                            
+                                            if (latestFile.downloadUrl) {
+                                              const response = await fetch(latestFile.downloadUrl);
+                                              const csvContent = await response.text();
+                                              setCsvPreview(csvContent);
+                                              setShowCsvPreview(true);
+                                            } else {
+                                              alert('No download URL available for this file.');
+                                            }
+                                          } else {
+                                            alert('No interface CSV files found for this sample. Please generate one first.');
+                                          }
+                                        } catch (error) {
+                                          console.error('Failed to preview CSV:', error);
+                                          alert('Failed to load CSV preview. Please try again.');
+                                        }
+                                      }}
+                                      className="flex items-center justify-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-900/20 dark:border-blue-700 dark:hover:bg-blue-900/30"
+                                      title="Preview Interface CSV files"
+                                    >
+                                      👁️ Preview
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
                         </div>
                       </div>
 
-                      {/* Interface Files Section */}
-                      <div>
-                        <div className="flex items-center justify-between mb-4">
-                          <h4 className="text-md font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                            <MdFileDownload className="h-5 w-5" />
-                            Interface Files
-                          </h4>
-                        </div>
-                        {expandedData.isLoadingFiles ? (
-                          <div className="flex items-center justify-center py-8">
-                            <Spinner size="md" />
-                          </div>
-                        ) : expandedData.interfaceFiles.length > 0 ? (
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {expandedData.interfaceFiles.map((file) => (
-                              <div key={file.id} className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                    {file.fileName}
-                                  </span>
-                                  <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(file.status)}`}>
-                                    {file.status}
-                                  </span>
-                                </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                                  Size: {file.fileSize} | Generated: {formatDate(file.generatedAt)}
-                                </div>
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => handleCsvPreview(sample.sampleNo)}
-                                    className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                                  >
-                                    <MdVisibility className="h-3 w-3" />
-                                    Preview
-                                  </button>
-                                  <button
-                                    onClick={() => handleCsvDownload(sample.sampleNo)}
-                                    className="flex items-center gap-1 px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
-                                  >
-                                    <MdDownload className="h-3 w-3" />
-                                    Download
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                            No interface files available for this sample
-                          </div>
-                        )}
-                      </div>
 
                       {/* Runs Section */}
                       <div>
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="text-md font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                             <MdBarChart className="h-5 w-5" />
-                            Analysis Runs
+                            🔬 Individual Analysis Runs
                           </h4>
                         </div>
-                        {expandedData.isLoadingRuns ? (
+                        {expandedData.isLoadingRuns || expandedData.isLoadingInference ? (
                           <div className="flex items-center justify-center py-8">
                             <Spinner size="md" />
+                            <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+                              Loading analysis data...
+                            </span>
                           </div>
                         ) : expandedData.runs.length > 0 ? (
                           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -374,10 +551,13 @@ export default function Results() {
                                       Date
                                     </th>
                                     {Array.from({ length: 12 }, (_, index) => (
-                                      <th key={`col-${index + 1}`} className="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                        Column {index + 1}
+                                      <th key={`row-${index + 1}`} className="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                        Row {index + 1}
                                       </th>
                                     ))}
+                                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                      Total
+                                    </th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                       Actions
                                     </th>
@@ -385,13 +565,22 @@ export default function Results() {
                                 </thead>
                                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                   {expandedData.runs.map((run, runIndex) => {
-                                    // Get distribution from inference_results
-                                    const distribution = run.inferenceResults?.[0]?.results?.distribution || {};
+                                    // Use runId if id is not available
+                                    const actualRunId = run.id || run.runId || run.run_id;
+                                    
+                                    // Get distribution from inference_results using the new service
+                                    const inferenceResult = expandedData.inferenceResults.get(actualRunId);
+                                    const distribution = inferenceResult?.results?.distribution || {};
+                                    
+                                    // Debug logging
+                                    console.log(`Run ${actualRunId} inference result:`, inferenceResult);
+                                    console.log(`Run ${actualRunId} distribution:`, distribution);
+                                    console.log(`Run ${actualRunId} annotatedImagePath:`, run.annotatedImagePath);
                                     
                                     return (
-                                      <tr key={`run-${run.id}-${runIndex}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                      <tr key={`run-${actualRunId}-${runIndex}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                                         <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                                          #{run.id}
+                                          #{actualRunId}
                                         </td>
                                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                           {formatDate(run.predictAt)}
@@ -401,20 +590,37 @@ export default function Results() {
                                           const columnValue = distribution[columnNumber] || 0;
                                           
                                           return (
-                                            <td key={`col-${columnNumber}`} className="px-3 py-4 text-center text-sm font-semibold text-gray-900 dark:text-white">
+                                            <td key={`row-${columnNumber}`} className="px-3 py-4 text-center text-sm font-semibold text-gray-900 dark:text-white">
                                               {columnValue}
                                             </td>
                                           );
                                         })}
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm">
-                                          <div className="flex items-center gap-2">
+                                        <td className="px-3 py-4 text-center text-sm font-bold text-blue-600 dark:text-blue-400">
+                                          {inferenceResult?.results?.distribution?.total || 0}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
+                                          {run.annotatedImagePath ? (
                                             <button
-                                              onClick={() => {/* Handle view details */}}
-                                              className="text-blue-600 hover:text-blue-800 text-xs"
+                                              onClick={() => {
+                                                const imageUrl = resultsServiceDirect.getAnnotatedImageUrl(run);
+                                                console.log('Image button clicked:', {
+                                                  runId: actualRunId,
+                                                  annotatedImagePath: run.annotatedImagePath,
+                                                  imageUrl
+                                                });
+                                                setSelectedImageUrl(imageUrl);
+                                                setShowImageModal(true);
+                                              }}
+                                              className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-green-600 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 dark:text-green-400 dark:bg-green-900/20 dark:border-green-700 dark:hover:bg-green-900/30"
+                                              title="View Annotated Image"
                                             >
-                                              View Details
+                                              📷 Image
                                             </button>
-                                          </div>
+                                          ) : (
+                                            <span className="text-xs text-gray-400 dark:text-gray-500">
+                                              No Image
+                                            </span>
+                                          )}
                                         </td>
                                       </tr>
                                     );
@@ -473,25 +679,129 @@ export default function Results() {
       {/* CSV Preview Modal */}
       {showCsvPreview && csvPreview && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-6xl w-full max-h-[80vh] overflow-hidden">
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">CSV Preview</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <MdPreview className="h-5 w-5" />
+                Interface CSV Preview
+              </h3>
               <button
                 onClick={() => setShowCsvPreview(false)}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
-                <MdImageNotSupported className="h-6 w-6" />
+                <MdClose className="h-6 w-6" />
               </button>
             </div>
-            <div className="p-6 overflow-auto max-h-[60vh]">
-              <pre className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap font-mono">
-                {csvPreview}
-              </pre>
+            
+            {/* CSV Table Preview */}
+            <div className="p-6 overflow-auto max-h-[50vh]">
+              {(() => {
+                const parsed = labwareService.parseCsvContent(csvPreview);
+                return (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border border-gray-200 dark:border-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                          {parsed.headers.map((header, index) => (
+                            <th key={index} className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider border-b border-gray-200 dark:border-gray-600">
+                              {header}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {parsed.rows.map((row, rowIndex) => (
+                          <tr key={rowIndex}>
+                            {row.map((cell, cellIndex) => (
+                              <td key={cellIndex} className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700">
+                                {cell}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
             </div>
-            <div className="flex justify-end gap-2 p-6 border-t border-gray-200 dark:border-gray-700">
+            
+            <div className="flex justify-between items-center p-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                Total rows: {labwareService.parseCsvContent(csvPreview).rows.length}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const blob = new Blob([csvPreview], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `interface-${new Date().toISOString().split('T')[0]}.csv`;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                >
+                  <MdFileDownload className="h-4 w-4" />
+                  Download CSV
+                </button>
+                <button
+                  onClick={() => setShowCsvPreview(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Preview Modal */}
+      {showImageModal && selectedImageUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <MdImage className="h-5 w-5" />
+                Annotated Image
+              </h3>
               <button
-                onClick={() => setShowCsvPreview(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                onClick={() => setShowImageModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <MdClose className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6 overflow-auto max-h-[70vh] flex items-center justify-center">
+              <div className="relative max-w-full max-h-full">
+                <img
+                  src={selectedImageUrl}
+                  alt="Annotated Image"
+                  className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                  onError={(e) => {
+                    console.error('Failed to load image:', selectedImageUrl);
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling.style.display = 'flex';
+                  }}
+                />
+                <div 
+                  className="hidden items-center justify-center w-full h-64 bg-gray-100 dark:bg-gray-700 rounded-lg"
+                  style={{ display: 'none' }}
+                >
+                  <div className="text-center">
+                    <MdZoomOut className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                    <p className="text-gray-500 dark:text-gray-400">Failed to load image</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">URL: {selectedImageUrl}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end items-center p-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowImageModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
               >
                 Close
               </button>

@@ -15,7 +15,7 @@ export class MinioService {
       port: parseInt(url.port || '9000'),
       useSSL: url.protocol === 'https:',
       accessKey: process.env['OBJECT_STORAGE_ACCESS_KEY'] || 'minioadmin',
-      secretKey: process.env['OBJECT_STORAGE_SECRET_KEY'] || 'minioadmin',
+      secretKey: process.env['OBJECT_STORAGE_SECRET_KEY'] || 'minioadmin123',
     });
 
     this.bucketName = process.env['OBJECT_STORAGE_BUCKET_INTERFACE'] || 'interface-file';
@@ -84,9 +84,10 @@ export class MinioService {
     }
   }
 
-  async getFileUrl(objectName: string, expiry: number = 7 * 24 * 60 * 60): Promise<string> {
+  async getFileUrl(objectName: string): Promise<string> {
     try {
-      return await this.client.presignedGetObject(this.bucketName, objectName, expiry);
+      // Use direct MinIO API URL for frontend access
+      return `http://localhost:9000/${this.bucketName}/${objectName}`;
     } catch (error) {
       console.error(`Failed to get file URL for ${objectName}:`, error);
       throw error;

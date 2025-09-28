@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useImageUpload } from '../hooks/useImageUpload';
 import { useWebSocketLogs } from '../hooks/useWebSocketLogs';
+import { useCapture } from '../hooks/useCapture';
 import SampleInformation from '../components/capture/SampleInformation';
 import ImageCapture from '../components/capture/ImageCapture';
 import PredictionResults from '../components/capture/PredictionResults';
@@ -25,6 +26,14 @@ export default function CapturePage() {
     predictionError,
     predictionData 
   } = useImageUpload();
+
+  // Camera capture hook
+  const {
+    isConnected: isCameraConnected,
+    isCapturing: isCameraCapturing,
+    error: cameraError,
+    checkConnection: checkCameraConnection
+  } = useCapture();
 
   // Update annotated image URL when prediction completes
   React.useEffect(() => {
@@ -133,15 +142,20 @@ export default function CapturePage() {
         capturedImageUrl={capturedImageUrl}
         annotatedImageUrl={annotatedImageUrl}
         onImageSelect={handleImageSelect}
-        onCapture={() => {
-          // TODO: Implement camera capture
-          console.log('Camera capture not implemented yet');
+        onCapture={(url) => {
+          setCapturedImageUrl(url);
+          if (sampleNo) {
+            // TODO: Handle captured image upload
+            console.log('Captured image URL:', url);
+          }
         }}
         onReset={handleReset}
         onRunPrediction={handleRunPrediction}
         isPredicting={isPredicting}
         predictionError={predictionError}
         sampleNo={sampleNo}
+        submissionNo={submissionNo}
+        description={description}
         canRunPrediction={!!(selectedFile && sampleNo)}
       />
       
@@ -152,7 +166,15 @@ export default function CapturePage() {
         annotatedImageUrl={annotatedImageUrl}
       />
       
-      <SystemLogs logs={logs} />
+      <SystemLogs 
+        logs={logs} 
+        cameraStatus={{
+          isConnected: isCameraConnected,
+          isCapturing: isCameraCapturing,
+          error: cameraError,
+          onCheckConnection: checkCameraConnection
+        }}
+      />
     </div>
   );
 }

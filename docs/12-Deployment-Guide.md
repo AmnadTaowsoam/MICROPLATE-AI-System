@@ -7,9 +7,8 @@ This guide covers production deployment strategies for the Microplate AI System,
 ## Production Architecture
 
 ### Infrastructure Components
-- **Load Balancer**: Nginx or cloud load balancer
-- **API Gateway**: Single entry point for all services
-- **Microservices**: 6 backend services
+- **Load Balancer**: Nginx or cloud load balancer (optional)
+- **Microservices**: 7 backend services with direct access
 - **Database**: PostgreSQL 17 with replication
 - **Object Storage**: MinIO or cloud storage (S3)
 - **Cache**: Redis for session and data caching
@@ -84,29 +83,8 @@ services:
       - "80:80"
       - "443:443"
     depends_on:
-      - gateway
+      - frontend
     restart: unless-stopped
-
-  gateway:
-    image: microplate-ai/gateway:latest
-    environment:
-      NODE_ENV: production
-      AUTH_SERVICE_URL: http://auth-service:6401
-      IMAGE_SERVICE_URL: http://image-ingestion-service:6402
-      INFERENCE_SERVICE_URL: http://vision-inference-service:6403
-      RESULT_SERVICE_URL: http://result-api-service:6404
-      INTERFACE_SERVICE_URL: http://labware-interface-service:6405
-      CAPTURE_SERVICE_URL: http://vision-capture-service:6406
-    depends_on:
-      - auth-service
-      - image-ingestion-service
-      - vision-inference-service
-      - result-api-service
-      - labware-interface-service
-      - vision-capture-service
-    restart: unless-stopped
-    deploy:
-      replicas: 2
 
   auth-service:
     image: microplate-ai/auth-service:latest
@@ -222,68 +200,14 @@ events {
 }
 
 http {
-    upstream gateway {
-        server gateway:6400;
-    }
-
     upstream frontend {
         server frontend:80;
     }
-
-    # Rate limiting
-    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
-    limit_req_zone $binary_remote_addr zone=auth:10m rate=5r/s;
 
     # SSL Configuration
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512;
     ssl_prefer_server_ciphers off;
-
-    server {
-        listen 80;
-        server_name api.microplate-ai.com;
-        return 301 https://$server_name$request_uri;
-    }
-
-    server {
-        listen 443 ssl http2;
-        server_name api.microplate-ai.com;
-
-        ssl_certificate /etc/nginx/ssl/cert.pem;
-        ssl_certificate_key /etc/nginx/ssl/key.pem;
-
-        # API Gateway
-        location /api/ {
-            limit_req zone=api burst=20 nodelay;
-            
-            proxy_pass http://gateway;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            
-            proxy_connect_timeout 30s;
-            proxy_send_timeout 30s;
-            proxy_read_timeout 30s;
-        }
-
-        # Auth endpoints with stricter rate limiting
-        location /api/v1/auth/ {
-            limit_req zone=auth burst=10 nodelay;
-            
-            proxy_pass http://gateway;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-
-        # Health checks
-        location /healthz {
-            proxy_pass http://gateway;
-            access_log off;
-        }
-    }
 
     server {
         listen 80;
@@ -842,7 +766,7 @@ REGISTRY="your-registry.com"
 echo "Deploying to ${ENVIRONMENT} environment..."
 
 # Build and push images
-services=("auth-service" "image-ingestion-service" "vision-inference-service" "result-api-service" "labware-interface-service" "vision-capture-service" "gateway" "frontend")
+services=("auth-service" "image-ingestion-service" "vision-inference-service" "result-api-service" "labware-interface-service" "vision-capture-service" "frontend")
 
 for service in "${services[@]}"; do
   echo "Building ${service}..."
@@ -870,7 +794,6 @@ kubectl apply -f k8s/vision-inference-service.yaml
 kubectl apply -f k8s/result-api-service.yaml
 kubectl apply -f k8s/labware-interface-service.yaml
 kubectl apply -f k8s/vision-capture-service.yaml
-kubectl apply -f k8s/gateway.yaml
 kubectl apply -f k8s/frontend.yaml
 
 # Deploy ingress
@@ -892,9 +815,15 @@ FRONTEND_URL="https://app.microplate-ai.com"
 
 echo "Performing health checks..."
 
-# Check API health
-echo "Checking API health..."
-curl -f "${API_URL}/healthz" || exit 1
+# Check service health
+echo "Checking service health..."
+curl -f "http://localhost:6401/healthz" || exit 1
+curl -f "http://localhost:6402/healthz" || exit 1
+curl -f "http://localhost:6403/api/v1/inference/health" || exit 1
+curl -f "http://localhost:6404/api/v1/results/health" || exit 1
+curl -f "http://localhost:6405/healthz" || exit 1
+curl -f "http://localhost:6406/health" || exit 1
+curl -f "http://localhost:6407/api/v1/capture/health" || exit 1
 
 # Check frontend
 echo "Checking frontend..."

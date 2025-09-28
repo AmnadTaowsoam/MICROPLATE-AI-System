@@ -32,20 +32,8 @@ export class InterfaceService {
     let tempFilePath: string | null = null;
 
     try {
-      // Check if sample exists
-      const sampleSummary = await prisma.sampleSummary.findUnique({
-        where: { sampleNo: request.sampleNo },
-      });
-
-      if (!sampleSummary) {
-        return {
-          success: false,
-          error: {
-            code: 'SAMPLE_NOT_FOUND',
-            message: `Sample ${request.sampleNo} not found`,
-          },
-        };
-      }
+      // Note: Sample validation should be done by calling prediction-db-service
+      // For now, we'll proceed with interface file generation
 
       // Create interface file record
       const interfaceFile = await prisma.interfaceFile.create({

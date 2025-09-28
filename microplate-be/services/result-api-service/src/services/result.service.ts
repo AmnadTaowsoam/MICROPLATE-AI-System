@@ -140,6 +140,21 @@ export class ResultServiceImpl implements ResultService {
       const runs = predictionData.runs || [];
       const pagination = predictionData.pagination || {};
 
+      // Debug: Log the raw data from prediction-db-service
+      logger.info({ sampleNo, runsCount: runs.length }, 'Raw runs data from prediction-db-service');
+      if (runs.length > 0) {
+        logger.info({ 
+          sampleNo, 
+          firstRun: {
+            id: runs[0].id,
+            runId: runs[0].id,
+            hasInferenceResults: !!runs[0].inferenceResults,
+            inferenceResultsCount: runs[0].inferenceResults?.length || 0,
+            inferenceResults: runs[0].inferenceResults
+          }
+        }, 'First run details');
+      }
+
       const data = runs.map((run: any) => this.transformRunSummary(run));
 
       const result: PaginatedResult<PredictionRunSummary> = {
@@ -490,6 +505,14 @@ export class ResultServiceImpl implements ResultService {
 
   // Helper methods
   private transformRunSummary(run: any): PredictionRunSummary {
+    // Debug: Log inference results transformation
+    logger.info({ 
+      runId: run.id,
+      hasInferenceResults: !!run.inferenceResults,
+      inferenceResultsCount: run.inferenceResults?.length || 0,
+      inferenceResults: run.inferenceResults
+    }, 'Transforming run summary');
+
     return {
       runId: run.id,
       predictAt: run.predictAt,

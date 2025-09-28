@@ -18,7 +18,6 @@ This document provides a comprehensive summary of the Microplate AI System desig
    - `result-api-service` (Node.js + TypeScript) - Data aggregation and APIs
    - `labware-interface-service` (Node.js + TypeScript) - CSV generation and delivery
    - `prediction-db-service` (Node.js + TypeScript) - Database operations for prediction data
-   - `gateway` (Node.js + TypeScript) - API gateway and routing
    - `database` (PostgreSQL 17) - Data persistence
    - `object-storage` (MinIO/S3) - File storage
 

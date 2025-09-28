@@ -4,11 +4,15 @@ import './App.css';
 import AuthGuard from './components/AuthGuard';
 import ResultsPage from './pages/ResultsPage';
 import Results from './pages/Results';
-import SampleHistoryPage from './pages/SampleHistoryPage';
 import AuthPage from './pages/AuthPage';
 import ProfileSettingsPage from './pages/ProfileSettingsPage';
+import ProfilePage from './pages/ProfilePage';
+import SettingsPage from './pages/SettingsPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import NotificationsPage from './pages/NotificationsPage';
+import UserGuidePage from './pages/UserGuidePage';
+import { ThemeProvider } from './contexts/ThemeContext';
 import ImageUpload from './components/capture/ImageUpload';
 import LogsPanel from './components/capture/LogsPanel';
 import { useImageUpload } from './hooks/useImageUpload';
@@ -18,19 +22,21 @@ import { MdQrCodeScanner } from 'react-icons/md';
 import { useSampleResult } from './hooks/useResults';
 import { authService } from './services/auth.service';
 import Navbar from './components/layout/Navbar';
+import Footer from './components/layout/Footer';
 import Input from './components/ui/Input';
 import Button from './components/ui/Button';
 import Card from './components/ui/Card';
 
 function AppShell({ children, isAuthenticated }: { children: React.ReactNode; isAuthenticated: boolean }) {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
       {isAuthenticated && <Navbar />}
-      <main className="w-full">
+      <main className="w-full flex-1">
         <div className={isAuthenticated ? "container-page py-6 lg:py-8" : ""}>
           {children}
         </div>
       </main>
+      {isAuthenticated && <Footer />}
     </div>
   );
 }
@@ -63,8 +69,8 @@ function CapturePage() {
   // Get sample summary data for Summary tab
   const { data: sampleSummaryResponse, isLoading: isSummaryLoading, error: summaryError } = useSampleSummary(sampleNo)
   
-  // Extract the actual data from the response
-  const sampleSummary = sampleSummaryResponse?.data
+  // Extract the actual data from the response (now can be null for NOT_FOUND cases)
+  const sampleSummary = sampleSummaryResponse
   
 
   // Update annotated image URL when prediction completes
@@ -221,6 +227,8 @@ function CapturePage() {
           onSelect={handleImageSelect} 
           onCaptured={(url) => setCapturedImageUrl(url)}
           sampleNo={sampleNo}
+          submissionNo={submissionNo}
+          description={description}
           className="p-4" 
           onRunPrediction={handleRunPrediction}
           onReset={handleReset}
@@ -463,12 +471,22 @@ function CapturePage() {
                   <div className="text-xs mt-1">{summaryError.message}</div>
                 </div>
               ) : sampleNo ? (
-                <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                  No summary data available for sample {sampleNo}.
+                <div className="text-center py-12">
+                  <div className="bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-800 dark:via-blue-900/20 dark:to-indigo-900/20 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm p-8 max-w-md mx-auto">
+                    <div className="text-4xl mb-4">⏳</div>
+                    <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">กำลังรอข้อมูล</h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                      ยังไม่มีข้อมูลสรุปสำหรับ Sample <span className="font-medium text-blue-600 dark:text-blue-400">{sampleNo}</span>
+                    </p>
+                    <div className="text-xs text-slate-500 dark:text-slate-500">
+                      กรุณาทำการ Run Prediction เพื่อสร้างข้อมูลสรุป
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                  Enter a sample number to view summary.
+                  <div className="text-2xl mb-2">📝</div>
+                  <div className="text-sm">กรุณาใส่ Sample Number เพื่อดูข้อมูลสรุป</div>
                 </div>
               )}
             </>
@@ -539,6 +557,7 @@ export default function App() {
   }
 
   return (
+    <ThemeProvider>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AppShell isAuthenticated={isAuthenticated}>
@@ -559,12 +578,25 @@ export default function App() {
               path="/results/:sampleNo" 
               element={<AuthGuard><ResultsPage /></AuthGuard>} 
             />
-            <Route 
-              path="/samples" 
-              element={<AuthGuard><SampleHistoryPage /></AuthGuard>} 
-            />
+              <Route 
+                path="/profile" 
+                element={<AuthGuard><ProfilePage /></AuthGuard>} 
+              />
              <Route 
               path="/settings" 
+              element={<AuthGuard><SettingsPage /></AuthGuard>} 
+            />
+            <Route 
+              path="/notifications" 
+              element={<AuthGuard><NotificationsPage /></AuthGuard>} 
+            />
+            <Route 
+              path="/user-guide" 
+              element={<AuthGuard><UserGuidePage /></AuthGuard>} 
+            />
+              {/* Legacy route for backward compatibility */}
+              <Route 
+                path="/profile-settings" 
               element={<AuthGuard><ProfileSettingsPage /></AuthGuard>} 
             />
             <Route path="*" element={<NotFoundPage />} />
@@ -572,5 +604,6 @@ export default function App() {
         </AppShell>
       </BrowserRouter>
     </QueryClientProvider>
+    </ThemeProvider>
   );
 }

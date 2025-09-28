@@ -1,84 +1,107 @@
-# Vision Capture Service - Complete Specification
+# Vision Capture Service - Complete Implementation
 
 ## Overview
 
-The Vision Capture Service handles camera control and image capture for the Microplate AI System. It provides camera management, image capture, live preview, and camera settings control.
+Vision Capture Service เป็นบริการสำหรับการถ่ายภาพ Microplate ด้วยกล้องที่เชื่อมต่อ โดยใช้ FastAPI และ OpenCV พร้อมระบบ WebSocket สำหรับ real-time updates
 
 ## Technology Stack
 
 - **Runtime**: Python 3.11+
-- **Framework**: FastAPI
+- **Framework**: FastAPI + Uvicorn
 - **Computer Vision**: OpenCV, PIL
-- **Camera Control**: pycamera2, v4l2 (Linux), DirectShow (Windows)
-- **Image Processing**: numpy, scikit-image
-- **HTTP Client**: httpx
+- **Authentication**: JWT Token validation
+- **Real-time**: WebSocket support
 - **Validation**: Pydantic
-- **Documentation**: OpenAPI 3.0
+- **Containerization**: Docker + Docker Compose
 
 ## Service Architecture
 
-```python
-# Project structure
+```
 vision-capture-service/
-├── src/
-│   ├── config/
-│   │   ├── camera.py
-│   │   ├── settings.py
-│   │   └── image.py
-│   ├── controllers/
-│   │   └── capture_controller.py
-│   ├── services/
-│   │   ├── camera_service.py
-│   │   ├── capture_service.py
-│   │   ├── image_service.py
-│   │   └── preview_service.py
-│   ├── hardware/
-│   │   ├── camera_manager.py
-│   │   ├── usb_camera.py
-│   │   ├── csi_camera.py
-│   │   └── camera_factory.py
-│   ├── utils/
-│   │   ├── image_utils.py
-│   │   ├── camera_utils.py
-│   │   └── validation_utils.py
-│   ├── schemas/
-│   │   └── capture_schemas.py
-│   ├── types/
-│   │   └── capture_types.py
-│   └── main.py
-├── tests/
-├── requirements.txt
-├── Dockerfile
-└── .env.example
+├── app/
+│   ├── api/routes/          # API endpoints
+│   │   ├── capture.py       # Capture operations
+│   │   ├── health.py        # Health checks
+│   │   └── websocket.py     # WebSocket endpoints
+│   ├── core/                # Core functionality
+│   │   ├── auth.py          # JWT authentication
+│   │   ├── config.py        # Configuration management
+│   │   └── websocket_manager.py # WebSocket management
+│   ├── models/              # Data models
+│   │   └── schemas.py       # Pydantic schemas
+│   └── services/            # Business logic
+│       ├── camera_service.py    # Camera operations
+│       └── status_service.py    # Status monitoring
+├── tests/                   # Unit tests
+├── main.py                  # FastAPI application
+├── requirements.txt         # Python dependencies
+├── Dockerfile              # Docker configuration
+├── docker-compose.yml      # Docker Compose
+└── README.md               # Documentation
 ```
 
 ## API Endpoints
 
+### Health & Status Endpoints
+
+#### GET /api/v1/capture/health
+Health check endpoint
+
+**Response:**
+```json
+{
+  "success": true,
+  "status": "healthy",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "details": {
+    "uptime_seconds": 3600,
+    "camera_connected": true,
+    "camera_capturing": false,
+    "websocket_connections": 2,
+    "version": "1.0.0"
+  }
+}
+```
+
+#### GET /api/v1/capture/status
+Get camera status (requires authentication)
+
+**Headers:**
+```
+Authorization: Bearer <jwt-token>
+```
+
+**Response:**
+```json
+{
+  "is_connected": true,
+  "is_capturing": false,
+  "device_id": 0,
+  "resolution": "1920x1080",
+  "fps": 30,
+  "last_capture": "2024-01-15T10:30:00Z",
+  "error_message": null
+}
+```
+
 ### Capture Endpoints
 
-#### POST /api/v1/capture
-Capture an image from the camera.
+#### POST /api/v1/capture/image
+Capture image from camera (requires authentication)
+
+**Headers:**
+```
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+```
 
 **Request Body:**
 ```json
 {
-  "sample_no": "S123456",
-  "submission_no": "SUB789",
-  "camera_id": 0,
-  "settings": {
-    "resolution": "1920x1080",
-    "brightness": 50,
-    "contrast": 50,
-    "exposure": "auto",
-    "white_balance": "auto",
-    "focus": "auto"
-  },
-  "options": {
-    "save_metadata": true,
-    "generate_thumbnail": true,
-    "image_format": "jpg",
-    "quality": 95
-  }
+  "sample_no": "TEST005",
+  "submission_no": "SUB001",
+  "description": "Microplate capture",
+  "quality": 95
 }
 ```
 
@@ -86,188 +109,95 @@ Capture an image from the camera.
 ```json
 {
   "success": true,
+  "message": "Image captured successfully",
   "data": {
-    "capture_id": "uuid",
-    "sample_no": "S123456",
-    "submission_no": "SUB789",
-    "image_path": "/tmp/captures/S123456_20240115_103000.jpg",
-    "image_url": "https://storage.example.com/captures/S123456_20240115_103000.jpg",
-    "thumbnail_path": "/tmp/captures/S123456_20240115_103000_thumb.jpg",
-    "thumbnail_url": "https://storage.example.com/captures/S123456_20240115_103000_thumb.jpg",
-    "metadata": {
+    "image_data": {
+      "filename": "capture_TEST005_SUB001_20240115_103000.jpg",
+      "file_path": "/app/captures/capture_TEST005_SUB001_20240115_103000.jpg",
+      "file_size": 2048576,
       "width": 1920,
       "height": 1080,
       "format": "JPEG",
-      "file_size": 2048576,
-      "camera_settings": {
-        "brightness": 50,
-        "contrast": 50,
-        "exposure": "auto",
-        "white_balance": "auto"
-      },
-      "capture_time": "2024-01-15T10:30:00Z"
+      "captured_at": "2024-01-15T10:30:00Z"
     },
-    "captured_at": "2024-01-15T10:30:00Z"
-  }
+    "sample_no": "TEST005",
+    "submission_no": "SUB001"
+  },
+  "timestamp": "2024-01-15T10:30:00Z"
 }
 ```
 
-#### GET /api/v1/capture/preview
-Get live preview stream from the camera.
-
-**Query Parameters:**
-- `camera_id`: Camera ID (default: 0)
-- `resolution`: Preview resolution (default: 640x480)
-- `quality`: JPEG quality (default: 80)
-
-**Response:**
-```
-Content-Type: multipart/x-mixed-replace; boundary=frame
-
---frame
-Content-Type: image/jpeg
-
-[Binary JPEG data]
---frame
-Content-Type: image/jpeg
-
-[Binary JPEG data]
-...
-```
-
-#### GET /api/v1/capture/cameras
-Get list of available cameras.
+#### POST /api/v1/capture/test
+Test camera functionality (requires authentication)
 
 **Response:**
 ```json
 {
   "success": true,
+  "message": "Camera test successful",
   "data": {
-    "cameras": [
-      {
-        "camera_id": 0,
-        "name": "USB Camera",
-        "type": "usb",
-        "resolution": "1920x1080",
-        "supported_formats": ["MJPG", "YUYV"],
-        "is_available": true,
-        "current_settings": {
-          "brightness": 50,
-          "contrast": 50,
-          "exposure": "auto",
-          "white_balance": "auto"
-        }
-      }
-    ],
-    "default_camera": 0
-  }
-}
-```
-
-#### PUT /api/v1/capture/cameras/:cameraId/settings
-Update camera settings.
-
-**Request Body:**
-```json
-{
-  "brightness": 60,
-  "contrast": 55,
-  "exposure": "manual",
-  "exposure_value": 100,
-  "white_balance": "manual",
-  "white_balance_temperature": 5000,
-  "focus": "manual",
-  "focus_distance": 50
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "camera_id": 0,
-    "settings": {
-      "brightness": 60,
-      "contrast": 55,
-      "exposure": "manual",
-      "exposure_value": 100,
-      "white_balance": "manual",
-      "white_balance_temperature": 5000,
-      "focus": "manual",
-      "focus_distance": 50
-    },
-    "updated_at": "2024-01-15T10:30:00Z"
-  }
-}
-```
-
-#### GET /api/v1/capture/cameras/:cameraId/settings
-Get current camera settings.
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "camera_id": 0,
-    "settings": {
-      "brightness": 60,
-      "contrast": 55,
-      "exposure": "manual",
-      "exposure_value": 100,
-      "white_balance": "manual",
-      "white_balance_temperature": 5000,
-      "focus": "manual",
-      "focus_distance": 50
-    },
-    "supported_ranges": {
-      "brightness": {"min": 0, "max": 100, "step": 1},
-      "contrast": {"min": 0, "max": 100, "step": 1},
-      "exposure_value": {"min": 1, "max": 1000, "step": 1},
-      "white_balance_temperature": {"min": 2000, "max": 8000, "step": 100},
-      "focus_distance": {"min": 0, "max": 100, "step": 1}
+    "camera_status": "working",
+    "device_info": {
+      "device_id": 0,
+      "configured_resolution": "1920x1080",
+      "configured_fps": 30,
+      "is_initialized": true,
+      "is_capturing": false
     }
   }
 }
 ```
 
-### Image Management Endpoints
-
-#### GET /api/v1/capture/images/:captureId
-Get captured image information.
+#### GET /api/v1/capture/stats
+Get capture statistics (requires authentication)
 
 **Response:**
 ```json
 {
   "success": true,
   "data": {
-    "capture_id": "uuid",
-    "sample_no": "S123456",
-    "image_path": "/tmp/captures/S123456_20240115_103000.jpg",
-    "image_url": "https://storage.example.com/captures/S123456_20240115_103000.jpg",
-    "metadata": {
-      "width": 1920,
-      "height": 1080,
-      "format": "JPEG",
-      "file_size": 2048576,
-      "capture_time": "2024-01-15T10:30:00Z"
-    },
-    "captured_at": "2024-01-15T10:30:00Z"
+    "total_captures": 25,
+    "successful_captures": 23,
+    "failed_captures": 2,
+    "average_capture_time": 1.2,
+    "last_capture_time": "2024-01-15T10:30:00Z",
+    "storage_used": 52428800
   }
 }
 ```
 
-#### DELETE /api/v1/capture/images/:captureId
-Delete captured image.
+### WebSocket Endpoints
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Image deleted successfully"
-}
+#### WS /ws/capture
+WebSocket endpoint for real-time capture updates
+
+**Connection:**
+```javascript
+const ws = new WebSocket('ws://localhost:6407/ws/capture');
+
+ws.onmessage = (event) => {
+    const message = JSON.parse(event.data);
+    
+    if (message.type === 'capture_progress') {
+        console.log(`Progress: ${message.data.progress}%`);
+    }
+    
+    if (message.type === 'capture_result') {
+        console.log('Capture completed:', message.data);
+    }
+};
 ```
+
+**Message Types:**
+- `initial_status`: Initial connection status
+- `capture_progress`: Capture progress updates
+- `capture_result`: Capture completion result
+- `status_update`: Camera status updates
+- `heartbeat`: Connection heartbeat
+- `pong`: Response to ping
+
+#### WS /ws/status
+WebSocket endpoint for status monitoring only
 
 ## Implementation Details
 
@@ -275,319 +205,383 @@ Delete captured image.
 ```python
 class CameraService:
     def __init__(self):
-        self.cameras: Dict[int, Camera] = {}
-        self.camera_manager = CameraManager()
+        self.camera = None
+        self.is_initialized = False
+        self.is_capturing = False
+        self.capture_dir = Path("captures")
+        self._capture_stats = {
+            "total_captures": 0,
+            "successful_captures": 0,
+            "failed_captures": 0,
+            "capture_times": []
+        }
     
-    async def initialize_cameras(self) -> None:
-        """Initialize all available cameras"""
-        available_cameras = await self.camera_manager.discover_cameras()
+    async def initialize(self) -> bool:
+        """Initialize camera connection"""
+        self.camera = cv2.VideoCapture(self.device_id or 0)
         
-        for camera_info in available_cameras:
-            camera = await self.create_camera(camera_info)
-            self.cameras[camera_info.id] = camera
-    
-    async def create_camera(self, camera_info: CameraInfo) -> Camera:
-        """Create camera instance based on type"""
-        if camera_info.type == "usb":
-            return USBCamera(camera_info)
-        elif camera_info.type == "csi":
-            return CSICamera(camera_info)
-        else:
-            raise ValueError(f"Unsupported camera type: {camera_info.type}")
-    
-    async def get_camera(self, camera_id: int) -> Camera:
-        """Get camera by ID"""
-        if camera_id not in self.cameras:
-            raise CameraNotFoundError(f"Camera {camera_id} not found")
-        return self.cameras[camera_id]
+        if not self.camera.isOpened():
+            return False
+        
+        # Set camera properties
+        self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        self.camera.set(cv2.CAP_PROP_FPS, self.fps)
+        
+        self.is_initialized = True
+        return True
     
     async def capture_image(
-        self,
-        camera_id: int,
-        sample_no: str,
-        settings: CameraSettings
-    ) -> CaptureResult:
-        """Capture image from specified camera"""
-        camera = await self.get_camera(camera_id)
-        
-        # Apply settings
-        await camera.apply_settings(settings)
-        
-        # Capture image
-        image = await camera.capture()
-        
-        # Generate filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{sample_no}_{timestamp}.jpg"
-        
-        # Save image
-        image_path = await self.save_image(image, filename)
-        
-        # Generate thumbnail
-        thumbnail_path = await self.generate_thumbnail(image, filename)
-        
-        # Create metadata
-        metadata = self.create_metadata(image, settings)
-        
-        return CaptureResult(
-            capture_id=str(uuid.uuid4()),
-            sample_no=sample_no,
-            image_path=image_path,
-            thumbnail_path=thumbnail_path,
-            metadata=metadata,
-            captured_at=datetime.now()
-        )
-```
-
-### Camera Manager
-```python
-class CameraManager:
-    def __init__(self):
-        self.platform = platform.system().lower()
-    
-    async def discover_cameras(self) -> List[CameraInfo]:
-        """Discover available cameras"""
-        cameras = []
-        
-        if self.platform == "linux":
-            cameras = await self.discover_linux_cameras()
-        elif self.platform == "windows":
-            cameras = await self.discover_windows_cameras()
-        elif self.platform == "darwin":
-            cameras = await self.discover_macos_cameras()
-        
-        return cameras
-    
-    async def discover_linux_cameras(self) -> List[CameraInfo]:
-        """Discover cameras on Linux using v4l2"""
-        cameras = []
-        
-        # Check /dev/video* devices
-        for i in range(10):  # Check first 10 video devices
-            device_path = f"/dev/video{i}"
-            if os.path.exists(device_path):
-                try:
-                    cap = cv2.VideoCapture(i)
-                    if cap.isOpened():
-                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                        
-                        cameras.append(CameraInfo(
-                            id=i,
-                            name=f"Camera {i}",
-                            type="usb",
-                            device_path=device_path,
-                            resolution=f"{width}x{height}",
-                            supported_formats=["MJPG", "YUYV"],
-                            is_available=True
-                        ))
-                        cap.release()
-                except Exception as e:
-                    logger.warning(f"Failed to open camera {i}: {e}")
-        
-        return cameras
-    
-    async def discover_windows_cameras(self) -> List[CameraInfo]:
-        """Discover cameras on Windows using DirectShow"""
-        cameras = []
-        
-        # Use OpenCV to enumerate cameras
-        for i in range(10):
-            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
-            if cap.isOpened():
-                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                
-                cameras.append(CameraInfo(
-                    id=i,
-                    name=f"Camera {i}",
-                    type="usb",
-                    device_path=f"camera_{i}",
-                    resolution=f"{width}x{height}",
-                    supported_formats=["MJPG", "YUYV"],
-                    is_available=True
-                ))
-                cap.release()
-        
-        return cameras
-```
-
-### USB Camera Implementation
-```python
-class USBCamera(Camera):
-    def __init__(self, camera_info: CameraInfo):
-        self.camera_info = camera_info
-        self.cap = None
-        self.settings = CameraSettings()
-    
-    async def initialize(self) -> None:
-        """Initialize camera"""
-        self.cap = cv2.VideoCapture(self.camera_info.id)
-        if not self.cap.isOpened():
-            raise CameraError(f"Failed to open camera {self.camera_info.id}")
-    
-    async def capture(self) -> np.ndarray:
+        self, 
+        sample_no: str, 
+        submission_no: Optional[str] = None,
+        description: str = "Captured image",
+        quality: int = 95
+    ) -> Tuple[bool, Optional[ImageData], Optional[str]]:
         """Capture image from camera"""
-        if not self.cap or not self.cap.isOpened():
-            await self.initialize()
+        if not self.is_initialized or self.camera is None:
+            return False, None, "Camera not initialized"
         
-        ret, frame = self.cap.read()
-        if not ret:
-            raise CameraError("Failed to capture image")
+        if self.is_capturing:
+            return False, None, "Capture already in progress"
         
-        return frame
-    
-    async def apply_settings(self, settings: CameraSettings) -> None:
-        """Apply camera settings"""
-        if not self.cap:
-            await self.initialize()
+        self.is_capturing = True
         
-        # Apply brightness
-        if settings.brightness is not None:
-            self.cap.set(cv2.CAP_PROP_BRIGHTNESS, settings.brightness)
+        try:
+            # Capture frame
+            ret, frame = self.camera.read()
+            
+            if not ret:
+                return False, None, "Failed to capture frame from camera"
+            
+            # Generate filename
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"capture_{sample_no}_{timestamp}.jpg"
+            
+            if submission_no:
+                filename = f"capture_{sample_no}_{submission_no}_{timestamp}.jpg"
+            
+            file_path = self.capture_dir / filename
+            
+            # Save image
+            success = cv2.imwrite(str(file_path), frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
+            
+            if not success:
+                return False, None, "Failed to save image"
+            
+            # Create image data
+            height, width = frame.shape[:2]
+            file_size = file_path.stat().st_size
+            
+            image_data = ImageData(
+                filename=filename,
+                file_path=str(file_path),
+                file_size=file_size,
+                width=width,
+                height=height,
+                format="JPEG",
+                captured_at=datetime.now()
+            )
+            
+            # Update stats
+            self._capture_stats["total_captures"] += 1
+            self._capture_stats["successful_captures"] += 1
+            self.last_capture_time = datetime.now()
+            
+            return True, image_data, None
+            
+        except Exception as e:
+            self._capture_stats["failed_captures"] += 1
+            return False, None, str(e)
         
-        # Apply contrast
-        if settings.contrast is not None:
-            self.cap.set(cv2.CAP_PROP_CONTRAST, settings.contrast)
-        
-        # Apply exposure
-        if settings.exposure == "manual" and settings.exposure_value is not None:
-            self.cap.set(cv2.CAP_PROP_EXPOSURE, settings.exposure_value)
-        elif settings.exposure == "auto":
-            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
-        
-        # Apply white balance
-        if settings.white_balance == "manual" and settings.white_balance_temperature is not None:
-            self.cap.set(cv2.CAP_PROP_WB_TEMPERATURE, settings.white_balance_temperature)
-        elif settings.white_balance == "auto":
-            self.cap.set(cv2.CAP_PROP_AUTO_WB, 1)
-        
-        # Apply focus
-        if settings.focus == "manual" and settings.focus_distance is not None:
-            self.cap.set(cv2.CAP_PROP_FOCUS, settings.focus_distance)
-        elif settings.focus == "auto":
-            self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
-        
-        self.settings = settings
-    
-    async def get_current_settings(self) -> CameraSettings:
-        """Get current camera settings"""
-        if not self.cap:
-            await self.initialize()
-        
-        return CameraSettings(
-            brightness=int(self.cap.get(cv2.CAP_PROP_BRIGHTNESS)),
-            contrast=int(self.cap.get(cv2.CAP_PROP_CONTRAST)),
-            exposure="auto" if self.cap.get(cv2.CAP_PROP_AUTO_EXPOSURE) else "manual",
-            exposure_value=int(self.cap.get(cv2.CAP_PROP_EXPOSURE)),
-            white_balance="auto" if self.cap.get(cv2.CAP_PROP_AUTO_WB) else "manual",
-            white_balance_temperature=int(self.cap.get(cv2.CAP_PROP_WB_TEMPERATURE)),
-            focus="auto" if self.cap.get(cv2.CAP_PROP_AUTOFOCUS) else "manual",
-            focus_distance=int(self.cap.get(cv2.CAP_PROP_FOCUS))
-        )
-    
-    async def start_preview(self) -> None:
-        """Start live preview"""
-        if not self.cap:
-            await self.initialize()
-    
-    async def stop_preview(self) -> None:
-        """Stop live preview"""
-        if self.cap:
-            self.cap.release()
-            self.cap = None
-    
-    async def close(self) -> None:
-        """Close camera"""
-        if self.cap:
-            self.cap.release()
-            self.cap = None
+        finally:
+            self.is_capturing = False
 ```
 
-### Preview Service
+### Status Service
 ```python
-class PreviewService:
-    def __init__(self, camera_service: CameraService):
-        self.camera_service = camera_service
-        self.active_previews: Dict[int, asyncio.Task] = {}
+class StatusService:
+    def __init__(self):
+        self.start_time = time.time()
+        self.is_monitoring = False
+        self.status_callbacks = []
+        self.camera_service = None
+        self.websocket_manager = None
     
-    async def start_preview(self, camera_id: int, resolution: str = "640x480") -> None:
-        """Start live preview for camera"""
-        if camera_id in self.active_previews:
-            return  # Preview already active
+    async def get_service_status(self) -> ServiceStatus:
+        """Get comprehensive service status"""
+        uptime = time.time() - self.start_time
         
-        camera = await self.camera_service.get_camera(camera_id)
-        task = asyncio.create_task(self._preview_loop(camera, resolution))
-        self.active_previews[camera_id] = task
-    
-    async def stop_preview(self, camera_id: int) -> None:
-        """Stop live preview for camera"""
-        if camera_id in self.active_previews:
-            self.active_previews[camera_id].cancel()
-            del self.active_previews[camera_id]
-    
-    async def _preview_loop(self, camera: Camera, resolution: str) -> None:
-        """Preview loop for live streaming"""
-        width, height = map(int, resolution.split('x'))
+        # Get camera status
+        camera_status = CameraStatus(
+            is_connected=False,
+            is_capturing=False,
+            device_id=None,
+            resolution=None,
+            fps=None,
+            last_capture=None,
+            error_message="Camera service not available"
+        )
         
-        while True:
-            try:
-                # Capture frame
-                frame = await camera.capture()
-                
-                # Resize frame
-                frame = cv2.resize(frame, (width, height))
-                
-                # Encode as JPEG
-                _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-                
-                # Yield frame (this would be used in the streaming endpoint)
-                yield buffer.tobytes()
-                
-                await asyncio.sleep(0.033)  # ~30 FPS
-                
-            except Exception as e:
-                logger.error(f"Preview error: {e}")
-                break
+        if self.camera_service:
+            camera_status = await self.camera_service.get_status()
+        
+        # Get WebSocket connection count
+        websocket_connections = 0
+        if self.websocket_manager:
+            websocket_connections = self.websocket_manager.get_connection_count()
+        
+        # Determine overall service status
+        overall_status = "healthy"
+        if not camera_status.is_connected:
+            overall_status = "degraded"
+        if camera_status.error_message:
+            overall_status = "unhealthy"
+        
+        return ServiceStatus(
+            service_name="Vision Capture Service",
+            version="1.0.0",
+            status=overall_status,
+            uptime=uptime,
+            camera_status=camera_status,
+            websocket_connections=websocket_connections,
+            last_health_check=datetime.now()
+        )
+```
+
+### WebSocket Manager
+```python
+class WebSocketManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+        self.connection_metadata: Dict[WebSocket, Dict[str, Any]] = {}
+        self.heartbeat_task: Optional[asyncio.Task] = None
+    
+    async def connect(self, websocket: WebSocket, client_info: Optional[Dict[str, Any]] = None):
+        """Accept new WebSocket connection"""
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        self.connection_metadata[websocket] = {
+            "connected_at": datetime.now(),
+            "client_info": client_info or {},
+            "last_heartbeat": datetime.now()
+        }
+    
+    async def broadcast_status_update(self, status_data: Dict[str, Any]):
+        """Broadcast camera status update"""
+        message = {
+            "type": "status_update",
+            "data": status_data,
+            "timestamp": datetime.now().isoformat()
+        }
+        await self.broadcast(message)
+    
+    async def broadcast_capture_progress(self, progress_data: Dict[str, Any]):
+        """Broadcast capture progress update"""
+        message = {
+            "type": "capture_progress",
+            "data": progress_data,
+            "timestamp": datetime.now().isoformat()
+        }
+        await self.broadcast(message)
+    
+    async def broadcast_capture_result(self, result_data: Dict[str, Any]):
+        """Broadcast capture result"""
+        message = {
+            "type": "capture_result",
+            "data": result_data,
+            "timestamp": datetime.now().isoformat()
+        }
+        await self.broadcast(message)
 ```
 
 ## Environment Configuration
 
 ```bash
-# Application
-NODE_ENV="development"
-PORT=6406
-API_BASE_URL="http://localhost:6400"
+# Server Configuration
+HOST=0.0.0.0
+PORT=6407
+DEBUG=false
+
+# JWT Configuration (must match auth-service)
+JWT_SECRET=your-jwt-secret-key
+JWT_ALGORITHM=HS256
+JWT_ISSUER=microplate-auth
+JWT_AUDIENCE=microplate-services
 
 # Camera Configuration
-DEFAULT_CAMERA_ID=0
-DEFAULT_RESOLUTION="1920x1080"
-DEFAULT_QUALITY=95
-SUPPORTED_FORMATS="jpg,jpeg,png"
+CAMERA_DEVICE_ID=0
+CAMERA_WIDTH=1920
+CAMERA_HEIGHT=1080
+CAMERA_FPS=30
 
-# Image Storage
-CAPTURE_DIRECTORY="/tmp/captures"
-THUMBNAIL_DIRECTORY="/tmp/thumbnails"
-MAX_FILE_SIZE="50MB"
-IMAGE_RETENTION_HOURS=24
+# Image Capture Settings
+CAPTURE_TIMEOUT=30
+IMAGE_QUALITY=95
+IMAGE_FORMAT=JPEG
 
-# Camera Settings
-DEFAULT_BRIGHTNESS=50
-DEFAULT_CONTRAST=50
-DEFAULT_EXPOSURE="auto"
-DEFAULT_WHITE_BALANCE="auto"
-DEFAULT_FOCUS="auto"
+# File Storage
+CAPTURE_DIR=captures
+MAX_CAPTURE_AGE_HOURS=24
 
-# Preview Settings
-PREVIEW_RESOLUTION="640x480"
-PREVIEW_QUALITY=80
-PREVIEW_FPS=30
-MAX_PREVIEW_CONNECTIONS=5
+# Status Monitoring
+STATUS_CHECK_INTERVAL=5
+CONNECTION_TIMEOUT=10
 
-# Hardware
-ENABLE_GPU=false
-GPU_DEVICE_ID=0
-CAMERA_TIMEOUT=30
+# Logging
+LOG_LEVEL=INFO
+LOG_FILE=logs/vision-capture.log
+
+# WebSocket Settings
+WS_HEARTBEAT_INTERVAL=30
+WS_MAX_CONNECTIONS=10
+
+# CORS
+ALLOWED_ORIGINS=http://localhost:6410,http://localhost:3000,http://localhost:8080
+```
+
+## Docker Deployment
+
+### Dockerfile
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies for OpenCV
+RUN apt-get update && apt-get install -y \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    libv4l-dev \
+    libxvidcore-dev \
+    libx264-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libtiff-dev \
+    libatlas-base-dev \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+RUN mkdir -p logs captures
+
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 6407
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:6407/api/v1/capture/health || exit 1
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "6407"]
+```
+
+### Docker Compose
+```yaml
+version: '3.8'
+
+services:
+  vision-capture-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: microplate-vision-capture
+    ports:
+      - "${PORT:-6407}:${PORT:-6407}"
+    env_file:
+      - .env
+    environment:
+      - HOST=${HOST:-0.0.0.0}
+      - PORT=${PORT:-6407}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ISSUER=${JWT_ISSUER}
+      - JWT_AUDIENCE=${JWT_AUDIENCE}
+      - CAMERA_DEVICE_ID=${CAMERA_DEVICE_ID:-0}
+    volumes:
+      - ./${CAPTURE_DIR:-captures}:/app/${CAPTURE_DIR:-captures}
+      - ./logs:/app/logs
+    networks:
+      - microplate-network
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/video${CAMERA_DEVICE_ID:-0}:/dev/video${CAMERA_DEVICE_ID:-0}
+```
+
+## Frontend Integration
+
+### Service Implementation
+```typescript
+class CaptureService {
+  private baseUrl = 'http://localhost:6407';
+  private wsUrl = 'ws://localhost:6407';
+
+  async captureImage(sampleNo: string, submissionNo?: string): Promise<CaptureResponse> {
+    const token = this.getAuthToken();
+    
+    const response = await fetch(`${this.baseUrl}/api/v1/capture/image`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        sample_no: sampleNo,
+        submission_no: submissionNo,
+        description: 'Captured image',
+        quality: 95
+      })
+    });
+
+    return response.json();
+  }
+
+  async getCameraStatus(): Promise<CameraStatus> {
+    const token = this.getAuthToken();
+    
+    const response = await fetch(`${this.baseUrl}/api/v1/capture/status`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    return response.json();
+  }
+
+  connectWebSocket(): WebSocket {
+    const ws = new WebSocket(`${this.wsUrl}/ws/capture`);
+    
+    ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      this.handleWebSocketMessage(message);
+    };
+
+    return ws;
+  }
+
+  private handleWebSocketMessage(message: any) {
+    switch (message.type) {
+      case 'capture_progress':
+        this.onCaptureProgress?.(message.data);
+        break;
+      case 'capture_result':
+        this.onCaptureResult?.(message.data);
+        break;
+      case 'status_update':
+        this.onStatusUpdate?.(message.data);
+        break;
+    }
+  }
+}
 ```
 
 ## Error Handling
@@ -597,62 +591,101 @@ CAMERA_TIMEOUT=30
 {
   "success": false,
   "error": {
-    "code": "CAMERA_NOT_FOUND",
-    "message": "Camera not found",
-    "details": {
-      "camera_id": 0
-    },
-    "requestId": "uuid",
-    "timestamp": "2024-01-15T10:30:00Z"
-  }
+    "code": "CAPTURE_FAILED",
+    "message": "Image capture failed"
+  },
+  "timestamp": "2024-01-15T10:30:00Z"
 }
 ```
 
 ### Common Error Codes
-- `CAMERA_NOT_FOUND`: Camera not found
+- `CAMERA_NOT_INITIALIZED`: Camera not initialized
 - `CAMERA_NOT_AVAILABLE`: Camera not available
 - `CAPTURE_FAILED`: Image capture failed
-- `SETTINGS_INVALID`: Invalid camera settings
-- `PREVIEW_FAILED`: Preview stream failed
-- `HARDWARE_ERROR`: Hardware error
-- `PERMISSION_ERROR`: Insufficient permissions
+- `CAPTURE_IN_PROGRESS`: Capture already in progress
+- `INVALID_TOKEN`: Invalid JWT token
+- `TOKEN_EXPIRED`: JWT token expired
+- `AUTH_ERROR`: Authentication error
 
 ## Performance Optimization
 
 ### Camera Management
-- Camera pooling for multiple connections
 - Asynchronous camera operations
-- Settings caching
+- Efficient OpenCV usage
+- Memory management for image processing
 - Error recovery mechanisms
 
-### Image Processing
-- Efficient image encoding
-- Memory management
-- Thumbnail generation optimization
-- Format conversion optimization
+### WebSocket Management
+- Connection pooling
+- Heartbeat monitoring
+- Automatic cleanup of disconnected clients
+- Efficient message broadcasting
 
-### Preview Streaming
-- Efficient frame encoding
-- Connection management
-- Bandwidth optimization
-- Error handling and recovery
+### Image Processing
+- Efficient JPEG encoding
+- Memory management
+- File system optimization
+- Background cleanup tasks
 
 ## Monitoring and Metrics
 
 ### Key Metrics
 - Capture success/failure rates
-- Camera availability
-- Preview connection count
+- Camera availability status
+- WebSocket connection count
 - Image processing time
-- Hardware utilization
+- Service uptime
 
 ### Health Checks
-- `/healthz`: Basic health check
-- `/readyz`: Readiness check (camera availability)
-- `/metrics`: Prometheus metrics
+- `/api/v1/capture/health`: Basic health check
+- `/api/v1/capture/status`: Camera status check
+- WebSocket heartbeat monitoring
 
 ### Logging
 - Camera operations
 - Capture events
+- WebSocket connections
 - Error tracking
 - Performance metrics
+
+## Security Considerations
+
+### Authentication
+- JWT token validation
+- Token expiration handling
+- Secure token storage
+
+### Camera Access
+- Privileged container mode
+- Device access control
+- Permission validation
+
+### Network Security
+- CORS configuration
+- WebSocket security
+- Input validation
+
+## Deployment Guide
+
+### Local Development
+```bash
+cd microplate-device/vision-capture-service
+cp env.example .env
+pip install -r requirements.txt
+python run.py
+```
+
+### Docker Deployment
+```bash
+cd microplate-device/vision-capture-service
+cp env.example .env
+# Edit .env with your configuration
+docker-compose up --build
+```
+
+### Production Considerations
+- Configure proper JWT secrets
+- Set up camera permissions
+- Configure logging levels
+- Set up monitoring
+- Configure backup strategies

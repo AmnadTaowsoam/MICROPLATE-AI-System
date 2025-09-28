@@ -8,31 +8,15 @@ This document outlines the port allocation and configuration for all microservic
 
 | Service | Port | Protocol | Description |
 |---------|------|----------|-------------|
-| **API Gateway** | 6400 | HTTP/HTTPS | Main entry point for all client requests |
 | **Auth Service** | 6401 | HTTP | User authentication and authorization |
 | **Image Ingestion Service** | 6402 | HTTP | Image storage and management |
-| **Labware Interface Service** | 6403 | HTTP | CSV generation and delivery |
+| **Vision Inference Service** | 6403 | HTTP | AI model inference and analysis |
 | **Result API Service** | 6404 | HTTP/WebSocket | Data aggregation and real-time updates |
-| **Vision Inference Service** | 6405 | HTTP | AI model inference and analysis |
+| **Labware Interface Service** | 6405 | HTTP | CSV generation and delivery |
 | **Prediction DB Service** | 6406 | HTTP | Database operations for prediction data |
+| **Vision Capture Service** | 6407 | HTTP/WebSocket | Camera capture and real-time status |
 
 ## Service Configuration
-
-### API Gateway (Port 6400)
-```yaml
-# docker-compose.apps.yml
-gateway:
-  ports:
-    - "6400:6400"
-  environment:
-    - PORT=6400
-```
-
-**Responsibilities:**
-- Request routing and load balancing
-- Authentication and authorization
-- Rate limiting and CORS handling
-- Request/response logging and monitoring
 
 ### Auth Service (Port 6401)
 ```yaml
@@ -130,6 +114,24 @@ prediction-db-service:
 - Schema management
 - CRUD APIs for prediction data
 
+### Vision Capture Service (Port 6407)
+```yaml
+# docker-compose.yml
+vision-capture-service:
+  ports:
+    - "6407:6407"
+  environment:
+    - PORT=6407
+    - CAMERA_DEVICE_ID=0
+    - JWT_SECRET=${JWT_SECRET}
+```
+
+**Responsibilities:**
+- Camera control and image capture
+- Real-time status updates via WebSocket
+- JWT authentication integration
+- Image storage and management
+
 ## Environment Variables
 
 ### Common Variables
@@ -173,10 +175,24 @@ REDIS_ERROR_CHANNEL="microplate:prediction-db:errors"
 
 #### Labware Interface Service
 ```bash
-PORT=6403
+PORT=6405
 OUTPUT_DIRECTORY="/app/generated"
 DEFAULT_DELIVERY_METHOD="folder"
 DEFAULT_FOLDER_PATH="/mnt/labshare/inbox"
+```
+
+#### Vision Capture Service
+```bash
+PORT=6407
+CAMERA_DEVICE_ID=0
+CAMERA_WIDTH=1920
+CAMERA_HEIGHT=1080
+CAMERA_FPS=30
+JWT_SECRET=${JWT_SECRET}
+JWT_ISSUER=microplate-auth
+JWT_AUDIENCE=microplate-services
+CAPTURE_DIR=captures
+IMAGE_QUALITY=95
 ```
 
 ## Docker Compose Configuration
@@ -192,29 +208,23 @@ networks:
 ### Service Dependencies
 ```yaml
 # Service dependency chain
-gateway:
+image-ingestion-service:
   depends_on:
     - auth-service
 
-image-ingestion-service:
-  depends_on:
-    - gateway
-
 vision-inference-service:
   depends_on:
-    - gateway
     - image-ingestion-service
     - prediction-db-service
     - result-api-service
 
 result-api-service:
   depends_on:
-    - gateway
     - prediction-db-service
 
 labware-interface:
   depends_on:
-    - gateway
+    - result-api-service
 ```
 
 ## Health Check Endpoints
@@ -223,36 +233,37 @@ Each service provides health check endpoints:
 
 | Service | Health Check URL |
 |---------|------------------|
-| API Gateway | `http://localhost:6400/healthz` |
 | Auth Service | `http://localhost:6401/healthz` |
 | Image Ingestion | `http://localhost:6402/healthz` |
-| Labware Interface | `http://localhost:6403/healthz` |
+| Vision Inference | `http://localhost:6403/api/v1/inference/health` |
 | Result API | `http://localhost:6404/api/v1/results/health` |
-| Vision Inference | `http://localhost:6405/api/v1/inference/health` |
+| Labware Interface | `http://localhost:6405/healthz` |
 | Prediction DB | `http://localhost:6406/health` |
+| Vision Capture | `http://localhost:6407/api/v1/capture/health` |
 
 ## Service Discovery
 
 ### Internal Communication
 Services communicate using Docker service names:
 
-- `http://gateway:6400` - API Gateway
 - `http://auth-service:6401` - Auth Service
 - `http://image-ingestion-service:6402` - Image Ingestion
-- `http://labware-interface:6403` - Labware Interface
+- `http://vision-inference:6403` - Vision Inference
 - `http://result-api:6404` - Result API
-- `http://vision-inference:6405` - Vision Inference
+- `http://labware-interface:6405` - Labware Interface
 - `http://prediction-db-service:6406` - Prediction DB
+- `http://vision-capture-service:6407` - Vision Capture
 
 ### External Access
-External clients access services through the API Gateway:
+External clients access services directly:
 
-- `http://localhost:6400/api/v1/auth/*` → Auth Service
-- `http://localhost:6400/api/v1/images/*` → Image Ingestion
-- `http://localhost:6400/api/v1/interface/*` → Labware Interface
-- `http://localhost:6400/api/v1/results/*` → Result API
-- `http://localhost:6400/api/v1/inference/*` → Vision Inference
-- `http://localhost:6400/api/v1/predictions/*` → Prediction DB
+- `http://localhost:6401/api/v1/auth/*` → Auth Service
+- `http://localhost:6402/api/v1/images/*` → Image Ingestion
+- `http://localhost:6403/api/v1/inference/*` → Vision Inference
+- `http://localhost:6404/api/v1/results/*` → Result API
+- `http://localhost:6405/api/v1/interface/*` → Labware Interface
+- `http://localhost:6406/api/v1/predictions/*` → Prediction DB
+- `http://localhost:6407/api/v1/capture/*` → Vision Capture
 
 ## Port Management
 
@@ -263,7 +274,7 @@ External clients access services through the API Gateway:
 
 ### Production Environment
 - Services run on internal network
-- External access only through API Gateway
+- External access through direct service endpoints or load balancer
 - Load balancer can be configured for high availability
 
 ### Port Conflicts
@@ -272,23 +283,23 @@ If port conflicts occur:
 2. Update docker-compose.apps.yml with new port
 3. Update environment variables
 4. Update documentation
-5. Update gateway routing configuration
+5. Update service configuration
 
 ## Security Considerations
 
 ### Network Isolation
 - Services communicate on internal Docker network
-- External access only through API Gateway
-- No direct service-to-service external access
+- External access through direct service endpoints
+- No central gateway - each service handles its own authentication
 
 ### Port Security
 - Only necessary ports are exposed
 - Health check endpoints are internal
-- API endpoints go through gateway authentication
+- API endpoints handle their own authentication
 
 ### Service Authentication
-- Gateway handles all authentication
-- Services receive user info via headers
+- Each service handles its own authentication
+- JWT tokens validated per service
 - Service-to-service communication uses internal network
 
 ## Monitoring and Debugging
@@ -302,19 +313,19 @@ docker-compose -f docker-compose.apps.yml ps
 docker-compose -f docker-compose.apps.yml logs -f result-api-service
 
 # Check port usage
-netstat -tulpn | grep -E ":(6400|6401|6402|6403|6404|6405|6406)"
+netstat -tulpn | grep -E ":(6401|6402|6403|6404|6405|6406|6407)"
 ```
 
 ### Service Health Checks
 ```bash
 # Test all health endpoints
-curl http://localhost:6400/healthz  # Gateway
 curl http://localhost:6401/healthz  # Auth
 curl http://localhost:6402/healthz  # Image Ingestion
-curl http://localhost:6403/healthz  # Labware Interface
+curl http://localhost:6403/api/v1/inference/health  # Vision Inference
 curl http://localhost:6404/api/v1/results/health  # Result API
-curl http://localhost:6405/api/v1/inference/health  # Vision Inference
+curl http://localhost:6405/healthz  # Labware Interface
 curl http://localhost:6406/health  # Prediction DB
+curl http://localhost:6407/api/v1/capture/health  # Vision Capture
 ```
 
 ## Troubleshooting
@@ -362,6 +373,6 @@ docker network inspect microplate-network
 - Service discovery should be updated
 
 ### Security Enhancements
-- TLS/SSL termination at gateway
+- TLS/SSL termination at load balancer or service level
 - Service mesh implementation
 - Network policies for Kubernetes

@@ -13,8 +13,6 @@ graph TB
     end
 
     subgraph "Application Layer"
-        GW[API Gateway<br/>Node.js + Fastify]
-        
         subgraph "Core Services"
             AUTH[auth-service<br/>Node.js + Prisma + Fastify]
             IMG[image-ingestion-service<br/>Node.js + Prisma + Fastify]
@@ -39,18 +37,14 @@ graph TB
         EMAIL[Email Service<br/>SMTP/SendGrid]
     end
 
-    %% Frontend connections
-    FE -->|HTTPS/REST| GW
-    FE -->|WebSocket| GW
-
-    %% Gateway routing
-    GW -->|/auth/*| AUTH
-    GW -->|/images/*| IMG
-    GW -->|/inference/*| INF
-    GW -->|/predictions/*| PDB
-    GW -->|/results/*| RES
-    GW -->|/interface/*| LAB
-    GW -->|/capture/*| VC
+    %% Frontend direct connections to services
+    FE -->|HTTPS/REST| AUTH
+    FE -->|HTTPS/REST| IMG
+    FE -->|HTTPS/REST| INF
+    FE -->|HTTPS/REST| PDB
+    FE -->|HTTPS/REST + WebSocket| RES
+    FE -->|HTTPS/REST| LAB
+    FE -->|HTTPS/REST + WebSocket| VC
 
     %% Service connections
     INF -->|Store Results| PDB
@@ -82,14 +76,14 @@ graph TB
 
 ### 2. Application Layer
 
-#### API Gateway (Node.js + Fastify)
-- **Purpose**: Single entry point for all client requests
-- **Responsibilities**:
-  - Request routing and load balancing
-  - Authentication and authorization
-  - Rate limiting and CORS handling
-  - Request/response logging and monitoring
-  - Service discovery and health checks
+#### Direct Service Access
+- **Purpose**: Frontend connects directly to individual services
+- **Architecture**:
+  - No central gateway - services are accessed directly
+  - Each service handles its own authentication and authorization
+  - CORS configured per service for frontend access
+  - Rate limiting implemented at service level
+  - Health checks available on each service
 
 #### auth-service (Node.js + Prisma + Fastify)
 - **Purpose**: User authentication and authorization

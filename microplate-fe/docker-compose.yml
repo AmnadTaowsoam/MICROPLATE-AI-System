@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  microplate-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: microplate-frontend
+    ports:
+      - "${FRONTEND_PORT:-6410}:80"
+    env_file:
+      - .env
+    environment:
+      # Service URLs - loaded from .env file
+      - VITE_AUTH_SERVICE_URL=${VITE_AUTH_SERVICE_URL}
+      - VITE_IMAGE_SERVICE_URL=${VITE_IMAGE_SERVICE_URL}
+      - VITE_VISION_SERVICE_URL=${VITE_VISION_SERVICE_URL}
+      - VITE_RESULTS_SERVICE_URL=${VITE_RESULTS_SERVICE_URL}
+      - VITE_LABWARE_SERVICE_URL=${VITE_LABWARE_SERVICE_URL}
+      - VITE_PREDICTION_SERVICE_URL=${VITE_PREDICTION_SERVICE_URL}
+      - VITE_VISION_CAPTURE_SERVICE_URL=${VITE_VISION_CAPTURE_SERVICE_URL}
+      - VITE_MINIO_BASE_URL=${VITE_MINIO_BASE_URL}
+      - VITE_GATEWAY_URL=${VITE_GATEWAY_URL}
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+    volumes:
+      # Mount environment file for runtime configuration
+      - ./.env:/usr/share/nginx/html/.env:ro
+    networks:
+      - microplate-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - frontend
+
+  # Optional: Nginx proxy for API routing (if needed)
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: microplate-proxy
+    ports:
+      - "6400:80"
+    volumes:
+      - ./proxy.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - microplate-network
+    restart: unless-stopped
+    profiles:
+      - proxy
+
+networks:
+  microplate-network:
+    driver: bridge
+    external: false
+
+volumes:
+  frontend-assets:
+    driver: local

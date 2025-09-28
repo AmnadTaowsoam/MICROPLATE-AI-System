@@ -44,7 +44,11 @@ frontend/
 │   │   │   ├── ImagePanel.tsx
 │   │   │   ├── ActionsBar.tsx
 │   │   │   ├── QRScanner.tsx
-│   │   │   └── CameraPreview.tsx
+│   │   │   ├── CameraPreview.tsx
+│   │   │   ├── ImageUpload.tsx
+│   │   │   ├── ImageCapture.tsx
+│   │   │   ├── CameraStatus.tsx
+│   │   │   └── SystemLogs.tsx
 │   │   ├── results/
 │   │   │   ├── PredictTab.tsx
 │   │   │   ├── SummaryTab.tsx
@@ -74,13 +78,22 @@ frontend/
 │   │   ├── useWebSocket.ts
 │   │   ├── useCapture.ts
 │   │   ├── useResults.ts
+│   │   ├── useResultsNew.ts
+│   │   ├── useResultsDirect.ts
 │   │   └── useInterface.ts
 │   ├── services/
 │   │   ├── api.ts
 │   │   ├── auth.service.ts
-│   │   ├── capture.service.ts
+│   │   ├── image.service.ts
+│   │   ├── vision.service.ts
 │   │   ├── results.service.ts
-│   │   ├── interface.service.ts
+│   │   ├── results.service.direct.ts
+│   │   ├── results.service.new.ts
+│   │   ├── labware.service.ts
+│   │   ├── capture.service.ts
+│   │   ├── logs.service.ts
+│   │   ├── notification.service.ts
+│   │   └── search.service.ts
 │   │   └── websocket.service.ts
 │   ├── store/
 │   │   ├── auth.store.ts

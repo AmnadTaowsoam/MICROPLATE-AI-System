@@ -1,13 +1,13 @@
 # API Reference - Microplate System
 
 ## Overview
-This document provides a comprehensive reference for all APIs used in the Microplate system. All APIs are accessed through the Gateway at `http://localhost:8080`.
+This document provides a comprehensive reference for all APIs used in the Microplate system. All APIs are accessed directly through individual service endpoints.
 
 ## Authentication
 
 ### Register User
 ```http
-POST /api/v1/auth/register
+POST http://localhost:6401/api/v1/auth/register
 Content-Type: application/json
 
 {
@@ -21,7 +21,7 @@ Content-Type: application/json
 
 ### Login User
 ```http
-POST /api/v1/auth/login
+POST http://localhost:6401/api/v1/auth/login
 Content-Type: application/json
 
 {
@@ -42,11 +42,130 @@ Content-Type: application/json
 }
 ```
 
+## Vision Capture Service
+
+### Health Check
+```http
+GET http://localhost:6407/api/v1/capture/health
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "status": "healthy",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "details": {
+    "uptime_seconds": 3600,
+    "camera_connected": true,
+    "camera_capturing": false,
+    "websocket_connections": 2,
+    "version": "1.0.0"
+  }
+}
+```
+
+### Get Camera Status
+```http
+GET http://localhost:6407/api/v1/capture/status
+Authorization: Bearer {token}
+```
+
+**Response:**
+```json
+{
+  "is_connected": true,
+  "is_capturing": false,
+  "device_id": 0,
+  "resolution": "1920x1080",
+  "fps": 30,
+  "last_capture": "2024-01-15T10:30:00Z",
+  "error_message": null
+}
+```
+
+### Capture Image
+```http
+POST http://localhost:6407/api/v1/capture/image
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "sample_no": "TEST005",
+  "submission_no": "SUB001",
+  "description": "Microplate capture",
+  "quality": 95
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Image captured successfully",
+  "data": {
+    "image_data": {
+      "filename": "capture_TEST005_SUB001_20240115_103000.jpg",
+      "file_path": "/app/captures/capture_TEST005_SUB001_20240115_103000.jpg",
+      "file_size": 2048576,
+      "width": 1920,
+      "height": 1080,
+      "format": "JPEG",
+      "captured_at": "2024-01-15T10:30:00Z"
+    },
+    "sample_no": "TEST005",
+    "submission_no": "SUB001"
+  },
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+### Test Camera
+```http
+POST http://localhost:6407/api/v1/capture/test
+Authorization: Bearer {token}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Camera test successful",
+  "data": {
+    "camera_status": "working",
+    "device_info": {
+      "device_id": 0,
+      "configured_resolution": "1920x1080",
+      "configured_fps": 30,
+      "is_initialized": true,
+      "is_capturing": false
+    }
+  }
+}
+```
+
+### WebSocket Connection
+```javascript
+const ws = new WebSocket('ws://localhost:6407/ws/capture');
+
+ws.onmessage = (event) => {
+    const message = JSON.parse(event.data);
+    
+    if (message.type === 'capture_progress') {
+        console.log(`Progress: ${message.data.progress}%`);
+    }
+    
+    if (message.type === 'capture_result') {
+        console.log('Capture completed:', message.data);
+    }
+};
+```
+
 ## Image Management
 
 ### Upload Image
 ```http
-POST /api/v1/images
+POST http://localhost:6402/api/v1/images
 Authorization: Bearer {token}
 Content-Type: multipart/form-data
 
@@ -85,7 +204,7 @@ Fields:
 
 ### Run Prediction
 ```http
-POST /api/v1/inference/predict
+POST http://localhost:6403/api/v1/inference/predict
 Authorization: Bearer {token}
 Content-Type: multipart/form-data
 
@@ -141,7 +260,7 @@ Fields:
 
 ### Get Prediction Run
 ```http
-GET /api/v1/predictions/{run_id}
+GET http://localhost:6406/api/v1/predictions/{run_id}
 Authorization: Bearer {token}
 ```
 
@@ -226,7 +345,7 @@ Authorization: Bearer {token}
 
 ### List All Prediction Runs
 ```http
-GET /api/v1/predictions
+GET http://localhost:6406/api/v1/predictions
 Authorization: Bearer {token}
 ```
 
@@ -234,7 +353,7 @@ Authorization: Bearer {token}
 
 ### Get Sample Summary
 ```http
-GET /api/v1/results/samples/{sampleNo}/summary
+GET http://localhost:6404/api/v1/results/samples/{sampleNo}/summary
 Authorization: Bearer {token}
 ```
 
@@ -263,26 +382,27 @@ Authorization: Bearer {token}
 
 ### Get Run Details
 ```http
-GET /api/v1/results/runs/{runId}
+GET http://localhost:6404/api/v1/results/runs/{runId}
 Authorization: Bearer {token}
 ```
 
 ### Get Sample Runs
 ```http
-GET /api/v1/results/samples/{sampleNo}/runs
+GET http://localhost:6404/api/v1/results/samples/{sampleNo}/runs
 Authorization: Bearer {token}
 ```
 
 ## Health Checks
 
-### Gateway Health
-```http
-GET /healthz
-```
-
 ### Service Health
 ```http
-GET /api/v1/health
+GET http://localhost:6401/healthz  # Auth Service
+GET http://localhost:6402/healthz  # Image Ingestion
+GET http://localhost:6403/api/v1/inference/health  # Vision Inference
+GET http://localhost:6404/api/v1/results/health  # Result API
+GET http://localhost:6405/healthz  # Labware Interface
+GET http://localhost:6406/health  # Prediction DB
+GET http://localhost:6407/api/v1/capture/health  # Vision Capture
 ```
 
 **Response:**
@@ -346,16 +466,21 @@ GET /api/v1/health
 
 ## CORS
 
-The Gateway supports CORS for the following origins:
+Each service supports CORS for the following origins:
 - `http://localhost:3000` (Development)
 - `http://localhost:3001` (Alternative dev port)
+- `http://localhost:6410` (Frontend)
 - Production domains (configured in environment)
 
 ## WebSocket Support
 
 ### Real-time Updates
 ```javascript
-const ws = new WebSocket('ws://localhost:8080/ws');
+// Result API WebSocket
+const ws = new WebSocket('ws://localhost:6404/ws/results');
+
+// Vision Capture WebSocket
+const wsCapture = new WebSocket('ws://localhost:6407/ws/capture');
 
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
@@ -388,7 +513,7 @@ ws.onmessage = (event) => {
 ```javascript
 // Login
 const login = async (username, password) => {
-  const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+  const response = await fetch('http://localhost:6401/api/v1/auth/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -407,7 +532,7 @@ const predictImage = async (sampleNo, file) => {
   formData.append('sample_no', sampleNo);
   formData.append('file', file);
   
-  const response = await fetch('http://localhost:8080/api/v1/inference/predict', {
+  const response = await fetch('http://localhost:6403/api/v1/inference/predict', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`
@@ -421,7 +546,7 @@ const predictImage = async (sampleNo, file) => {
 // Get Results
 const getResults = async (runId) => {
   const token = localStorage.getItem('token');
-  const response = await fetch(`http://localhost:8080/api/v1/results/runs/${runId}`, {
+  const response = await fetch(`http://localhost:6404/api/v1/results/runs/${runId}`, {
     headers: {
       'Authorization': `Bearer ${token}`
     }

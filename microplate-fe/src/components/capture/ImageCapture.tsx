@@ -8,12 +8,14 @@ interface ImageCaptureProps {
   capturedImageUrl: string | null;
   annotatedImageUrl?: string | null;
   onImageSelect: (file: File) => void;
-  onCapture: () => void;
+  onCapture: (url: string) => void;
   onReset: () => void;
   onRunPrediction: () => void;
   isPredicting: boolean;
   predictionError?: Error | null;
   sampleNo: string;
+  submissionNo?: string;
+  description?: string;
   canRunPrediction?: boolean;
 }
 
@@ -28,6 +30,8 @@ export default function ImageCapture({
   isPredicting,
   predictionError,
   sampleNo,
+  submissionNo,
+  description,
   canRunPrediction = false
 }: ImageCaptureProps) {
   console.log('ImageCapture render - annotatedImageUrl:', annotatedImageUrl);
@@ -77,27 +81,15 @@ export default function ImageCapture({
           <div className="flex flex-wrap gap-3 justify-center">
             <ImageUpload 
               onSelect={onImageSelect}
+              onCaptured={onCapture}
               onRunPrediction={onRunPrediction}
+              onReset={onReset}
               canRunPrediction={canRunPrediction}
               isPredicting={isPredicting}
               sampleNo={sampleNo}
+              submissionNo={submissionNo}
+              description={description}
             />
-            <Button 
-              variant="outline" 
-              onClick={onCapture}
-              className="flex items-center gap-2"
-            >
-              <MdCameraAlt className="h-4 w-4" />
-              Capture
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={onReset}
-              className="flex items-center gap-2"
-            >
-              <MdRefresh className="h-4 w-4" />
-              Reset
-            </Button>
           </div>
           
           {predictionError && (

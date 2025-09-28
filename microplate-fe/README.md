@@ -1,8 +1,19 @@
-# Microplate AI Detection - Frontend
+# HAllytics - Microplate AI Detection Frontend
 
 A modern, premium React frontend application for microplate analysis and AI-powered detection. Built with TypeScript, Tailwind CSS, and React Router.
 
-## 🚀 Features
+## 🎯 Overview
+
+HAllytics is an "Analytics-first Hemagglutination Inhibition" platform that provides:
+
+- **AI-powered microplate analysis** with real-time processing
+- **Camera capture integration** for direct image acquisition
+- **Premium UI/UX** with dark/light theme support
+- **Real-time notifications** and system monitoring
+- **Comprehensive user management** and authentication
+- **Direct microservice communication** without API gateway
+
+## 🚀 Key Features
 
 ### 🔐 Authentication & User Management
 - **Login/Signup** with email and username
@@ -11,6 +22,13 @@ A modern, premium React frontend application for microplate analysis and AI-powe
 - **JWT Token** authentication with automatic refresh
 - **Route Guards** protecting authenticated pages
 
+### 📸 Image Processing & Camera Integration
+- **Image Upload** with drag & drop support
+- **Camera Capture** with real-time status monitoring
+- **Image Preview** with real-time display
+- **Prediction Processing** with progress indicators
+- **Vision Capture Service** integration for camera control
+
 ### 🎨 Premium UI/UX
 - **Dark/Light Theme** toggle with persistent storage
 - **Responsive Design** for all screen sizes
@@ -18,24 +36,20 @@ A modern, premium React frontend application for microplate analysis and AI-powe
 - **Professional Icons** and branding elements
 - **Smooth Transitions** and hover effects
 
-### 📸 Image Processing
-- **Image Upload** with drag & drop support
-- **Camera Capture** integration
-- **Image Preview** with real-time display
-- **Prediction Processing** with progress indicators
-
-### 📊 Data Management
-- **Sample Management** with history tracking
-- **Results Display** with statistics
+### 📊 Data Management & Visualization
+- **Sample Management** with comprehensive tracking
+- **Results Display** with detailed statistics
 - **Real-time Logs** via WebSocket
 - **Data Visualization** with charts and graphs
+- **CSV Export** for labware systems
 
-### 🔧 Technical Features
+### 🔧 Advanced Technical Features
 - **TypeScript** for type safety
 - **React Query** for data fetching and caching
 - **WebSocket** for real-time updates
 - **Form Validation** with error handling
 - **Loading States** and error boundaries
+- **Direct Service Communication** for optimal performance
 
 ## 🛠️ Tech Stack
 
@@ -47,8 +61,16 @@ A modern, premium React frontend application for microplate analysis and AI-powe
 - **Heroicons** for icons
 - **Zod** for validation
 - **React Hook Form** for form handling
+- **Nginx** for production serving
 
-## 📦 Installation
+## 📦 Installation & Setup
+
+### Prerequisites
+- Node.js 18+
+- Yarn or npm
+- Docker (for containerized deployment)
+
+### Development Setup
 
 1. **Clone the repository**
    ```bash
@@ -58,12 +80,12 @@ A modern, premium React frontend application for microplate analysis and AI-powe
 
 2. **Install dependencies**
    ```bash
-   npm install
-   # or
    yarn install
+   # or
+   npm install
    ```
 
-3. **Environment Setup**
+3. **Environment Configuration**
    ```bash
    cp env.example .env
    ```
@@ -76,18 +98,51 @@ A modern, premium React frontend application for microplate analysis and AI-powe
    VITE_VISION_SERVICE_URL=http://localhost:6403
    VITE_RESULTS_SERVICE_URL=http://localhost:6404
    VITE_LABWARE_SERVICE_URL=http://localhost:6405
-   VITE_PREDICTION_SERVICE_URL=http://localhost:6406
+   VITE_VISION_CAPTURE_SERVICE_URL=http://localhost:6406
+   VITE_MINIO_BASE_URL=http://localhost:9000
    ```
 
 4. **Start development server**
    ```bash
-   npm run dev
-   # or
    yarn dev
+   # or
+   npm run dev
    ```
 
 5. **Open in browser**
    Navigate to `http://localhost:5173`
+
+### Docker Deployment
+
+1. **Create environment file**
+   ```bash
+   cp env.example .env
+   ```
+
+2. **Configure environment variables** (optional)
+   Edit `.env` file to customize service URLs and ports:
+   ```env
+   # Service URLs
+   VITE_AUTH_SERVICE_URL=http://localhost:6401
+   VITE_IMAGE_SERVICE_URL=http://localhost:6402
+   VITE_VISION_SERVICE_URL=http://localhost:6403
+   VITE_RESULTS_SERVICE_URL=http://localhost:6404
+   VITE_LABWARE_SERVICE_URL=http://localhost:6405
+   VITE_PREDICTION_SERVICE_URL=http://localhost:6406
+   VITE_VISION_CAPTURE_SERVICE_URL=http://localhost:6407
+   VITE_MINIO_BASE_URL=http://localhost:9000
+   
+   # Docker Configuration
+   FRONTEND_PORT=6410
+   ```
+
+3. **Build and run with Docker Compose**
+   ```bash
+   docker-compose up --build
+   ```
+
+4. **Access the application**
+   Navigate to `http://localhost:6410` (or custom port from `.env`)
 
 ## 🏗️ Project Structure
 
@@ -95,30 +150,45 @@ A modern, premium React frontend application for microplate analysis and AI-powe
 src/
 ├── components/
 │   ├── capture/
-│   │   ├── ImageUpload.tsx      # Image upload and capture
-│   │   └── LogsPanel.tsx        # Real-time logs display
+│   │   ├── CameraStatus.tsx       # Camera connection status
+│   │   ├── ImageCapture.tsx       # Main image capture interface
+│   │   ├── ImageUpload.tsx        # Image upload and capture controls
+│   │   ├── SampleInformation.tsx  # Sample data input
+│   │   ├── PredictionResults.tsx  # Results display
+│   │   └── SystemLogs.tsx         # Real-time logs
+│   ├── layout/
+│   │   ├── Footer.tsx             # Application footer
+│   │   └── Navbar.tsx             # Navigation with theme toggle
 │   └── ui/
-│       ├── Button.tsx           # Reusable button component
-│       ├── Card.tsx             # Card container component
-│       ├── Input.tsx            # Form input component
-│       └── Navbar.tsx           # Navigation bar with theme toggle
+│       ├── Button.tsx             # Reusable button component
+│       ├── Card.tsx               # Card container component
+│       ├── Input.tsx              # Form input component
+│       └── Spinner.tsx            # Loading spinner
+├── contexts/
+│   └── ThemeContext.tsx           # Global theme management
 ├── hooks/
-│   ├── useImageUpload.ts        # Image upload logic
-│   ├── useResults.ts            # Results data management
-│   └── useWebSocketLogs.ts      # WebSocket connection
+│   ├── useCapture.ts              # Camera capture logic
+│   ├── useImageUpload.ts          # Image upload management
+│   ├── useResults.ts              # Results data management
+│   └── useWebSocketLogs.ts        # WebSocket connection
 ├── pages/
-│   ├── AuthPage.tsx             # Login/Signup page
-│   ├── ProfileSettingsPage.tsx  # User settings and profile
-│   ├── ForgotPasswordPage.tsx   # Password reset request
-│   ├── ResetPasswordPage.tsx    # Password reset form
-│   ├── ResultsPage.tsx          # Results display
-│   └── SampleHistoryPage.tsx    # Sample history
+│   ├── AuthPage.tsx               # Login/Signup page
+│   ├── CapturePage.tsx            # Main capture interface
+│   ├── Results.tsx                # Results display page
+│   ├── ProfilePage.tsx            # User profile
+│   ├── SettingsPage.tsx           # Application settings
+│   ├── NotificationsPage.tsx      # Notifications management
+│   └── UserGuidePage.tsx          # User guide and help
 ├── services/
-│   ├── api.ts                   # API client configuration
-│   ├── auth.service.ts          # Authentication services
-│   ├── image.service.ts         # Image processing services
-│   └── results.service.ts       # Results data services
-└── App.tsx                      # Main application component
+│   ├── api.ts                     # API client configuration
+│   ├── auth.service.ts            # Authentication services
+│   ├── capture.service.ts         # Camera capture services
+│   ├── image.service.ts           # Image processing services
+│   ├── results.service.ts         # Results data services
+│   └── notification.service.ts    # Notification management
+└── utils/
+    ├── mockData.ts                # Mock data for development
+    └── debugRuns.ts               # Debug utilities
 ```
 
 ## 🎯 Key Components
@@ -126,15 +196,18 @@ src/
 ### Authentication Flow
 - **AuthPage**: Combined login/signup with form validation
 - **AuthGuard**: Route protection component
-- **ProfileSettingsPage**: User profile and theme management
+- **ProfilePage**: User profile and theme management
 
-### Image Processing
+### Image Processing & Capture
 - **ImageUpload**: Handles file upload, camera capture, and preview
+- **CameraStatus**: Real-time camera connection monitoring
+- **ImageCapture**: Main interface for image acquisition
 - **LogsPanel**: Real-time WebSocket logs display
 
-### Navigation
+### Navigation & Layout
 - **Navbar**: Premium navigation with theme toggle and user menu
-- **AppShell**: Main layout wrapper with header and footer
+- **Footer**: Professional footer with branding
+- **ThemeContext**: Global theme management system
 
 ## 🔧 Configuration
 
@@ -147,6 +220,8 @@ VITE_VISION_SERVICE_URL=http://localhost:6403  # Vision inference service
 VITE_RESULTS_SERVICE_URL=http://localhost:6404 # Results API service
 VITE_LABWARE_SERVICE_URL=http://localhost:6405 # Labware interface service
 VITE_PREDICTION_SERVICE_URL=http://localhost:6406 # Prediction DB service
+VITE_VISION_CAPTURE_SERVICE_URL=http://localhost:6407 # Camera capture service
+VITE_MINIO_BASE_URL=http://localhost:9000      # MinIO object storage
 ```
 
 ### Theme Configuration
@@ -159,16 +234,20 @@ The app supports light/dark themes with automatic persistence:
 
 ```bash
 # Development
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run preview      # Preview production build
+yarn dev              # Start development server
+yarn build            # Build for production
+yarn preview          # Preview production build
 
 # Code Quality
-npm run lint         # Run ESLint
-npm run type-check   # TypeScript type checking
+yarn lint             # Run ESLint
+yarn type-check       # TypeScript type checking
+
+# Docker
+docker-compose up     # Start with Docker Compose
+docker-compose down   # Stop Docker containers
 ```
 
-## 🎨 Styling
+## 🎨 Styling & UI
 
 The application uses **Tailwind CSS** with custom configuration:
 - **Dark mode** support with `dark:` prefix
@@ -194,22 +273,19 @@ The application uses **Tailwind CSS** with custom configuration:
 ### Image Processing Endpoints
 - **Image Service (Port 6402)**: `POST /api/v1/images` - Upload image
 - **Vision Service (Port 6403)**: `POST /api/v1/inference/predict` - Run prediction
-- **Vision Service (Port 6403)**: `POST /api/v1/capture/snap` - Capture image
+- **Vision Capture Service (Port 6406)**: `POST /api/v1/capture/image` - Capture image
 
 ### Results Endpoints (Results Service - Port 6404)
 - `GET /api/v1/results/samples/{sampleNo}` - Get sample results
 - `GET /api/v1/results/health` - Health check
 
-### WebSocket (Results Service - Port 6404)
-- `ws://localhost:6404/ws` - Real-time logs stream
+### Labware Interface Endpoints (Labware Service - Port 6405)
+- `POST /api/v1/labware/interface/generate` - Generate CSV interface file
+- `GET /api/v1/labware/interface/files` - List interface files
 
-## 🧪 Testing
-
-```bash
-# Run tests (when implemented)
-npm run test
-npm run test:coverage
-```
+### WebSocket Connections
+- **Results Service (Port 6404)**: `ws://localhost:6404/ws` - Real-time logs stream
+- **Vision Capture Service (Port 6406)**: `ws://localhost:6406/ws/capture` - Capture status updates
 
 ## 📱 Browser Support
 
@@ -217,6 +293,71 @@ npm run test:coverage
 - **Firefox** 88+
 - **Safari** 14+
 - **Edge** 90+
+
+## 🐳 Docker Deployment
+
+### Production Build
+```bash
+# Build the Docker image
+docker build -t microplate-frontend .
+
+# Run the container
+docker run -p 6410:80 microplate-frontend
+```
+
+### Docker Compose
+```bash
+# Create environment file first
+cp env.example .env
+
+# Start all services
+docker-compose up -d
+
+# Start with custom profile
+docker-compose --profile frontend up -d
+
+# View logs
+docker-compose logs -f microplate-frontend
+
+# Stop services
+docker-compose down
+```
+
+### Environment Configuration
+The Docker setup supports runtime environment variable injection:
+- Mount `.env` file for configuration
+- Nginx serves static files with environment-specific settings
+- Health check endpoint for container monitoring
+
+## 🧪 Testing
+
+```bash
+# Run tests (when implemented)
+yarn test
+yarn test:coverage
+```
+
+## 🔍 Debugging & Development
+
+### Enhanced Logging
+The application includes comprehensive logging for:
+- Authentication flow
+- API requests and responses
+- Camera capture status
+- WebSocket connections
+- Error handling
+
+### Camera Status Monitoring
+- Real-time camera connection status
+- Connection health checks
+- Error reporting and recovery
+- WebSocket-based status updates
+
+### Component Architecture
+- Modular component design
+- Reusable UI components
+- Clear separation of concerns
+- Easy testing and maintenance
 
 ## 🤝 Contributing
 
@@ -235,18 +376,34 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 For support and questions:
 - Create an issue in the repository
 - Contact the development team
-- Check the documentation in `/docs` folder
+- Check the User Guide in the application
+- Review the troubleshooting section
 
 ## 🔄 Version History
 
-- **v1.0.0** - Initial release with core features
-  - Authentication system
-  - Image processing
-  - Dark/Light theme
-  - Premium UI/UX
-  - Real-time logs
-  - Responsive design
+### v1.0.0 - Current Release
+- **Authentication system** with JWT tokens
+- **Image processing** with upload and capture
+- **Camera integration** with real-time monitoring
+- **Dark/Light theme** with persistent storage
+- **Premium UI/UX** with professional design
+- **Real-time logs** via WebSocket
+- **Responsive design** for all devices
+- **Direct service communication** for optimal performance
+- **Comprehensive user management**
+- **CSV export** for labware systems
+- **Docker deployment** support
+
+## 🎯 Future Roadmap
+
+- [ ] Enhanced testing suite
+- [ ] Performance optimization
+- [ ] Advanced analytics dashboard
+- [ ] Multi-language support
+- [ ] Mobile app development
+- [ ] Advanced camera controls
+- [ ] Real-time collaboration features
 
 ---
 
-**Built with ❤️ for Microplate AI Detection Platform**
+**Built with ❤️ for HAllytics - Analytics-first Hemagglutination Inhibition Platform**

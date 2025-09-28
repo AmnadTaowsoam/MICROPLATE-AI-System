@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { ResultService, PaginationOptions, WebSocketService } from '@/types/result.types';
-import { sendSuccess, sendError } from '@/utils/errors';
+import { sendSuccess, sendError, AppError } from '@/utils/errors';
 import { logger } from '@/utils/logger';
 import { 
   SampleListQuery,
@@ -47,7 +47,28 @@ export class ResultController {
       return sendSuccess(response, result);
     } catch (error) {
       logger.error({ requestId: (request as any).id || 'unknown', error }, 'Failed to get samples');
-      return sendError(response, error as any);
+      
+      // Handle different error types properly
+      if (error instanceof Error && 'response' in error) {
+        // AxiosError from external service
+        const axiosError = error as any;
+        const statusCode = axiosError.response?.status || 500;
+        const message = axiosError.response?.data?.message || axiosError.message || 'External service error';
+        
+        return sendError(response, new AppError(message, statusCode, 'EXTERNAL_SERVICE_ERROR', {
+          service: 'prediction-db-service',
+          originalError: axiosError.message
+        }));
+      } else if (error instanceof AppError) {
+        return sendError(response, error);
+      } else {
+        // Generic error
+        return sendError(response, new AppError(
+          error instanceof Error ? error.message : 'Unknown error occurred',
+          500,
+          'INTERNAL_ERROR'
+        ));
+      }
     }
   }
 

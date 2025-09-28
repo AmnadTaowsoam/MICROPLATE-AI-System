@@ -22,8 +22,17 @@ export const authenticateToken = (config: AuthConfig) => {
     try {
       const authHeader = req.headers.authorization;
       const token = authHeader && authHeader.split(' ')[1];
+      
+      console.log('🔍 Auth middleware: Authorization header:', authHeader);
+      console.log('🔍 Auth middleware: Extracted token:', token ? `${token.substring(0, 20)}...` : 'No token');
+      console.log('🔍 Auth middleware: Config:', {
+        jwtSecret: config.jwtSecret ? 'Secret set' : 'No secret',
+        jwtIssuer: config.jwtIssuer,
+        jwtAudience: config.jwtAudience
+      });
 
       if (!token) {
+        console.log('❌ Auth middleware: No token provided');
         res.status(401).json({
           success: false,
           error: {
@@ -34,10 +43,23 @@ export const authenticateToken = (config: AuthConfig) => {
         return;
       }
 
+      console.log('🔍 Auth middleware: Verifying token with options:', {
+        issuer: config.jwtIssuer,
+        audience: config.jwtAudience
+      });
+      
       const decoded = jwt.verify(token, config.jwtSecret, {
         issuer: config.jwtIssuer,
         audience: config.jwtAudience
       }) as any;
+      
+      console.log('✅ Auth middleware: Token verified successfully:', {
+        sub: decoded.sub,
+        iss: decoded.iss,
+        aud: decoded.aud,
+        exp: decoded.exp,
+        iat: decoded.iat
+      });
 
       req.user = {
         id: decoded.sub || decoded.id,
@@ -49,7 +71,10 @@ export const authenticateToken = (config: AuthConfig) => {
 
       next();
     } catch (error) {
+      console.error('❌ Auth middleware: Token verification failed:', error);
+      
       if (error instanceof jwt.TokenExpiredError) {
+        console.log('❌ Auth middleware: Token expired');
         res.status(401).json({
           success: false,
           error: {
@@ -61,6 +86,7 @@ export const authenticateToken = (config: AuthConfig) => {
       }
 
       if (error instanceof jwt.JsonWebTokenError) {
+        console.log('❌ Auth middleware: Invalid token:', error.message);
         res.status(401).json({
           success: false,
           error: {
@@ -71,6 +97,7 @@ export const authenticateToken = (config: AuthConfig) => {
         return;
       }
 
+      console.log('❌ Auth middleware: Unknown auth error:', error);
       res.status(500).json({
         success: false,
         error: {

@@ -159,14 +159,20 @@ export default function AuthPage() {
   );
 
   const BrandingPanel = (
-    <div className="hidden lg:flex lg:w-1/2 bg-gray-100 dark:bg-gray-800 items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary-500 to-secondary-500 opacity-80 dark:opacity-90"></div>
+    <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 items-center justify-center p-12 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/95 via-blue-700/95 to-indigo-800/95"></div>
         <div className="relative z-10 text-white text-center">
-            <h2 className="text-4xl font-bold mb-4">Unlock Insights Instantly</h2>
-            <p className="text-lg max-w-md">Our AI-powered platform delivers rapid, precise microplate analysis to accelerate your research.</p>
-            {/* You could place an illustration or image here */}
-             <div className="mt-8 p-4 rounded-lg">
-                <img src="/science-illustration.svg" alt="Scientific Analysis" className="w-full max-w-sm mx-auto" />
+            <h2 className="text-4xl font-bold mb-4 drop-shadow-lg">Unlock Insights Instantly</h2>
+            <p className="text-lg max-w-md text-blue-100 drop-shadow-md">Our AI-powered platform delivers rapid, precise microplate analysis to accelerate your research.</p>
+            {/* Scientific illustration */}
+             <div className="mt-8 p-6 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20">
+                <div className="w-32 h-32 mx-auto rounded-full bg-white/20 flex items-center justify-center">
+                  <div className="grid grid-cols-3 gap-2">
+                    {[...Array(9)].map((_, i) => (
+                      <div key={i} className="w-3 h-3 bg-white/70 rounded-full animate-pulse" style={{animationDelay: `${i * 0.1}s`}}></div>
+                    ))}
+                  </div>
+                </div>
              </div>
         </div>
     </div>

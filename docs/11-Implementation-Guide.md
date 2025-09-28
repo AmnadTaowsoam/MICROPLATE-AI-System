@@ -31,8 +31,7 @@ microplate-ai-system/
 │   ├── vision-inference-service/
 │   ├── result-api-service/
 │   ├── labware-interface-service/
-│   ├── vision-capture-service/
-│   └── gateway/
+│   └── vision-capture-service/
 ├── frontend/
 ├── infrastructure/
 │   ├── docker/
@@ -720,17 +719,10 @@ services:
     devices:
       - /dev/video0:/dev/video0
 
-  gateway:
-    build: ./services/gateway
-    environment:
-      AUTH_SERVICE_URL: http://auth-service:6401
-      IMAGE_SERVICE_URL: http://image-ingestion-service:6402
-      INFERENCE_SERVICE_URL: http://vision-inference-service:6403
-      RESULT_SERVICE_URL: http://result-api-service:6404
-      INTERFACE_SERVICE_URL: http://labware-interface-service:6405
-      CAPTURE_SERVICE_URL: http://vision-capture-service:6406
+  frontend:
+    build: ./frontend
     ports:
-      - "6400:6400"
+      - "3000:80"
     depends_on:
       - auth-service
       - image-ingestion-service
@@ -738,13 +730,6 @@ services:
       - result-api-service
       - labware-interface-service
       - vision-capture-service
-
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:80"
-    depends_on:
-      - gateway
 
 volumes:
   postgres_data:

@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background-color: white;
+  color: rgb(17 24 39);
+  font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.dark body {
+  background-color: rgb(17 24 39);
+  color: white;
+}
+
+/* Custom color definitions for Tailwind CSS v4 */
 @theme {
   --color-primary-50: #eff6ff;
   --color-primary-100: #dbeafe;
@@ -11,33 +29,39 @@
   --color-primary-700: #1d4ed8;
   --color-primary-800: #1e40af;
   --color-primary-900: #1e3a8a;
-
-  --color-gray-50: #f9fafb;
-  --color-gray-100: #f3f4f6;
-  --color-gray-200: #e5e7eb;
-  --color-gray-300: #d1d5db;
-  --color-gray-400: #9ca3af;
-  --color-gray-500: #6b7280;
-  --color-gray-600: #4b5563;
-  --color-gray-700: #374151;
-  --color-gray-800: #1f2937;
-  --color-gray-900: #111827;
-}
-
-html, body, #root {
-  height: 100%;
-}
-
-body {
-  @apply bg-white text-gray-900 font-sans antialiased;
+  --color-primary-950: #172554;
 }
 
 .container-page {
-  @apply w-full max-w-none px-4 sm:px-6 lg:px-10;
+  width: 100%;
+  max-width: none;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .container-page {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container-page {
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
 }
 
 .card {
-  @apply bg-white rounded-2xl shadow-sm border border-gray-200;
+  background-color: white;
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  border: 1px solid rgb(229 231 235);
 }
 
-/* Button variants are handled in the React Button component. */
+.dark .card {
+  background-color: rgb(31 41 55);
+  border-color: rgb(55 65 81);
+}
+

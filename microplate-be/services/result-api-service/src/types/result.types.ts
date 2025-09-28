@@ -56,6 +56,7 @@ export interface SampleDetails extends SampleSummary {
 
 export interface PredictionRunSummary {
   runId: number;
+  sampleNo?: string; // เพิ่ม sampleNo field
   predictAt: Date;
   modelVersion?: string;
   status: string;
@@ -68,6 +69,9 @@ export interface PredictionRunSummary {
   };
   inferenceResults?: any[];
   wellPredictions?: any[];
+  // เพิ่มข้อมูลรูปภาพ
+  rawImagePath?: string;
+  annotatedImagePath?: string;
 }
 
 // =========================

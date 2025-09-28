@@ -20,6 +20,7 @@ import { WebSocketController } from '@/controllers/websocket.controller';
 // Import routes
 import { resultRoutes } from '@/routes/result.routes';
 import { websocketRoutes } from '@/routes/websocket.routes';
+import { directResultRoutes } from '@/routes/direct-result.routes';
 
 // Import middleware and utilities
 import { errorHandler } from '@/utils/errors';
@@ -313,6 +314,7 @@ const start = async () => {
 
     // Register routes after services are initialized
     app.use('/api/v1/results', resultRoutes(app.locals.resultController));
+    app.use('/api/v1/results/direct', directResultRoutes());
 
     // Setup database notifications
     await setupDatabaseNotifications();

@@ -541,3 +541,398 @@ If you have existing applications:
 ## 📄 License
 
 This project is proprietary and confidential.
+
+---
+
+# Gateway Removal and Service Authentication Implementation
+
+## Overview
+This document summarizes the changes made to remove the API Gateway and implement direct authentication in all services.
+
+## Changes Made
+
+### 1. Shared Authentication Middleware
+- **Created**: `microplate-be/shared/auth-middleware.ts`
+- **Purpose**: Reusable JWT authentication middleware for Express services
+- **Features**:
+  - Token validation with configurable issuer/audience
+  - Optional authentication support
+  - Role-based authorization
+  - Service-to-service authentication
+  - Comprehensive error handling
+
+### 2. Service Conversions
+
+#### Image Ingestion Service
+- **Converted**: Fastify → Express
+- **Changes**:
+  - Updated `package.json` dependencies
+  - Converted `server.ts` to Express
+  - Updated routes to use Express middleware
+  - Added JWT authentication to all endpoints
+  - Implemented multer for file uploads
+
+#### Prediction DB Service
+- **Converted**: Fastify → Express
+- **Changes**:
+  - Updated `package.json` dependencies
+  - Converted `server.ts` to Express
+  - Added JWT authentication to protected endpoints
+  - Maintained health check endpoints without auth
+
+#### Result API Service
+- **Converted**: Fastify → Express
+- **Changes**:
+  - Updated `package.json` dependencies
+  - Completely rewrote `server.ts` for Express
+  - Added WebSocket support using `ws` library
+  - Implemented JWT authentication
+  - Added Swagger documentation
+
+#### Vision Inference Service
+- **Status**: Python FastAPI (kept as-is)
+- **Changes**:
+  - Added JWT token validation to all endpoints
+  - Implemented `verify_token` dependency function
+  - Added authentication to all API endpoints
+
+#### Labware Interface Service
+- **Created**: New Express service
+- **Features**:
+  - Basic Express server setup
+  - JWT authentication middleware
+  - Health check endpoints
+  - Swagger documentation
+  - Prisma integration ready
+
+### 3. Docker Configuration
+- **Updated**: `docker-compose.apps.yml`
+- **Changes**:
+  - Removed gateway service completely
+  - Removed all `depends_on: gateway` references
+  - Added labware-interface service
+  - Updated port mappings
+
+### 4. Environment Configuration
+- **Updated**: All service `env.example` files
+- **Added**:
+  - `JWT_SECRET` configuration
+  - `JWT_ISSUER` configuration
+  - `JWT_AUDIENCE` configuration
+  - `CORS_ORIGIN` configuration
+
+## Service Ports
+- **Auth Service**: 6401
+- **Image Ingestion**: 6402
+- **Vision Inference**: 6403
+- **Result API**: 6404
+- **Labware Interface**: 6405
+- **Prediction DB**: 6406
+
+## Authentication Flow
+1. Client authenticates with Auth Service (port 6401)
+2. Auth Service returns JWT token
+3. Client includes token in `Authorization: Bearer <token>` header
+4. Each service validates token using shared middleware
+5. Services extract user information from token payload
+
+## Security Features
+- JWT token validation with configurable secret
+- Token expiration handling
+- Invalid token rejection
+- Role-based access control (ready for implementation)
+- Service-to-service authentication support
+- CORS configuration
+- Rate limiting
+- Security headers (helmet)
+
+## Next Steps
+1. **Update Frontend**: Modify frontend to call services directly instead of through gateway
+2. **Service Discovery**: Implement service discovery or load balancer if needed
+3. **Monitoring**: Update monitoring to track individual services
+4. **Documentation**: Update API documentation to reflect direct service access
+5. **Testing**: Test authentication flow end-to-end
+
+## Breaking Changes
+- **Frontend**: Must now call services directly on their individual ports
+- **Service Communication**: Services must include JWT tokens in inter-service calls
+- **Deployment**: Gateway service is no longer needed in deployment
+
+## Benefits
+- **Reduced Complexity**: Eliminated gateway layer
+- **Better Performance**: Direct service access
+- **Simplified Architecture**: Fewer moving parts
+- **Individual Scaling**: Each service can be scaled independently
+- **Direct Debugging**: Easier to debug individual services
+
+---
+
+# Login Test Guide
+
+## ✅ Problem Fixed!
+
+The issue was a **field name mismatch** between frontend and backend:
+
+- **Frontend was sending**: `usernameOrEmail`
+- **Backend expected**: `username`
+
+## 🔧 Changes Made
+
+1. **Updated Frontend Types** (`src/services/auth.service.ts`):
+   ```typescript
+   export type LoginRequest = {
+     username: string  // Changed from usernameOrEmail
+     password: string
+   }
+   ```
+
+2. **Updated Frontend Login Call** (`src/pages/AuthPage.tsx`):
+   ```typescript
+   await authService.login({ username: username || email, password });
+   ```
+
+## 🧪 Test Login
+
+Now you can test login with the existing user:
+
+### User Credentials
+- **Email**: `qi@qi.com`
+- **Username**: `qiadmin`
+- **Password**: `[original password]` (the one you used when creating the user)
+
+### Test Steps
+
+1. **Open Frontend**: http://localhost:6410
+2. **Go to Login Page**
+3. **Enter Credentials**:
+   - Username/Email: `qi@qi.com` or `qiadmin`
+   - Password: `[your original password]`
+4. **Click Login**
+
+### Expected Result
+- ✅ Login successful
+- ✅ JWT token received
+- ✅ Redirected to main app
+- ✅ Token stored in localStorage
+
+## 🔍 Debug Information
+
+### Frontend Network Tab
+Look for:
+- **Request**: `POST http://localhost:6401/api/v1/auth/login`
+- **Request Body**: `{"username":"qi@qi.com","password":"..."}`
+- **Response**: `{"success":true,"data":{"accessToken":"...","user":{...}}}`
+
+### Auth Service Logs
+Should show:
+```
+Request started: POST /api/v1/auth/login
+Request completed: 200 OK
+```
+
+## 🚨 If Still Not Working
+
+### Check Password
+The user password is hashed with Argon2. If you don't remember the original password:
+
+1. **Create a new user** via registration
+2. **Or reset password** via forgot password flow
+
+### Check Database
+Verify user exists:
+```sql
+SELECT email, username, isActive, emailVerified 
+FROM auth."User" 
+WHERE email = 'qi@qi.com';
+```
+
+### Check Auth Service
+Test directly with curl:
+```bash
+curl -X POST http://localhost:6401/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"qi@qi.com","password":"YOUR_PASSWORD"}'
+```
+
+## 🎉 Success!
+
+Once login works, you should see:
+- JWT token in browser localStorage
+- All API calls include `Authorization: Bearer <token>` header
+- Access to protected routes and services
+
+---
+
+**The login should now work perfectly!** 🚀
+
+---
+
+# Troubleshooting Guide - Auth Service
+
+## Problem: ERR_EMPTY_RESPONSE on Login
+
+### Symptoms
+- Frontend shows `ERR_EMPTY_RESPONSE` when calling auth service
+- Auth service logs show `INVALID_CREDENTIALS` error
+- Server crashes instead of returning proper error response
+
+### Root Causes
+1. **No users in database** - Auth service can't find user to authenticate
+2. **Error handling issues** - Server crashes instead of returning error response
+3. **CORS issues** - Browser blocks the request
+
+### Solutions
+
+#### 1. Fix Error Handling ✅
+- Updated auth service to use custom error classes
+- Fixed error handling in routes to return proper HTTP responses
+- Added proper error logging
+
+#### 2. Create Test Users
+Run the seed script to create test users:
+
+```bash
+cd microplate-be/services/auth-service
+npm run prisma:seed
+# or
+yarn prisma:seed
+```
+
+This will create:
+- **Test User**: `test@example.com` / `testuser` / `password123`
+- **Admin User**: `admin@example.com` / `admin` / `password123`
+
+#### 3. Test Auth Service
+Run the test script to verify auth service is working:
+
+```bash
+cd microplate-be
+node test-auth.js
+```
+
+#### 4. Check Database Connection
+Ensure PostgreSQL is running and accessible:
+
+```bash
+# Check if database is accessible
+psql -h localhost -U microplate -d microplate_db -c "SELECT 1;"
+```
+
+#### 5. Verify Service is Running
+Check if auth service is running on port 6401:
+
+```bash
+curl http://localhost:6401/healthz
+```
+
+Should return: `{"status":"ok"}`
+
+### Step-by-Step Fix
+
+1. **Start Database** (if not running):
+   ```bash
+   cd microplate-be
+   docker-compose -f docker-compose.infra.yml up -d postgres
+   ```
+
+2. **Run Database Migrations**:
+   ```bash
+   cd microplate-be/services/auth-service
+   npm run prisma:deploy
+   ```
+
+3. **Seed Database**:
+   ```bash
+   npm run prisma:seed
+   ```
+
+4. **Start Auth Service**:
+   ```bash
+   npm run dev
+   ```
+
+5. **Test Login**:
+   ```bash
+   curl -X POST http://localhost:6401/api/v1/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"usernameOrEmail":"test@example.com","password":"password123"}'
+   ```
+
+### Expected Response
+```json
+{
+  "success": true,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+      "id": "uuid",
+      "email": "test@example.com",
+      "username": "testuser"
+    }
+  }
+}
+```
+
+### Frontend Testing
+1. Open browser developer tools
+2. Go to Network tab
+3. Try to login with:
+   - Email: `test@example.com`
+   - Password: `password123`
+4. Check if request returns proper response
+
+### Common Issues
+
+#### Issue: "User not found"
+**Solution**: Run the seed script to create test users
+
+#### Issue: "Database connection failed"
+**Solution**: 
+1. Check if PostgreSQL is running
+2. Verify DATABASE_URL in .env file
+3. Run migrations
+
+#### Issue: "CORS error"
+**Solution**: 
+1. Check CORS_ORIGIN in auth service config
+2. Ensure frontend URL is allowed
+
+#### Issue: "JWT secret not set"
+**Solution**: 
+1. Set JWT_ACCESS_SECRET in .env file
+2. Restart auth service
+
+### Debug Commands
+
+```bash
+# Check auth service logs
+docker logs microplate-auth-service
+
+# Check database connection
+psql -h localhost -U microplate -d microplate_db
+
+# Test auth service directly
+curl -v http://localhost:6401/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"usernameOrEmail":"test@example.com","password":"password123"}'
+
+# Check if port is open
+netstat -tulpn | grep 6401
+```
+
+### Environment Variables
+Make sure these are set in `microplate-be/services/auth-service/.env`:
+
+```env
+DATABASE_URL=postgresql://microplate:microplate123@postgres:5432/microplate_db?schema=auth
+JWT_ACCESS_SECRET=your-super-secret-access-key
+JWT_REFRESH_SECRET=your-super-secret-refresh-key
+PORT=6401
+CORS_ORIGIN=true
+NODE_ENV=development
+```
+
+---
+
+**After following these steps, the auth service should work properly!** 🚀

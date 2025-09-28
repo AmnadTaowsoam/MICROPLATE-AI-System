@@ -1,18 +1,35 @@
 import { useState } from 'react';
 import { MdExpandMore, MdExpandLess } from 'react-icons/md';
 import Card from '../ui/Card';
+import CameraStatus from './CameraStatus';
 
 interface SystemLogsProps {
   logs: any[];
+  cameraStatus?: {
+    isConnected: boolean;
+    isCapturing: boolean;
+    error?: string | null;
+    onCheckConnection?: () => void;
+  };
 }
 
-export default function SystemLogs({ logs }: SystemLogsProps) {
+export default function SystemLogs({ logs, cameraStatus }: SystemLogsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
     <Card className="col-span-12 p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">System Logs</h3>
+        <div className="flex items-center gap-4">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">System Logs</h3>
+          {cameraStatus && (
+            <CameraStatus
+              isConnected={cameraStatus.isConnected}
+              isCapturing={cameraStatus.isCapturing}
+              error={cameraStatus.error}
+              onCheckConnection={cameraStatus.onCheckConnection}
+            />
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-500 dark:text-gray-400">
             {logs.length} entries
