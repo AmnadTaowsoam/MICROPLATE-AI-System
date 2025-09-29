@@ -70,7 +70,7 @@ function CapturePage() {
   const { data: sampleSummaryResponse, isLoading: isSummaryLoading, error: summaryError } = useSampleSummary(sampleNo)
   
   // Extract the actual data from the response (now can be null for NOT_FOUND cases)
-  const sampleSummary = sampleSummaryResponse
+  const sampleSummary = sampleSummaryResponse?.data
   
 
   // Update annotated image URL when prediction completes

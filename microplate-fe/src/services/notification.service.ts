@@ -187,32 +187,9 @@ class NotificationService {
     this.listeners.forEach(listener => listener(this.notifications))
   }
 
-  // Mark notification as read
-  markAsRead(notificationId: string) {
-    const notification = this.notifications.find(n => n.id === notificationId)
-    if (notification) {
-      notification.read = true
-      this.notifyListeners()
-    }
-  }
-
-  // Mark all notifications as read
-  markAllAsRead() {
-    this.notifications.forEach(notification => {
-      notification.read = true
-    })
-    this.notifyListeners()
-  }
-
   // Delete specific notification
   deleteNotification(notificationId: string) {
     this.notifications = this.notifications.filter(n => n.id !== notificationId)
-    this.notifyListeners()
-  }
-
-  // Clear all notifications
-  clearAllNotifications() {
-    this.notifications = []
     this.notifyListeners()
   }
 
@@ -225,22 +202,6 @@ class NotificationService {
   // Get all notifications (for "View all" page)
   getAllNotifications(): Notification[] {
     return [...this.notifications]
-  }
-
-  // Get notification stats
-  getStats(): NotificationStats {
-    const stats = {
-      total: this.notifications.length,
-      unread: this.notifications.filter(n => !n.read).length,
-      byType: {} as Record<string, number>
-    }
-
-    // Count by type
-    this.notifications.forEach(notification => {
-      stats.byType[notification.type] = (stats.byType[notification.type] || 0) + 1
-    })
-
-    return stats
   }
 }
 
