@@ -22,11 +22,12 @@ export function useSampleSummaryNew(sampleNo?: string) {
         const result = await resultsServiceNew.getSampleSummary(sampleNo)
         console.log('useSampleSummaryNew: API response:', result)
         return result
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('useSampleSummaryNew: API error:', error)
         
         // Check if it's a NOT_FOUND error (404) - sample doesn't exist yet
-        if (error?.status === 404 || error?.message?.includes('NOT_FOUND') || error?.message?.includes('Sample with ID')) {
+        const errorObj = error as { status?: number; message?: string };
+        if (errorObj?.status === 404 || errorObj?.message?.includes('NOT_FOUND') || errorObj?.message?.includes('Sample with ID')) {
           console.log('useSampleSummaryNew: Sample not found, returning null instead of throwing')
           return null // Return null instead of throwing error
         }
@@ -36,9 +37,10 @@ export function useSampleSummaryNew(sampleNo?: string) {
       }
     },
     enabled: !!sampleNo,
-    retry: (failureCount, error: any) => {
+    retry: (failureCount, error: unknown) => {
       // Don't retry for NOT_FOUND errors (404)
-      if (error?.status === 404 || error?.message?.includes('NOT_FOUND') || error?.message?.includes('Sample with ID')) {
+      const errorObj = error as { status?: number; message?: string };
+      if (errorObj?.status === 404 || errorObj?.message?.includes('NOT_FOUND') || errorObj?.message?.includes('Sample with ID')) {
         return false
       }
       // Retry other errors up to 3 times
@@ -52,7 +54,6 @@ export function useAllSampleSummaries(params: SampleListParams = {}) {
   return useQuery<PaginatedResult<SampleSummary>>({
     queryKey: ['allSampleSummaries', params],
     queryFn: () => resultsServiceNew.getAllSampleSummaries(params),
-    keepPreviousData: true,
     staleTime: 30000, // 30 seconds
   })
 }
@@ -74,7 +75,6 @@ export function useAllPredictionRuns(params: RunListParams = {}) {
   return useQuery<PaginatedResult<PredictionRun>>({
     queryKey: ['allPredictionRuns', params],
     queryFn: () => resultsServiceNew.getAllPredictionRuns(params),
-    keepPreviousData: true,
     staleTime: 30000,
   })
 }
@@ -132,8 +132,6 @@ export function useInferenceResults(runId?: number) {
 
 // Export Hooks
 export function useExportSampleData() {
-  const queryClient = useQueryClient()
-  
   return useMutation({
     mutationFn: ({ sampleNo, format }: { sampleNo: string; format?: 'csv' | 'json' | 'xlsx' }) =>
       resultsServiceNew.exportSampleData(sampleNo, format),
@@ -156,8 +154,6 @@ export function useExportSampleData() {
 }
 
 export function useExportRunData() {
-  const queryClient = useQueryClient()
-  
   return useMutation({
     mutationFn: ({ runId, format }: { runId: number; format?: 'csv' | 'json' | 'xlsx' }) =>
       resultsServiceNew.exportRunData(runId, format),

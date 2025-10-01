@@ -105,6 +105,16 @@ export class CsvService {
       .map(key => distribution[key] || 0);
     
     const total = values.reduce((sum, val) => sum + val, 0);
+    
+    // Calculate GMT: Sum{(REPORTED_NAME-row1 x ENTRYrow-1) + ...} / Sum(ENTRY)
+    let gmtNumerator = 0;
+    for (let i = 0; i < values.length; i++) {
+      const reportedName = i + 1; // REPORTED_NAME values are 1, 2, 3, ..., 12
+      const entry = values[i]; // ENTRY values from distribution
+      gmtNumerator += reportedName * entry;
+    }
+    const gmt = total > 0 ? gmtNumerator / total : 0;
+    
     const mean = values.length > 0 ? total / values.length : 0;
     const variance = this.calculateVarianceFromValues(values, mean);
     const sd = Math.sqrt(variance);
@@ -114,8 +124,8 @@ export class CsvService {
     csvData.push({
       SAMPLE_NUMBER: sampleNo,
       TEST_NUMBER: 'T001',
-      REPORTED_NAME: 'TOTAL',
-      ENTRY: total,
+      REPORTED_NAME: 'GMT',
+      ENTRY: Math.round(gmt * 100) / 100,
     });
     
     csvData.push({

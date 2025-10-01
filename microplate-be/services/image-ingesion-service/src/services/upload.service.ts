@@ -56,13 +56,8 @@ export async function saveImage(params: UploadParams) {
 
   console.log(`Successfully uploaded to MinIO: ${bucket}/${relPath}`);
 
-  const signedUrl = await getSignedUrl(
-    s3,
-    new GetObjectCommand({ Bucket: bucket, Key: relPath }),
-    { expiresIn: storageConfig.s3.signedUrlExpiry }
-  );
-
-  console.log(`Generated signed URL: ${signedUrl}`);
+  // Generate signed URL using external endpoint
+  const result = await generateSignedUrl(bucket, relPath);
 
   return {
     sampleNo: params.sampleNo,
@@ -74,9 +69,46 @@ export async function saveImage(params: UploadParams) {
     mimeType: detectedMime,
     bucketName: params.fileType === 'annotated' ? 'annotated-images' : 'raw-images',
     objectKey: relPath,
-    signedUrl,
-    urlExpiresAt: new Date(Date.now() + storageConfig.s3.signedUrlExpiry * 1000).toISOString(),
+    signedUrl: result.signedUrl,
+    urlExpiresAt: result.expiresAt,
     description: params.description || ''
+  };
+}
+
+/**
+ * Generate a signed URL for an existing image in MinIO
+ * @param bucket - Bucket name (e.g., 'raw-images' or 'annotated-images')
+ * @param objectKey - Object key/path in the bucket
+ * @param expiresIn - URL expiration time in seconds (default: from config)
+ */
+export async function generateSignedUrl(bucket: string, objectKey: string, expiresIn?: number) {
+  // Use external endpoint for signed URL generation if available
+  // This should be the URL accessible from browser (e.g., http://localhost:9000)
+  const externalEndpoint = process.env.OBJECT_STORAGE_EXTERNAL_ENDPOINT || storageConfig.s3.endpoint;
+  
+  const s3 = new S3Client({
+    endpoint: externalEndpoint,
+    region: storageConfig.s3.region,
+    credentials: {
+      accessKeyId: storageConfig.s3.accessKeyId,
+      secretAccessKey: storageConfig.s3.secretAccessKey
+    },
+    forcePathStyle: storageConfig.s3.forcePathStyle
+  });
+
+  const signedUrl = await getSignedUrl(
+    s3,
+    new GetObjectCommand({ Bucket: bucket, Key: objectKey }),
+    { expiresIn: expiresIn || storageConfig.s3.signedUrlExpiry }
+  );
+
+  console.log(`Generated signed URL for ${bucket}/${objectKey}: ${signedUrl}`);
+
+  return {
+    signedUrl,
+    expiresAt: new Date(Date.now() + (expiresIn || storageConfig.s3.signedUrlExpiry) * 1000).toISOString(),
+    bucket,
+    objectKey
   };
 }
 

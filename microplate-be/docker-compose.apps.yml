@@ -37,6 +37,7 @@ services:
       - JWT_ISSUER=microplate-auth-service
       - JWT_AUDIENCE=microplate-api
       - OBJECT_STORAGE_ENDPOINT=http://minio:9000
+      - OBJECT_STORAGE_EXTERNAL_ENDPOINT=http://localhost:9000
       - OBJECT_STORAGE_ACCESS_KEY=minioadmin
       - OBJECT_STORAGE_SECRET_KEY=minioadmin123
       - OBJECT_STORAGE_REGION=us-east-1

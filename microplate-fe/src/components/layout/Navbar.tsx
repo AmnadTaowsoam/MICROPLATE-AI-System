@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { MdLogout, MdSettings, MdDashboard, MdScience, MdDescription, MdPerson, MdExpandMore, MdNotifications, MdSearch, MdInfo, MdClose, MdAccessTime, MdDelete, MdMarkEmailRead, MdClearAll, MdHelp } from 'react-icons/md';
+import { MdLogout, MdSettings, MdDashboard, MdScience, MdDescription, MdPerson, MdExpandMore, MdNotifications, MdSearch, MdClose, MdAccessTime, MdDelete, MdMarkEmailRead, MdClearAll, MdHelp } from 'react-icons/md';
 import { useEffect, useState } from 'react';
 import { authService } from '../../services/auth.service';
 import { notificationService } from '../../services/notification.service';
@@ -44,7 +44,7 @@ export default function Navbar() {
 
   const handleClearAll = () => {
     if (window.confirm('Are you sure you want to clear all notifications?')) {
-      notificationService.clearAllNotifications();
+      notificationService.clearNotifications();
     }
   };
 

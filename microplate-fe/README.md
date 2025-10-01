@@ -42,6 +42,9 @@ HAllytics is an "Analytics-first Hemagglutination Inhibition" platform that prov
 - **Real-time Logs** via WebSocket
 - **Data Visualization** with charts and graphs
 - **CSV Export** for labware systems
+- **Run Deletion** with automatic summary recalculation
+- **Annotated Image Preview** with signed URL authentication
+- **Individual Run Analysis** with expandable details
 
 ### 🔧 Advanced Technical Features
 - **TypeScript** for type safety
@@ -271,12 +274,18 @@ The application uses **Tailwind CSS** with custom configuration:
 - `PUT /api/v1/auth/change-password` - Change password
 
 ### Image Processing Endpoints
-- **Image Service (Port 6402)**: `POST /api/v1/images` - Upload image
+- **Image Service (Port 6402)**: 
+  - `POST /api/v1/images` - Upload image
+  - `POST /api/v1/signed-urls` - **Generate signed URL for images** (NEW!)
+  - `POST /api/v1/signed-urls/batch` - Generate batch signed URLs (NEW!)
 - **Vision Service (Port 6403)**: `POST /api/v1/inference/predict` - Run prediction
-- **Vision Capture Service (Port 6406)**: `POST /api/v1/capture/image` - Capture image
+- **Vision Capture Service (Port 6407)**: `POST /api/v1/capture/image` - Capture image
 
 ### Results Endpoints (Results Service - Port 6404)
 - `GET /api/v1/results/samples/{sampleNo}` - Get sample results
+- `GET /api/v1/results/direct/samples` - Get all samples (direct DB access)
+- `GET /api/v1/results/direct/samples/{sampleNo}/runs` - Get sample runs with inference results
+- `DELETE /api/v1/results/direct/runs/{runId}` - **Delete run & recalculate summary** (NEW!)
 - `GET /api/v1/results/health` - Health check
 
 ### Labware Interface Endpoints (Labware Service - Port 6405)
@@ -381,7 +390,14 @@ For support and questions:
 
 ## 🔄 Version History
 
-### v1.0.0 - Current Release
+### v1.1.0 - Latest Update (October 2025)
+- **🗑️ Run Deletion** - Delete individual prediction runs with automatic summary recalculation
+- **🖼️ Annotated Image Preview** - Secure image viewing with signed URL authentication
+- **🔐 Enhanced Security** - MinIO signed URLs with proper authentication
+- **⚡ Improved Loading** - Fixed navbar flashing on refresh with auth state management
+- **📊 Real-time Updates** - Sample summary auto-updates after run deletion
+
+### v1.0.0 - Initial Release
 - **Authentication system** with JWT tokens
 - **Image processing** with upload and capture
 - **Camera integration** with real-time monitoring

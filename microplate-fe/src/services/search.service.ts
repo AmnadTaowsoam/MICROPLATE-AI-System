@@ -7,7 +7,7 @@ export interface SearchResult {
   description: string
   timestamp: number
   url: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface SearchResponse {
@@ -101,15 +101,15 @@ class SearchService {
 
   private async searchSamples(query: string): Promise<SearchResult[]> {
     try {
-      const response = await this.api.get(`/api/v1/results/search/samples?q=${encodeURIComponent(query)}`)
-      return response.data.samples?.map((sample: any) => ({
-        id: sample.id || sample.sampleNo,
+      const response = await this.api.get(`/api/v1/results/search/samples?q=${encodeURIComponent(query)}`) as { data: { samples?: unknown[] } }
+      return response.data.samples?.map((sample: unknown) => ({
+        id: (sample as { id?: string; sampleNo?: string }).id || (sample as { sampleNo?: string }).sampleNo || 'unknown',
         type: 'sample' as const,
-        title: sample.sampleNo || sample.id,
-        description: `Sample: ${sample.submissionNo || 'N/A'} - ${sample.description || 'No description'}`,
-        timestamp: sample.createdAt || sample.timestamp || Date.now(),
-        url: `/results/${sample.sampleNo || sample.id}`,
-        metadata: sample
+        title: (sample as { sampleNo?: string; id?: string }).sampleNo || (sample as { id?: string }).id || 'Unknown Sample',
+        description: `Sample: ${(sample as { submissionNo?: string }).submissionNo || 'N/A'} - ${(sample as { description?: string }).description || 'No description'}`,
+        timestamp: (sample as { createdAt?: number; timestamp?: number }).createdAt || (sample as { timestamp?: number }).timestamp || Date.now(),
+        url: `/results/${(sample as { sampleNo?: string; id?: string }).sampleNo || (sample as { id?: string }).id}`,
+        metadata: sample as Record<string, unknown>
       })) || []
     } catch (error) {
       console.error('Sample search error:', error)
@@ -119,15 +119,15 @@ class SearchService {
 
   private async searchResults(query: string): Promise<SearchResult[]> {
     try {
-      const response = await this.api.get(`/api/v1/results/search/results?q=${encodeURIComponent(query)}`)
-      return response.data.results?.map((result: any) => ({
-        id: result.id,
+      const response = await this.api.get(`/api/v1/results/search/results?q=${encodeURIComponent(query)}`) as { data: { results?: unknown[] } }
+      return response.data.results?.map((result: unknown) => ({
+        id: (result as { id: string }).id,
         type: 'result' as const,
-        title: `Result for ${result.sampleNo}`,
-        description: `Status: ${result.status} - Confidence: ${result.confidence || 'N/A'}%`,
-        timestamp: result.createdAt || result.timestamp || Date.now(),
-        url: `/results/${result.sampleNo}`,
-        metadata: result
+        title: `Result for ${(result as { sampleNo: string }).sampleNo}`,
+        description: `Status: ${(result as { status: string }).status} - Confidence: ${(result as { confidence?: number }).confidence || 'N/A'}%`,
+        timestamp: (result as { createdAt?: number; timestamp?: number }).createdAt || (result as { timestamp?: number }).timestamp || Date.now(),
+        url: `/results/${(result as { sampleNo: string }).sampleNo}`,
+        metadata: result as Record<string, unknown>
       })) || []
     } catch (error) {
       console.error('Result search error:', error)
@@ -137,15 +137,15 @@ class SearchService {
 
   private async searchLogs(query: string): Promise<SearchResult[]> {
     try {
-      const response = await this.api.get(`/api/v1/results/logs?search=${encodeURIComponent(query)}`)
-      return response.data.logs?.map((log: any) => ({
-        id: log.id,
+      const response = await this.api.get(`/api/v1/results/logs?search=${encodeURIComponent(query)}`) as { data: { logs?: unknown[] } }
+      return response.data.logs?.map((log: unknown) => ({
+        id: (log as { id: string }).id,
         type: 'log' as const,
-        title: `${log.method} ${log.url}`,
-        description: log.message || `${log.statusCode} - ${log.latencyMs}ms`,
-        timestamp: log.time,
+        title: `${(log as { method: string }).method} ${(log as { url: string }).url}`,
+        description: (log as { message?: string }).message || `${(log as { statusCode: number }).statusCode} - ${(log as { latencyMs: number }).latencyMs}ms`,
+        timestamp: (log as { time: number }).time,
         url: '/logs',
-        metadata: log
+        metadata: log as Record<string, unknown>
       })) || []
     } catch (error) {
       console.error('Log search error:', error)

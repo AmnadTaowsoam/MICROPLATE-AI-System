@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { captureService, type CaptureRequest, type CaptureResponse, type CaptureStatus } from '../services/capture.service';
 
 export interface UseCaptureOptions {
@@ -33,7 +33,6 @@ export function useCapture(options: UseCaptureOptions = {}): UseCaptureReturn {
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   
-  const wsRef = useRef<WebSocket | null>(null);
   const { onSuccess, onError, onStatusChange } = options;
 
   // ตรวจสอบการเชื่อมต่อ
@@ -44,7 +43,7 @@ export function useCapture(options: UseCaptureOptions = {}): UseCaptureReturn {
       if (!connected) {
         setError('ไม่สามารถเชื่อมต่อกับ Vision Capture Service ได้');
       }
-    } catch (err) {
+    } catch {
       setIsConnected(false);
       setError('ไม่สามารถเชื่อมต่อกับ Vision Capture Service ได้');
     }

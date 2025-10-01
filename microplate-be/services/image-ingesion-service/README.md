@@ -25,27 +25,47 @@ src/
 
 ## การตั้งค่า (Environment)
 คัดลอกไฟล์ตัวอย่างแล้วปรับค่าตามต้องการ:
-```
+```bash
 copy env.example .env
 ```
-ตัวแปรสำคัญใน `.env`:
-- Service
-  - `PORT=6402`
-  - `MAX_FILE_SIZE_BYTES=52428800`
-  - `ALLOWED_MIME_TYPES=image/jpeg,image/png,image/webp,image/tiff`
-  - (ไม่ต้องตั้ง DISABLE_AUTH แล้ว หากเข้าผ่าน Gateway เท่านั้น)
-- Storage (local filesystem)
-- (ไม่ใช้ shared-storage แล้ว)
-- Retention worker
-  - `RETENTION_MOVE_DAYS=30`
-  - `RETENTION_DELETE_DAYS=90`
-  - `RETENTION_CHECK_INTERVAL_MS=3600000`
-- Redis (ตัวเลือก)
-  - `REDIS_URL=redis://redis:6379`
-  - `REDIS_LOG_CHANNEL=microplate:image-ingestion:logs`
-  - `REDIS_ERROR_CHANNEL=microplate:image-ingestion:errors`
 
-หมายเหตุ: โฟลเดอร์ที่จำเป็นจะถูกสร้างอัตโนมัติเมื่อ service/worker เริ่มทำงาน
+ตัวแปรสำคัญใน `.env`:
+
+### Service Configuration
+- `PORT=6402`
+- `MAX_FILE_SIZE_BYTES=52428800`
+- `ALLOWED_MIME_TYPES=image/jpeg,image/png,image/webp,image/tiff`
+
+### MinIO Object Storage
+- `OBJECT_STORAGE_ENDPOINT=http://minio:9000` - Internal endpoint (for Docker services)
+- `OBJECT_STORAGE_EXTERNAL_ENDPOINT=http://localhost:9000` - **External endpoint for signed URLs** (accessible from browser)
+- `OBJECT_STORAGE_ACCESS_KEY=minioadmin`
+- `OBJECT_STORAGE_SECRET_KEY=minioadmin123`
+- `OBJECT_STORAGE_BUCKET_RAW=raw-images`
+- `OBJECT_STORAGE_BUCKET_ANNOTATED=annotated-images`
+- `SIGNED_URL_EXPIRY=3600` - Signed URL expiration in seconds (1 hour)
+
+### Database
+- `DATABASE_URL=postgresql://postgres:password@localhost:5432/microplates`
+
+### JWT Authentication
+- `JWT_ACCESS_SECRET=your-secret-key`
+- `JWT_ISSUER=microplate-auth-service`
+- `JWT_AUDIENCE=microplate-api`
+
+### Redis (Optional)
+- `REDIS_URL=redis://redis:6379`
+- `REDIS_LOG_CHANNEL=microplate:image-ingestion:logs`
+- `REDIS_ERROR_CHANNEL=microplate:image-ingestion:errors`
+
+### Retention Worker
+- `MINIO_RETENTION_CHECK_INTERVAL_MS=86400000` - Check interval (24 hours)
+- `MINIO_RETENTION_DELETE_DAYS=60` - Delete files older than X days
+- `MINIO_RETENTION_DRY_RUN=false` - Set to `true` for testing
+
+**หมายเหตุ:** 
+- `OBJECT_STORAGE_ENDPOINT` ใช้สำหรับ upload ภาพจาก services (Docker internal)
+- `OBJECT_STORAGE_EXTERNAL_ENDPOINT` ใช้สำหรับ generate signed URLs (browser accessible)
 
 ## การติดตั้งและรัน (โหมดพัฒนา)
 ```
@@ -64,8 +84,12 @@ docker compose -f microplate-be/docker-compose.apps.yml up image-ingesion
 ```
 
 ## เอ็นด์พอยน์ต์
+
+### Health & Readiness
 - `GET /healthz` → สถานะสุขภาพ
-- `GET /readyz` → ความพร้อมใช้งาน (ตรวจสร้างโฟลเดอร์)
+- `GET /readyz` → ความพร้อมใช้งาน (ตรวจสอบ MinIO buckets)
+
+### Image Upload
 - `POST /api/v1/images` → อัปโหลดไฟล์ภาพ (multipart)
   - ฟิลด์ที่รองรับ:
     - `sample_no` (จำเป็น)
@@ -74,32 +98,56 @@ docker compose -f microplate-be/docker-compose.apps.yml up image-ingesion
     - `file` = ไฟล์รูปภาพ (JPEG/PNG/WebP/TIFF)
     - `description` (ไม่จำเป็น)
   - ตัวอย่าง curl:
-```
+```bash
 curl -X POST http://localhost:6402/api/v1/images \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -F "sample_no=S123456" \
   -F "file_type=raw" \
   -F "file=@/path/to/image.jpg"
 ```
-ผลลัพธ์ตัวอย่าง:
-```
-{
-  "success": true,
-  "data": {
-    "sampleNo": "S123456",
-    "runId": 789,
-    "fileType": "annotated",
-    "fileName": "S123456_20240115_103000_uuid.jpg",
-    "filePath": "S123456/789/S123456_20240115_103000_uuid.jpg",
-    "fileSize": 2048576,
-    "mimeType": "image/jpeg",
-    "bucketName": "annotated-images",
-    "objectKey": "S123456/789/S123456_20240115_103000_uuid.jpg",
-    "signedUrl": "http://minio:9000/annotated-images/...&X-Amz-Signature=...",
-    "urlExpiresAt": "2025-01-15T11:00:00Z",
-    "description": ""
-  }
-}
-```
+
+### Signed URL Generation (New!)
+- `POST /api/v1/signed-urls` → สร้าง signed URL สำหรับภาพที่มีอยู่แล้วใน MinIO
+  - Body:
+    ```json
+    {
+      "bucket": "raw-images",
+      "objectKey": "TEST006/14/TEST006_xxx.jpg",
+      "expiresIn": 3600
+    }
+    ```
+  - Response:
+    ```json
+    {
+      "success": true,
+      "data": {
+        "signedUrl": "http://localhost:9000/raw-images/TEST006/14/...?X-Amz-Signature=...",
+        "expiresAt": "2025-10-01T12:00:00.000Z",
+        "bucket": "raw-images",
+        "objectKey": "TEST006/14/..."
+      }
+    }
+    ```
+
+- `POST /api/v1/signed-urls/batch` → สร้าง signed URLs หลายไฟล์พร้อมกัน
+  - Body:
+    ```json
+    {
+      "images": [
+        {"bucket": "raw-images", "objectKey": "TEST006/14/image1.jpg"},
+        {"bucket": "annotated-images", "objectKey": "TEST006/14/image2.jpg"}
+      ],
+      "expiresIn": 3600
+    }
+    ```
+
+### Image File Management
+- `POST /api/v1/image-files` → สร้างบันทึกข้อมูลไฟล์ภาพ
+- `GET /api/v1/image-files/:id` → ดูข้อมูลไฟล์ภาพ
+- `GET /api/v1/image-files/run/:runId` → ดูไฟล์ภาพตาม run ID
+- `GET /api/v1/image-files/sample/:sampleNo` → ดูไฟล์ภาพตาม sample number
+- `PUT /api/v1/image-files/:id` → อัปเดตข้อมูลไฟล์ภาพ
+- `DELETE /api/v1/image-files/:id` → ลบบันทึกข้อมูลไฟล์ภาพ
 
 ## Logging ผ่าน Redis (ตัวเลือก)
 - progress_log: เหตุการณ์ทั่วไป เช่น `image_uploaded`, `retention_started`, `retention_moved`, `retention_deleted`

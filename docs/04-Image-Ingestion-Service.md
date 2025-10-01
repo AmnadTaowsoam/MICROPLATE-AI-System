@@ -221,17 +221,63 @@ Get all images for a specific sample.
 }
 ```
 
-#### PUT /api/v1/images/:id/refresh-url
-Refresh signed URL for an image.
+#### POST /api/v1/signed-urls (NEW!)
+Generate signed URL for an existing image in MinIO.
+
+**Request Body:**
+```json
+{
+  "bucket": "raw-images",
+  "objectKey": "TEST006/14/TEST006_xxx.jpg",
+  "expiresIn": 3600
+}
+```
 
 **Response:**
 ```json
 {
   "success": true,
   "data": {
-    "signedUrl": "http://minio:9000/raw-images/S123456/456/20240115_103000_uuid.jpg?X-Amz-Algorithm=...",
-    "urlExpiresAt": "2024-01-15T11:00:00Z"
+    "signedUrl": "http://localhost:9000/raw-images/TEST006/14/...?X-Amz-Signature=...",
+    "expiresAt": "2025-10-01T12:00:00.000Z",
+    "bucket": "raw-images",
+    "objectKey": "TEST006/14/..."
   }
+}
+```
+
+#### POST /api/v1/signed-urls/batch (NEW!)
+Generate signed URLs for multiple images at once.
+
+**Request Body:**
+```json
+{
+  "images": [
+    {"bucket": "raw-images", "objectKey": "TEST006/14/image1.jpg"},
+    {"bucket": "annotated-images", "objectKey": "TEST006/14/image2.jpg"}
+  ],
+  "expiresIn": 3600
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "signedUrl": "http://localhost:9000/raw-images/...",
+      "expiresAt": "2025-10-01T12:00:00.000Z",
+      "bucket": "raw-images",
+      "objectKey": "TEST006/14/image1.jpg"
+    },
+    {
+      "signedUrl": "http://localhost:9000/annotated-images/...",
+      "expiresAt": "2025-10-01T12:00:00.000Z",
+      "bucket": "annotated-images",
+      "objectKey": "TEST006/14/image2.jpg"
+    }
+  ]
 }
 ```
 
@@ -460,12 +506,12 @@ export class MetadataService {
 DATABASE_URL="postgresql://postgres:password@localhost:5432/microplates"
 
 # Object Storage (MinIO/S3)
-OBJECT_STORAGE_ENDPOINT="http://localhost:9000"
+OBJECT_STORAGE_ENDPOINT="http://minio:9000"  # Internal endpoint (Docker)
+OBJECT_STORAGE_EXTERNAL_ENDPOINT="http://localhost:9000"  # External endpoint (Browser)
 OBJECT_STORAGE_ACCESS_KEY="minioadmin"
-OBJECT_STORAGE_SECRET_KEY="minioadmin"
+OBJECT_STORAGE_SECRET_KEY="minioadmin123"
 OBJECT_STORAGE_BUCKET_RAW="raw-images"
 OBJECT_STORAGE_BUCKET_ANNOTATED="annotated-images"
-OBJECT_STORAGE_BUCKET_THUMBNAILS="thumbnails"
 OBJECT_STORAGE_REGION="us-east-1"
 OBJECT_STORAGE_FORCE_PATH_STYLE="true"
 
@@ -475,19 +521,32 @@ PORT=6402
 API_BASE_URL="http://localhost:6400"
 
 # Image Processing
-MAX_FILE_SIZE="50MB"
+MAX_FILE_SIZE_BYTES="52428800"  # 50MB
 ALLOWED_MIME_TYPES="image/jpeg,image/png,image/tiff,image/webp"
-THUMBNAIL_SIZE=200
-IMAGE_QUALITY=85
 
 # Signed URL
-SIGNED_URL_EXPIRY="3600" # 1 hour
-SIGNED_URL_REFRESH_THRESHOLD="300" # 5 minutes
+SIGNED_URL_EXPIRY="3600"  # 1 hour (in seconds)
 
-# Storage
-STORAGE_PROVIDER="minio" # minio, s3, local
-LOCAL_STORAGE_PATH="/app/storage"
+# JWT Authentication
+JWT_ACCESS_SECRET="your-secret-key"
+JWT_ISSUER="microplate-auth-service"
+JWT_AUDIENCE="microplate-api"
+
+# Redis (Optional)
+REDIS_URL="redis://redis:6379"
+REDIS_LOG_CHANNEL="microplate:image-ingestion:logs"
+REDIS_ERROR_CHANNEL="microplate:image-ingestion:errors"
+
+# MinIO Retention
+MINIO_RETENTION_CHECK_INTERVAL_MS="86400000"  # 24 hours
+MINIO_RETENTION_DELETE_DAYS="60"
+MINIO_RETENTION_DRY_RUN="false"
 ```
+
+**Important Notes:**
+- `OBJECT_STORAGE_ENDPOINT` - Used by Docker services for uploading (internal network)
+- `OBJECT_STORAGE_EXTERNAL_ENDPOINT` - Used for signed URL generation (accessible from browser)
+- This dual-endpoint approach ensures signed URLs work correctly from the browser while maintaining internal service-to-service communication
 
 ## Error Handling
 

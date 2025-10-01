@@ -98,6 +98,7 @@ export const resultsService = {
       resultsApi.setAccessToken(token)
     }
     try {
+      console.log('🔍 Using resultsApi for getSampleSummary - result-api-service gets data from prediction_result.sample_summary')
       const result = await resultsApi.get<SampleSummary>(`/api/v1/results/samples/${encodeURIComponent(sampleNo)}/summary`)
       console.log('resultsService: API response received:', result)
       return result
@@ -120,6 +121,7 @@ export const resultsService = {
       sortOrder,
       ...(search && { search })
     })
+    console.log('🔍 Using resultsApi for getSamples - result-api-service gets data from prediction_result.sample_summary')
     return resultsApi.get<{success: boolean, data: PaginatedResult<SampleListItem>}>(`/api/v1/results/samples?${params}`)
   },
 

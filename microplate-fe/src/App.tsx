@@ -70,7 +70,7 @@ function CapturePage() {
   const { data: sampleSummaryResponse, isLoading: isSummaryLoading, error: summaryError } = useSampleSummary(sampleNo)
   
   // Extract the actual data from the response (now can be null for NOT_FOUND cases)
-  const sampleSummary = sampleSummaryResponse?.data
+  const sampleSummary = sampleSummaryResponse
   
 
   // Update annotated image URL when prediction completes
@@ -510,6 +510,7 @@ function NotFoundPage() {
 export default function App() {
   const queryClient = new QueryClient();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
     // Check authentication status on app load
@@ -522,6 +523,7 @@ export default function App() {
       console.log('App: Token valid:', isValid);
       console.log('App: Authenticated:', authenticated);
       setIsAuthenticated(authenticated);
+      setIsCheckingAuth(false);
       
       // Ensure token is set for all services
       if (token && isValid) {
@@ -556,11 +558,23 @@ export default function App() {
     );
   }
 
+  // Show loading screen while checking authentication
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <ThemeProvider>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <AppShell isAuthenticated={isAuthenticated}>
+        <AppShell isAuthenticated={!!isAuthenticated}>
           <Routes>
             <Route path="/" element={<Navigate to={isAuthenticated ? '/capture' : '/auth'} replace />} />
             <Route path="/auth" element={<AuthPage />} />

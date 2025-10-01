@@ -1,6 +1,4 @@
-import { MdCameraAlt, MdRefresh } from 'react-icons/md';
 import ImageUpload from './ImageUpload';
-import Button from '../ui/Button';
 import Card from '../ui/Card';
 
 interface ImageCaptureProps {

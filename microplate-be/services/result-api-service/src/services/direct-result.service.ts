@@ -243,4 +243,83 @@ export class DirectResultService {
       };
     });
   }
+
+  // Recalculate sample summary after run deletion
+  async recalculateSampleSummary(sampleNo: string): Promise<void> {
+    logger.info({ sampleNo }, 'Recalculating sample summary after run deletion');
+    
+    // Get all remaining inference results for the sample
+    const inferenceResults = await this.prisma.inferenceResult.findMany({
+      where: {
+        run: { sampleNo }
+      },
+      include: { run: true },
+      orderBy: { run: { predictAt: 'desc' } }
+    });
+
+    if (inferenceResults.length === 0) {
+      logger.warn({ sampleNo }, 'No inference results found, deleting sample summary');
+      // Delete sample summary if no runs left
+      await this.prisma.sampleSummary.delete({
+        where: { sampleNo }
+      }).catch(() => {});
+      return;
+    }
+
+    // Calculate aggregated distribution from remaining runs
+    const distribution: Record<string, number> = {};
+    let totalRuns = 0;
+
+    for (const result of inferenceResults) {
+      totalRuns++;
+      const resultData = result.results as any;
+      if (resultData?.distribution) {
+        Object.keys(resultData.distribution).forEach(key => {
+          if (key !== 'total') {
+            distribution[key] = (distribution[key] || 0) + (resultData.distribution[key] || 0);
+          }
+        });
+      }
+    }
+
+    // Calculate total
+    const total = Object.keys(distribution)
+      .filter(key => !isNaN(Number(key)))
+      .reduce((sum, key) => sum + (distribution[key] || 0), 0);
+    distribution.total = total;
+
+    // Get run statistics
+    const runStats = await this.prisma.predictionRun.aggregate({
+      where: { sampleNo },
+      _count: { id: true },
+      _max: { predictAt: true }
+    });
+
+    const latestRun = await this.prisma.predictionRun.findFirst({
+      where: { sampleNo },
+      orderBy: { predictAt: 'desc' },
+      select: { id: true }
+    });
+
+    // Update sample summary
+    await this.prisma.sampleSummary.upsert({
+      where: { sampleNo },
+      update: {
+        summary: { distribution },
+        totalRuns: runStats._count.id,
+        lastRunAt: runStats._max.predictAt || new Date(),
+        lastRunId: latestRun?.id || 0,
+        updatedAt: new Date()
+      },
+      create: {
+        sampleNo,
+        summary: { distribution },
+        totalRuns: runStats._count.id,
+        lastRunAt: runStats._max.predictAt || new Date(),
+        lastRunId: latestRun?.id || 0
+      }
+    });
+
+    logger.info({ sampleNo, distribution, totalRuns: runStats._count.id }, 'Sample summary recalculated successfully');
+  }
 }

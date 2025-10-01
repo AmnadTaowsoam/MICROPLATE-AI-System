@@ -118,6 +118,7 @@ export const resultsServiceNew = {
       resultsApi.setAccessToken(token)
     }
     try {
+      console.log('🔍 Using resultsApi for getSampleSummary - result-api-service gets data from prediction_result.sample_summary')
       const result = await resultsApi.get<SampleSummary>(`/api/v1/results/samples/${encodeURIComponent(sampleNo)}/summary`)
       console.log('resultsServiceNew: API response received:', result)
       return result
@@ -133,6 +134,7 @@ export const resultsServiceNew = {
     if (token) {
       resultsApi.setAccessToken(token)
     }
+    console.log('🔍 Using resultsApi for getAllSampleSummaries - result-api-service gets data from prediction_result.sample_summary')
     
     const searchParams = new URLSearchParams({
       page: (params.page || 1).toString(),

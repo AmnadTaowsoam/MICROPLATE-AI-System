@@ -2,17 +2,13 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { 
   MdSearch, 
-  MdBarChart, 
   MdGridOn, 
   MdCheckCircle, 
   MdCancel, 
-  MdPercent, 
   MdWarning,
   MdRefresh,
   MdDownload,
-  MdFilterList,
   MdViewList,
-  MdTableChart,
   MdScience,
   MdAnalytics,
   MdTimeline,
@@ -59,7 +55,7 @@ interface RowCounts {
 interface InferenceResult {
   id: number;
   runId: number;
-  results: any; // JSON data
+  results: unknown; // JSON data
   createdAt: string;
 }
 
@@ -104,7 +100,7 @@ export default function ResultsPageNew() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Mock data - will be replaced with actual API calls
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading] = useState(false);
   const [sampleSummary] = useState<SampleSummary | null>({
     sampleNo: sampleNo || '',
     summary: {
@@ -176,6 +172,8 @@ export default function ResultsPageNew() {
   const sortedRuns = [...filteredRuns].sort((a, b) => {
     const aValue = a[sortBy as keyof PredictionRun];
     const bValue = b[sortBy as keyof PredictionRun];
+    
+    if (aValue === undefined || bValue === undefined) return 0;
     
     if (sortOrder === 'asc') {
       return aValue > bValue ? 1 : -1;
@@ -413,10 +411,10 @@ export default function ResultsPageNew() {
                             </td>
                             <td className="py-3 px-4">
                               <div className="flex gap-2">
-                                <Button variant="ghost" size="sm">
+                                <Button variant="ghost">
                                   View
                                 </Button>
-                                <Button variant="ghost" size="sm">
+                                <Button variant="ghost">
                                   <MdDownload className="h-4 w-4" />
                                 </Button>
                               </div>

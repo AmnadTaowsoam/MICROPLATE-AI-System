@@ -7,6 +7,7 @@ import multer from 'multer';
 import dotenv from 'dotenv';
 import { imageRoutes } from './routes/image.routes';
 import { imageFileRoutes } from './routes/imageFile.routes';
+import { signedUrlRoutes } from './routes/signedUrl.routes';
 import { ensureBuckets } from './services/s3.service';
 import { databaseService } from './services/database.service';
 import { authenticateToken } from '../shared/auth-middleware';
@@ -63,6 +64,7 @@ const authConfig = {
 // Routes
 app.use('/api/v1/images', authenticateToken(authConfig), upload.single('file') as any, imageRoutes);
 app.use('/api/v1/image-files', authenticateToken(authConfig), imageFileRoutes());
+app.use('/api/v1/signed-urls', authenticateToken(authConfig), signedUrlRoutes());
 
 // Health check routes
 app.get('/healthz', (_req: express.Request, res: express.Response) => {

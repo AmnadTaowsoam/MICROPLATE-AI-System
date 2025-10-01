@@ -3,8 +3,6 @@ import { resultsService } from '../services/results.service'
 import type { 
   SampleResult, 
   SampleSummary, 
-  SampleListResponse, 
-  RunDetails, 
   InterfaceFile 
 } from '../services/results.service'
 
@@ -29,11 +27,12 @@ export function useSampleSummary(sampleNo?: string) {
         const result = await resultsService.getSampleSummary(sampleNo)
         console.log('useSampleSummary: API response:', result)
         return result
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('useSampleSummary: API error:', error)
         
         // Check if it's a NOT_FOUND error (404) - sample doesn't exist yet
-        if (error?.status === 404 || error?.message?.includes('NOT_FOUND') || error?.message?.includes('Sample with ID')) {
+        const errorObj = error as { status?: number; message?: string };
+        if (errorObj?.status === 404 || errorObj?.message?.includes('NOT_FOUND') || errorObj?.message?.includes('Sample with ID')) {
           console.log('useSampleSummary: Sample not found, returning null instead of throwing')
           return null // Return null instead of throwing error
         }
@@ -43,9 +42,10 @@ export function useSampleSummary(sampleNo?: string) {
       }
     },
     enabled: !!sampleNo,
-    retry: (failureCount, error: any) => {
+    retry: (failureCount, error: unknown) => {
       // Don't retry for NOT_FOUND errors (404)
-      if (error?.status === 404 || error?.message?.includes('NOT_FOUND') || error?.message?.includes('Sample with ID')) {
+      const errorObj = error as { status?: number; message?: string };
+      if (errorObj?.status === 404 || errorObj?.message?.includes('NOT_FOUND') || errorObj?.message?.includes('Sample with ID')) {
         return false
       }
       // Retry other errors up to 3 times
@@ -65,10 +65,9 @@ export function useSamples(params: {
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
 } = {}) {
-  return useQuery<SampleListResponse>({
+  return useQuery<unknown>({
     queryKey: ['samples', params],
-    queryFn: () => resultsService.getSamples(params),
-    keepPreviousData: true,
+    queryFn: () => resultsService.getSamples(params.page || 1, params.limit || 10, params.search, params.sortBy, params.sortOrder),
     staleTime: 30000, // 30 seconds
   })
 }
@@ -79,11 +78,11 @@ export function useSampleRuns(sampleNo?: string, params: {
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
 } = {}) {
-  return useQuery<{ data: RunDetails[], pagination: any }>({
+  return useQuery<unknown>({
     queryKey: ['sampleRuns', sampleNo, params],
     queryFn: () => {
       if (!sampleNo) throw new Error('No sample number')
-      return resultsService.getSampleRuns(sampleNo, params)
+      return resultsService.getSampleRuns(sampleNo, params.page || 1, params.limit || 10)
     },
     enabled: !!sampleNo,
     staleTime: 30000,
@@ -91,7 +90,7 @@ export function useSampleRuns(sampleNo?: string, params: {
 }
 
 export function useRunDetails(runId?: number) {
-  return useQuery<RunDetails>({
+  return useQuery<unknown>({
     queryKey: ['runDetails', runId],
     queryFn: () => {
       if (!runId) throw new Error('No run ID')
@@ -105,7 +104,10 @@ export function useRunDetails(runId?: number) {
 export function useInterfaceFiles(sampleNo?: string) {
   return useQuery<{ data: InterfaceFile[] }>({
     queryKey: ['interfaceFiles', sampleNo],
-    queryFn: () => resultsService.getInterfaceFiles(sampleNo),
+    queryFn: () => {
+      if (!sampleNo) throw new Error('No sample number')
+      return resultsService.getInterfaceFiles(sampleNo)
+    },
     enabled: !!sampleNo,
     staleTime: 60000, // 1 minute
   })

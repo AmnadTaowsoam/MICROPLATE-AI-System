@@ -349,6 +349,49 @@ GET http://localhost:6406/api/v1/predictions
 Authorization: Bearer {token}
 ```
 
+## Image Signed URLs (NEW!)
+
+### Generate Signed URL
+```http
+POST http://localhost:6402/api/v1/signed-urls
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "bucket": "raw-images",
+  "objectKey": "TEST006/14/TEST006_xxx.jpg",
+  "expiresIn": 3600
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "signedUrl": "http://localhost:9000/raw-images/TEST006/14/...?X-Amz-Signature=...",
+    "expiresAt": "2025-10-01T12:00:00.000Z",
+    "bucket": "raw-images",
+    "objectKey": "TEST006/14/..."
+  }
+}
+```
+
+### Generate Batch Signed URLs
+```http
+POST http://localhost:6402/api/v1/signed-urls/batch
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "images": [
+    {"bucket": "raw-images", "objectKey": "TEST006/14/image1.jpg"},
+    {"bucket": "annotated-images", "objectKey": "TEST006/14/image2.jpg"}
+  ],
+  "expiresIn": 3600
+}
+```
+
 ## Results API
 
 ### Get Sample Summary
@@ -391,6 +434,44 @@ Authorization: Bearer {token}
 GET http://localhost:6404/api/v1/results/samples/{sampleNo}/runs
 Authorization: Bearer {token}
 ```
+
+### Direct Database Access (Optimized)
+
+#### Get All Samples (Direct)
+```http
+GET http://localhost:6404/api/v1/results/direct/samples
+Authorization: Bearer {token}
+```
+
+#### Get Sample Runs (Direct)
+```http
+GET http://localhost:6404/api/v1/results/direct/samples/{sampleNo}/runs?page=1&limit=50
+Authorization: Bearer {token}
+```
+
+#### Delete Run and Recalculate Summary (NEW!)
+```http
+DELETE http://localhost:6404/api/v1/results/direct/runs/{runId}
+Authorization: Bearer {token}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "success": true,
+    "message": "Run deleted and sample summary recalculated",
+    "sampleNo": "TEST006"
+  }
+}
+```
+
+**Features:**
+- Deletes all run-related data (predictions, counts, inference results)
+- Automatically recalculates sample summary from remaining runs
+- Updates distribution and statistics
+- Removes sample summary if no runs remain
 
 ## Health Checks
 

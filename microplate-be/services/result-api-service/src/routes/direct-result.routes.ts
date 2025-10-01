@@ -194,5 +194,79 @@ export function directResultRoutes(): Router {
     }
   });
 
+  // DELETE /api/v1/results/direct/runs/:runId - Delete run and recalculate sample summary
+  /**
+   * @swagger
+   * /api/v1/results/direct/runs/{runId}:
+   *   delete:
+   *     tags: [Direct Results]
+   *     summary: Delete run and recalculate summary
+   *     description: Delete a prediction run and automatically recalculate the sample summary
+   *     parameters:
+   *       - in: path
+   *         name: runId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Successfully deleted run and recalculated summary
+   */
+  router.delete('/runs/:runId', async (request, response) => {
+    try {
+      const runId = RunIdSchema.parse(request.params.runId);
+      
+      // Get run details first to know which sample to recalculate
+      const run = await prisma.predictionRun.findUnique({
+        where: { id: runId },
+        select: { sampleNo: true }
+      });
+
+      if (!run) {
+        return response.status(404).json({ 
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Run not found' } 
+        });
+      }
+
+      const sampleNo = run.sampleNo;
+
+      // Delete related data first
+      await prisma.wellPrediction.deleteMany({ where: { runId } });
+      await prisma.rowCounts.deleteMany({ where: { runId } });
+      await prisma.inferenceResult.deleteMany({ where: { runId } });
+
+      // Delete the run
+      await prisma.predictionRun.delete({ where: { id: runId } });
+
+      logger.info({ 
+        requestId: (request as any).id || 'unknown',
+        runId,
+        sampleNo
+      }, 'Run deleted successfully');
+
+      // Recalculate sample summary
+      await directResultService.recalculateSampleSummary(sampleNo);
+
+      logger.info({ 
+        requestId: (request as any).id || 'unknown',
+        sampleNo
+      }, 'Sample summary recalculated after run deletion');
+
+      return sendSuccess(response, { 
+        success: true,
+        message: 'Run deleted and sample summary recalculated',
+        sampleNo 
+      });
+    } catch (error) {
+      logger.error({ 
+        requestId: (request as any).id || 'unknown',
+        runId: request.params.runId,
+        error 
+      }, 'Failed to delete run');
+      return sendError(response, error as any);
+    }
+  });
+
   return router;
 }

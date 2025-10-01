@@ -4,7 +4,6 @@ import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
 import { authService } from '../services/auth.service'
 import { MdPerson, MdEmail, MdEdit, MdSave, MdCancel, MdSecurity, MdNotifications, MdLanguage, MdAccessibility, MdVerified } from 'react-icons/md'
-import { useTheme } from '../contexts/ThemeContext'
 
 interface UserProfile {
   email: string
@@ -90,8 +89,7 @@ export default function ProfilePage() {
     try {
       const res = await authService.updateProfile({
         email: editForm.email,
-        username: editForm.username,
-        fullName: editForm.fullName
+        username: editForm.username
       })
       
       setProfile(prev => ({
@@ -103,8 +101,9 @@ export default function ProfilePage() {
       
       setIsEditing(false)
       setMessage({ type: 'success', text: res.message || 'Profile updated successfully' })
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error?.message || 'Failed to update profile' })
+    } catch (error: unknown) {
+      const errorObj = error as { message?: string };
+      setMessage({ type: 'error', text: errorObj?.message || 'Failed to update profile' })
     } finally {
       setLoading(false)
     }

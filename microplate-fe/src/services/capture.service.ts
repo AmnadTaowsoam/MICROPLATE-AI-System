@@ -1,5 +1,11 @@
-import { api } from './api';
-import type { ApiResponse } from './api';
+import { visionApi } from './api';
+
+// Define ApiResponse type locally since it's not exported from api module
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+}
 
 export interface CaptureRequest {
   sampleNo: string;
@@ -34,10 +40,13 @@ class CaptureService {
     try {
       console.log('🎥 CaptureService: Sending capture request:', request);
       
-      const response = await api.post<CaptureResponse>(`${this.baseUrl}/api/v1/capture/image`, request);
+      const response = await visionApi.post<CaptureResponse>(`${this.baseUrl}/api/v1/capture/image`, request);
       
       console.log('📸 CaptureService: Capture response:', response);
-      return response;
+      return {
+        success: true,
+        data: response
+      };
     } catch (error) {
       console.error('❌ CaptureService: Failed to capture image:', error);
       throw error;
@@ -49,8 +58,11 @@ class CaptureService {
    */
   async getCaptureStatus(): Promise<ApiResponse<CaptureStatus>> {
     try {
-      const response = await api.get<CaptureStatus>(`${this.baseUrl}/api/v1/capture/status`);
-      return response;
+      const response = await visionApi.get<CaptureStatus>(`${this.baseUrl}/api/v1/capture/status`);
+      return {
+        success: true,
+        data: response
+      };
     } catch (error) {
       console.error('❌ CaptureService: Failed to get capture status:', error);
       throw error;
@@ -85,7 +97,7 @@ class CaptureService {
    */
   async checkConnection(): Promise<boolean> {
     try {
-      const response = await api.get(`${this.baseUrl}/api/v1/capture/health`);
+      const response = await visionApi.get(`${this.baseUrl}/api/v1/capture/health`) as ApiResponse<unknown>;
       return response.success;
     } catch (error) {
       console.error('❌ CaptureService: Connection check failed:', error);

@@ -389,6 +389,99 @@ Get trend analysis for a specific sample.
 }
 ```
 
+### Direct Database Access Endpoints (Optimized)
+
+These endpoints provide direct access to the database for improved performance.
+
+#### GET /api/v1/results/direct/samples
+Get all samples directly from database.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "sampleNo": "TEST006",
+      "summary": {
+        "distribution": {"1": 0, "2": 2, "3": 0, "4": 4, "5": 6, "6": 4, "total": 16}
+      },
+      "totalRuns": 2,
+      "lastRunAt": "2025-09-29T01:48:59.780Z",
+      "lastRunId": 14,
+      "createdAt": "2025-09-25T04:48:59.780Z",
+      "updatedAt": "2025-09-29T01:48:59.780Z"
+    }
+  ]
+}
+```
+
+#### GET /api/v1/results/direct/samples/:sampleNo/runs
+Get all runs for a sample with full inference results included.
+
+**Query Parameters:**
+- `page`: Page number (default: 1)
+- `limit`: Items per page (default: 20)
+- `sortBy`: Sort field (default: createdAt)
+- `sortOrder`: Sort order (asc, desc)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "data": [
+      {
+        "id": 14,
+        "sampleNo": "TEST006",
+        "predictAt": "2025-09-29T01:48:59.780Z",
+        "status": "completed",
+        "rawImagePath": "TEST006/14/TEST006_xxx.jpg",
+        "annotatedImagePath": "TEST006/14/TEST006_xxx_annotated.jpg",
+        "inferenceResults": [
+          {
+            "id": 13,
+            "runId": 14,
+            "results": {
+              "distribution": {"1": 0, "2": 1, "3": 0, "4": 2, "5": 3, "6": 2, "total": 8}
+            }
+          }
+        ]
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 2,
+      "totalPages": 1,
+      "hasNext": false,
+      "hasPrev": false
+    }
+  }
+}
+```
+
+#### DELETE /api/v1/results/direct/runs/:runId (NEW!)
+Delete a prediction run and automatically recalculate sample summary.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "success": true,
+    "message": "Run deleted and sample summary recalculated",
+    "sampleNo": "TEST006"
+  }
+}
+```
+
+**Features:**
+- Deletes run data (prediction_run, well_predictions, row_counts, inference_results)
+- Automatically recalculates sample summary from remaining runs
+- Updates distribution, total runs, and last run information
+- Deletes sample summary if no runs remain
+
 ### WebSocket Endpoints
 
 #### WebSocket /api/v1/results/ws

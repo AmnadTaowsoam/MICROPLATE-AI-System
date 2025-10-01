@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
-import { MdDarkMode, MdLightMode, MdPalette, MdSecurity, MdNotifications, MdLanguage, MdStorage, MdBackup, MdDelete, MdDownload, MdUpload, MdRefresh, MdSave, MdSettings, MdVolumeUp, MdVolumeOff, MdEmail, MdLock, MdVisibility, MdVisibilityOff } from 'react-icons/md'
+import { MdDarkMode, MdLightMode, MdPalette, MdSecurity, MdNotifications, MdStorage, MdBackup, MdDelete, MdDownload, MdSave, MdSettings, MdLock, MdVisibility, MdVisibilityOff } from 'react-icons/md'
 import { useTheme } from '../contexts/ThemeContext'
 
 interface SettingsState {
@@ -61,14 +61,14 @@ export default function SettingsPage() {
     }))
   }
 
-  const handlePrivacyChange = (key: keyof SettingsState['privacy'], value: any) => {
+  const handlePrivacyChange = (key: keyof SettingsState['privacy'], value: boolean | string) => {
     setSettings(prev => ({
       ...prev,
       privacy: { ...prev.privacy, [key]: value }
     }))
   }
 
-  const handleDataChange = (key: keyof SettingsState['data'], value: any) => {
+  const handleDataChange = (key: keyof SettingsState['data'], value: boolean | number | string) => {
     setSettings(prev => ({
       ...prev,
       data: { ...prev.data, [key]: value }
@@ -111,8 +111,9 @@ export default function SettingsPage() {
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error?.message || 'Failed to change password' })
+    } catch (error: unknown) {
+      const errorObj = error as { message?: string };
+      setMessage({ type: 'error', text: errorObj?.message || 'Failed to change password' })
     } finally {
       setLoading(false)
     }

@@ -1,8 +1,7 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState } from 'react'
 import Card from '../ui/Card'
 import Button from '../ui/Button'
 import { FolderOpenIcon, CameraIcon, ArrowPathIcon, PlayCircleIcon } from '@heroicons/react/24/outline'
-import { imageService } from '../../services/image.service'
 import { useCapture } from '../../hooks/useCapture'
 import CameraStatus from './CameraStatus'
 
@@ -44,12 +43,10 @@ export default function ImageUpload({
   const {
     isCapturing,
     captureStatus,
-    capturedImageUrl,
     error: captureError,
     isConnected: isServiceConnected,
     captureImage,
     clearError,
-    resetCapture,
     checkConnection
   } = useCapture({
     onSuccess: (response) => {
@@ -111,7 +108,7 @@ export default function ImageUpload({
       <div className="bg-gray-50 dark:bg-gray-700 flex items-center justify-center" style={{ height: '640px' }}>
         {annotatedImageUrl || preview ? (
           <img 
-            src={annotatedImageUrl || preview} 
+            src={annotatedImageUrl || preview || undefined} 
             alt={annotatedImageUrl ? "Annotated Result" : "Original Image"} 
             className="w-full h-full object-contain"
             onLoad={() => {

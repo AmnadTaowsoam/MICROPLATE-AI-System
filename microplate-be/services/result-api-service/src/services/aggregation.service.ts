@@ -24,8 +24,26 @@ export class AggregationServiceImpl implements AggregationService {
         return;
       }
 
+      // Debug: Log inference results for TEST006
+      if (sampleNo === 'TEST006') {
+        logger.info({ sampleNo, inferenceResultsCount: inferenceResults.length }, 'Found inference results for TEST006');
+        inferenceResults.forEach((result, index) => {
+          logger.info({ 
+            sampleNo, 
+            index, 
+            runId: result.runId, 
+            results: result.results 
+          }, `Inference result ${index + 1} for TEST006`);
+        });
+      }
+
       // Calculate aggregated distribution
       const distribution = this.calculateDistribution(inferenceResults);
+
+      // Debug: Log calculated distribution for TEST006
+      if (sampleNo === 'TEST006') {
+        logger.info({ sampleNo, distribution }, 'Calculated distribution for TEST006');
+      }
 
       // Get run statistics
       const runStats = await this.prisma.predictionRun.aggregate({
@@ -86,15 +104,43 @@ export class AggregationServiceImpl implements AggregationService {
   calculateDistribution(inferenceResults: any[]): Record<string, number> {
     const distribution: Record<string, number> = {};
 
+    // Debug: Check if this is for TEST006
+    const isTest006 = inferenceResults.length > 0 && inferenceResults[0].run?.sampleNo === 'TEST006';
+
     for (const result of inferenceResults) {
       const resultData = result.results as any;
       const resultDistribution = resultData?.distribution || {};
       
+      // Debug: Log individual result for TEST006
+      if (isTest006) {
+        logger.info({ 
+          runId: result.runId, 
+          resultDistribution 
+        }, 'Processing inference result for TEST006');
+      }
+      
       for (const [key, value] of Object.entries(resultDistribution)) {
         if (typeof value === 'number') {
-          distribution[key] = (distribution[key] || 0) + value;
+          const oldValue = distribution[key] || 0;
+          distribution[key] = oldValue + value;
+          
+          // Debug: Log calculation for TEST006
+          if (isTest006) {
+            logger.info({ 
+              runId: result.runId,
+              key, 
+              oldValue, 
+              value, 
+              newValue: distribution[key] 
+            }, `Distribution calculation for TEST006: ${key} = ${oldValue} + ${value} = ${distribution[key]}`);
+          }
         }
       }
+    }
+
+    // Debug: Log final distribution for TEST006
+    if (isTest006) {
+      logger.info({ distribution }, 'Final calculated distribution for TEST006');
     }
 
     return distribution;

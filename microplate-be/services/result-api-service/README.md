@@ -38,6 +38,14 @@ The Result API Service provides data aggregation, querying, and real-time update
 
 - `GET /api/v1/results/runs/:runId` - Get detailed run information
 
+### Direct Database Access (Optimized)
+
+- `GET /api/v1/results/direct/samples` - Get all samples directly from database
+- `GET /api/v1/results/direct/samples/:sampleNo/summary` - Get sample summary directly
+- `GET /api/v1/results/direct/samples/:sampleNo/runs` - Get sample runs with full inference results
+- `GET /api/v1/results/direct/runs/:runId` - Get run details directly
+- `DELETE /api/v1/results/direct/runs/:runId` - **Delete run and auto-recalculate sample summary**
+
 ### Statistics
 
 - `GET /api/v1/results/statistics/overview` - Get system-wide statistics

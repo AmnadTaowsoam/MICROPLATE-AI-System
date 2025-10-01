@@ -41,7 +41,7 @@ export default function NotificationsPage() {
 
   const handleClearAll = () => {
     if (window.confirm('Are you sure you want to clear all notifications?')) {
-      notificationService.clearAllNotifications();
+      notificationService.clearNotifications();
     }
   };
 
@@ -226,7 +226,6 @@ export default function NotificationsPage() {
                     {!notification.read && (
                       <Button
                         variant="ghost"
-                        size="sm"
                         onClick={() => handleMarkAsRead(notification.id)}
                         className="text-xs"
                       >
@@ -235,7 +234,6 @@ export default function NotificationsPage() {
                     )}
                     <Button
                       variant="ghost"
-                      size="sm"
                       onClick={() => handleDelete(notification.id)}
                       className="text-red-600 hover:text-red-700 text-xs"
                     >

@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import type { LogEntry } from '../components/capture/LogsPanel'
+// Define LogEntry type locally since it's not exported from LogsPanel
+interface LogEntry {
+  id: string;
+  level: 'info' | 'warning' | 'error' | 'success';
+  message: string;
+  details?: string;
+  timestamp: string;
+}
 
 export function useWebSocketLogs() {
   const [logs, setLogs] = useState<LogEntry[]>([])
