@@ -9,7 +9,8 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["auth"]
+  // Put the service-owned schema first so _prisma_migrations lives here
+  schemas  = ["auth", "public"]
 }
 
 // =========================

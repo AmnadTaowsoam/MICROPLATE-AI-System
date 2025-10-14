@@ -39,5 +39,5 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 6405
-# ✅ รัน Express อันเดียว (ไม่ fallback ไปไฟล์เก่าอีก)
+# Read-only over prediction_db + labware_interface, no migrations here
 CMD ["node","dist/server.js"]

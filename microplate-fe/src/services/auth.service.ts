@@ -1,4 +1,4 @@
-import { authApi, imageApi, visionApi, resultsApi, labwareApi, predictionApi } from './api'
+import { authApi, imageApi, visionApi, resultsApi, labwareApi, predictionApi, captureApi } from './api'
 
 export type RegisterRequest = {
   email: string
@@ -133,6 +133,8 @@ export const authService = {
     labwareApi.setAccessToken(token)
     console.log('AuthService: Setting token for predictionApi...')
     predictionApi.setAccessToken(token)
+    console.log('AuthService: Setting token for captureApi...')
+    captureApi.setAccessToken(token)
     console.log('AuthService: All services token set complete')
   },
   
@@ -144,6 +146,7 @@ export const authService = {
     resultsApi.setAccessToken('')
     labwareApi.setAccessToken('')
     predictionApi.setAccessToken('')
+    captureApi.setAccessToken('')
   },
   
   // Check if token is valid (not expired)

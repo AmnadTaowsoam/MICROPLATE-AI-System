@@ -1,5 +1,6 @@
 import ImageUpload from './ImageUpload';
 import Card from '../ui/Card';
+import LiveStream from './LiveStream';
 
 interface ImageCaptureProps {
   selectedFile: File | null;
@@ -44,11 +45,11 @@ export default function ImageCapture({
             {selectedFile || capturedImageUrl || annotatedImageUrl ? (
               <div className="text-center">
                 <img 
-                  src={annotatedImageUrl || capturedImageUrl || URL.createObjectURL(selectedFile!)} 
+                  src={(annotatedImageUrl || capturedImageUrl || (selectedFile ? URL.createObjectURL(selectedFile) : ''))}
                   alt={annotatedImageUrl ? "Annotated Result" : "Original Image"} 
                   className="max-h-96 max-w-full object-contain rounded-lg"
                   onLoad={() => {
-                    const currentSrc = annotatedImageUrl || capturedImageUrl || URL.createObjectURL(selectedFile!);
+                    const currentSrc = annotatedImageUrl || capturedImageUrl || (selectedFile ? URL.createObjectURL(selectedFile) : '');
                     console.log('Image loaded successfully:', currentSrc);
                     console.log('Is annotated image?', !!annotatedImageUrl);
                   }}
@@ -69,9 +70,10 @@ export default function ImageCapture({
                 )}
               </div>
             ) : (
-              <div className="text-center text-gray-500 dark:text-gray-400">
-                <p className="text-lg">No image selected</p>
-                <p className="text-sm mt-2">Upload or capture an image to enable prediction</p>
+              <div className="w-full h-full">
+                <div className="w-full aspect-[16/9] bg-black/80 rounded-md overflow-hidden">
+                  <LiveStream className="w-full h-full" />
+                </div>
               </div>
             )}
           </div>

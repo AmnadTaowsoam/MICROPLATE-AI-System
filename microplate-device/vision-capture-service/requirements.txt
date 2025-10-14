@@ -30,3 +30,7 @@ httpx==0.25.2
 
 # Production
 gunicorn==21.2.0
+
+pypylon==1.11.1
+opencv-python==4.8.1.78
+python-dotenv==1.0.1

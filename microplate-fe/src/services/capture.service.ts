@@ -1,4 +1,4 @@
-import { visionApi } from './api';
+import { captureApi } from './api';
 
 // Define ApiResponse type locally since it's not exported from api module
 interface ApiResponse<T> {
@@ -31,7 +31,7 @@ export interface CaptureStatus {
 }
 
 class CaptureService {
-  private baseUrl = import.meta.env.VITE_VISION_CAPTURE_SERVICE_URL || 'http://localhost:6406';
+  private baseUrl = import.meta.env.VITE_VISION_CAPTURE_SERVICE_URL || 'http://localhost:6407';
 
   /**
    * ส่งคำสั่งถ่ายภาพไปยัง vision-capture-service
@@ -39,14 +39,38 @@ class CaptureService {
   async captureImage(request: CaptureRequest): Promise<ApiResponse<CaptureResponse>> {
     try {
       console.log('🎥 CaptureService: Sending capture request:', request);
-      
-      const response = await visionApi.post<CaptureResponse>(`${this.baseUrl}/api/v1/capture/image`, request);
-      
-      console.log('📸 CaptureService: Capture response:', response);
-      return {
+      // Backend expects snake_case keys
+      const payload = {
+        sample_no: request.sampleNo,
+        submission_no: request.submissionNo,
+        description: request.description ?? 'Captured image'
+      } as const;
+
+      const resp = await captureApi.post<any>(`/api/v1/capture/image`, payload);
+
+      // Map backend response to FE-friendly shape
+      const filename: string | undefined = resp?.data?.image_data?.filename;
+      const capturedAtIso: string | undefined = resp?.data?.image_data?.captured_at;
+      const sampleNo: string | undefined = resp?.data?.sample_no;
+      const submissionNo: string | undefined = resp?.data?.submission_no;
+
+      if (!filename) {
+        throw new Error('Missing filename in capture response');
+      }
+
+      const imageUrl = `${this.baseUrl}/api/v1/capture/image/${filename}`;
+      const mapped: CaptureResponse = {
         success: true,
-        data: response
+        imageUrl,
+        imagePath: filename,
+        timestamp: capturedAtIso ? Date.parse(capturedAtIso) : Date.now(),
+        sampleNo: sampleNo || request.sampleNo,
+        submissionNo: submissionNo || request.submissionNo,
+        description: request.description
       };
+
+      console.log('📸 CaptureService: Mapped capture response:', mapped);
+      return { success: true, data: mapped };
     } catch (error) {
       console.error('❌ CaptureService: Failed to capture image:', error);
       throw error;
@@ -58,7 +82,7 @@ class CaptureService {
    */
   async getCaptureStatus(): Promise<ApiResponse<CaptureStatus>> {
     try {
-      const response = await visionApi.get<CaptureStatus>(`${this.baseUrl}/api/v1/capture/status`);
+      const response = await captureApi.get<CaptureStatus>(`/api/v1/capture/status`);
       return {
         success: true,
         data: response
@@ -97,8 +121,8 @@ class CaptureService {
    */
   async checkConnection(): Promise<boolean> {
     try {
-      const response = await visionApi.get(`${this.baseUrl}/api/v1/capture/health`) as ApiResponse<unknown>;
-      return response.success;
+      const response = await captureApi.get(`/api/v1/capture/health`) as ApiResponse<unknown>;
+      return (response as any)?.success ?? true;
     } catch (error) {
       console.error('❌ CaptureService: Connection check failed:', error);
       return false;
@@ -111,7 +135,7 @@ class CaptureService {
   connectWebSocket(onStatusUpdate: (status: CaptureStatus) => void): WebSocket | null {
     try {
       const wsUrl = this.baseUrl.replace('http', 'ws');
-      const ws = new WebSocket(`${wsUrl}/api/v1/capture/ws`);
+      const ws = new WebSocket(`${wsUrl}/ws/capture`);
       
       ws.onopen = () => {
         console.log('🔌 CaptureService: WebSocket connected');

@@ -5,7 +5,8 @@ Capture API routes
 import logging
 from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, status, BackgroundTasks
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from pathlib import Path
 
 from app.core.auth import verify_token
 from app.models.schemas import (
@@ -77,6 +78,35 @@ async def health_check(
             }
         )
 
+
+@router.get("/image/{filename}")
+async def get_captured_image(
+    filename: str,
+    camera_service: CameraService = Depends(get_camera_service)
+):
+    """Serve a captured image file by filename from the captures directory."""
+    try:
+        capture_dir = camera_service.capture_dir if hasattr(camera_service, 'capture_dir') else Path("captures")
+        file_path = Path(capture_dir) / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
+        # Serve inline to allow <img src> to render in-browser (not as download)
+        return FileResponse(
+            path=str(file_path),
+            media_type="image/jpeg",
+            filename=filename,
+            headers={
+                "Content-Disposition": f"inline; filename=\"{filename}\"",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to serve image {filename}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to serve image")
 
 @router.get("/status", response_model=CameraStatus)
 async def get_camera_status(

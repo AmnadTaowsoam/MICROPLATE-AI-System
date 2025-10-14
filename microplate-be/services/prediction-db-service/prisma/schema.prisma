@@ -9,6 +9,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Service-owned schema first to host _prisma_migrations
   schemas  = ["prediction_result", "public"]
 }
 

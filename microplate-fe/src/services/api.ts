@@ -80,6 +80,7 @@ export const visionApi = new ApiService(import.meta.env.VITE_VISION_SERVICE_URL 
 export const resultsApi = new ApiService(import.meta.env.VITE_RESULTS_SERVICE_URL || 'http://localhost:6404')
 export const labwareApi = new ApiService(import.meta.env.VITE_LABWARE_SERVICE_URL || 'http://localhost:6405')
 export const predictionApi = new ApiService(import.meta.env.VITE_PREDICTION_SERVICE_URL || 'http://localhost:6406')
+export const captureApi = new ApiService(import.meta.env.VITE_VISION_CAPTURE_SERVICE_URL || 'http://localhost:6407')
 
 // Default API (for backward compatibility)
 export const api = authApi

@@ -15,6 +15,11 @@ import numpy as np
 from PIL import Image
 
 from app.core.config import settings
+try:
+    if settings.CAMERA_BACKEND == "pylon":
+        from pypylon import pylon, genicam
+except Exception:
+    pass
 from app.models.schemas import CameraStatus, ImageData, CaptureProgress
 
 logger = logging.getLogger(__name__)
@@ -33,6 +38,7 @@ class CameraService:
         self.fps = settings.CAMERA_FPS
         self.last_capture_time: Optional[datetime] = None
         self.capture_dir = Path(settings.CAPTURE_DIR)
+        self.is_streaming = False
         self._capture_stats = {
             "total_captures": 0,
             "successful_captures": 0,
@@ -51,29 +57,79 @@ class CameraService:
             bool: True if initialization successful
         """
         try:
+            logger.info(f"Initializing camera backend: {getattr(settings, 'CAMERA_BACKEND', 'opencv')}")
+
+            if getattr(settings, 'CAMERA_BACKEND', 'opencv') == 'pylon':
+                # Initialize Basler via pypylon
+                tl_factory = pylon.TlFactory.GetInstance()
+                devices = tl_factory.EnumerateDevices()
+                cam_info = None
+                serial = getattr(settings, 'BASLER_SERIAL', None)
+                ip = getattr(settings, 'BASLER_IP', None)
+                if serial:
+                    cam_info = next((d for d in devices if d.GetSerialNumber() == serial), None)
+                if cam_info is None and ip:
+                    cam_info = next((d for d in devices if d.GetIpAddress() == ip), None)
+                if cam_info is None:
+                    logger.error("No Basler camera matched BASLER_SERIAL or BASLER_IP")
+                    return False
+
+                self.camera = pylon.InstantCamera(tl_factory.CreateDevice(cam_info))
+                self.camera.Open()
+
+                nodemap = self.camera.GetNodeMap()
+                # Optional parameters
+                try:
+                    packet_size = getattr(settings, 'BASLER_PACKET_SIZE', None)
+                    if packet_size:
+                        packet = genicam.CIntegerPtr(nodemap.GetNode("GevSCPSPacketSize"))
+                        if genicam.IsWritable(packet):
+                            packet.SetValue(int(packet_size))
+                except Exception:
+                    pass
+
+                try:
+                    exposure_us = getattr(settings, 'BASLER_EXPOSURE_US', None)
+                    if exposure_us:
+                        exposure = genicam.CFloatPtr(nodemap.GetNode("ExposureTime"))
+                        if genicam.IsWritable(exposure):
+                            exposure.SetValue(float(exposure_us))
+                except Exception:
+                    pass
+
+                try:
+                    gain_val = getattr(settings, 'BASLER_GAIN', None)
+                    if gain_val is not None:
+                        gain = genicam.CFloatPtr(nodemap.GetNode("Gain"))
+                        if genicam.IsWritable(gain):
+                            gain.SetValue(float(gain_val))
+                except Exception:
+                    pass
+
+                self.is_initialized = True
+                logger.info("Basler camera initialized via pylon")
+                return True
+
+            # Default: OpenCV backend
             logger.info(f"Initializing camera with device ID: {self.device_id}")
-            
-            # Initialize OpenCV camera
+
             self.camera = cv2.VideoCapture(self.device_id or 0)
-            
             if not self.camera.isOpened():
                 logger.error("Failed to open camera")
                 return False
-            
-            # Set camera properties
+
             self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
             self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
             self.camera.set(cv2.CAP_PROP_FPS, self.fps)
-            
-            # Verify camera settings
+
             actual_width = int(self.camera.get(cv2.CAP_PROP_FRAME_WIDTH))
             actual_height = int(self.camera.get(cv2.CAP_PROP_FRAME_HEIGHT))
             actual_fps = int(self.camera.get(cv2.CAP_PROP_FPS))
-            
+
             logger.info(f"Camera initialized successfully:")
             logger.info(f"  Resolution: {actual_width}x{actual_height}")
             logger.info(f"  FPS: {actual_fps}")
-            
+
             self.is_initialized = True
             return True
             
@@ -155,11 +211,43 @@ class CameraService:
             logger.info(f"Starting image capture for sample: {sample_no}")
             
             # Capture frame
-            ret, frame = self.camera.read()
-            
-            if not ret:
-                self.is_capturing = False
-                return False, None, "Failed to capture frame from camera"
+            if getattr(settings, 'CAMERA_BACKEND', 'opencv') == 'pylon':
+                # If continuous grabbing is running (e.g., MJPEG stream), retrieve one frame
+                try:
+                    if self.camera.IsGrabbing():
+                        grab = self.camera.RetrieveResult(max(1, int(settings.CAPTURE_TIMEOUT)) * 1000, pylon.TimeoutHandling_Return)
+                        if grab is None or not grab.GrabSucceeded():
+                            self.is_capturing = False
+                            return False, None, "Failed to retrieve image from Basler camera while streaming"
+                        try:
+                            converter = pylon.ImageFormatConverter()
+                            converter.OutputPixelFormat = pylon.PixelType_BGR8packed
+                            converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+                            img = converter.Convert(grab)
+                            frame = img.GetArray()
+                        finally:
+                            grab.Release()
+                    else:
+                        grab = self.camera.GrabOne(max(1, int(settings.CAPTURE_TIMEOUT)) * 1000)
+                        if not grab.GrabSucceeded():
+                            self.is_capturing = False
+                            return False, None, "Failed to grab image from Basler camera"
+                        try:
+                            converter = pylon.ImageFormatConverter()
+                            converter.OutputPixelFormat = pylon.PixelType_BGR8packed
+                            converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+                            img = converter.Convert(grab)
+                            frame = img.GetArray()
+                        finally:
+                            grab.Release()
+                except Exception as e:
+                    self.is_capturing = False
+                    return False, None, f"Basler capture error: {str(e)}"
+            else:
+                ret, frame = self.camera.read()
+                if not ret or frame is None:
+                    self.is_capturing = False
+                    return False, None, "Failed to capture frame from camera"
             
             # Generate filename
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -227,11 +315,19 @@ class CameraService:
             if not self.is_initialized or self.camera is None:
                 return False, "Camera not initialized"
             
-            # Try to read a frame
-            ret, frame = self.camera.read()
-            
-            if not ret:
-                return False, "Failed to read frame from camera"
+            # Try to get a frame
+            if getattr(settings, 'CAMERA_BACKEND', 'opencv') == 'pylon':
+                grab = self.camera.GrabOne(3000)
+                if not grab.GrabSucceeded():
+                    return False, "Failed to grab frame from Basler camera"
+                converter = pylon.ImageFormatConverter()
+                converter.OutputPixelFormat = pylon.PixelType_BGR8packed
+                converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+                frame = converter.Convert(grab).GetArray()
+            else:
+                ret, frame = self.camera.read()
+                if not ret:
+                    return False, "Failed to read frame from camera"
             
             # Check if frame is valid
             if frame is None or frame.size == 0:
@@ -306,11 +402,111 @@ class CameraService:
             
             self.is_initialized = False
             self.is_capturing = False
+            self.is_streaming = False
             
             logger.info("Camera service cleaned up")
             
         except Exception as e:
             logger.error(f"Camera cleanup error: {e}")
+
+    def mjpeg_frame_iterator(self, quality: int = None, width: int = None, height: int = None, max_fps: int = None):
+        """Yield encoded JPEG frames for MJPEG streaming with optional resize and fps limit.
+        This method blocks and should be used within a streaming response.
+        """
+        if not self.is_initialized or self.camera is None:
+            return
+
+        jpeg_quality = int(quality or settings.IMAGE_QUALITY or 80)
+        backend = getattr(settings, 'CAMERA_BACKEND', 'opencv')
+        self.is_streaming = True
+        min_interval = None
+        if max_fps and max_fps > 0:
+            min_interval = 1.0 / float(max_fps)
+        last_sent = 0.0
+
+        try:
+            if backend == 'pylon':
+                # Ensure grabbing is running
+                try:
+                    if not self.camera.IsGrabbing():
+                        self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
+                except Exception as e:
+                    logger.error(f"Failed to start grabbing: {e}")
+                    return
+
+                converter = pylon.ImageFormatConverter()
+                converter.OutputPixelFormat = pylon.PixelType_BGR8packed
+                converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+
+                while self.is_streaming:
+                    try:
+                        grab = self.camera.RetrieveResult(1000, pylon.TimeoutHandling_Return)
+                        if grab is None:
+                            continue
+                        try:
+                            if grab.GrabSucceeded():
+                                img = converter.Convert(grab)
+                                frame = img.GetArray()
+                                # Optional resize
+                                if width or height:
+                                    h, w = frame.shape[:2]
+                                    target_w, target_h = w, h
+                                    if width and height:
+                                        target_w, target_h = int(width), int(height)
+                                    elif width and not height:
+                                        scale = float(width) / float(w)
+                                        target_w, target_h = int(width), int(h * scale)
+                                    elif height and not width:
+                                        scale = float(height) / float(h)
+                                        target_w, target_h = int(w * scale), int(height)
+                                    frame = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_AREA)
+
+                                # FPS limiting by dropping frames
+                                now = time.perf_counter()
+                                if min_interval is not None and (now - last_sent) < min_interval:
+                                    continue
+                                ok, buf = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality])
+                                if ok:
+                                    last_sent = time.perf_counter()
+                                    yield buf.tobytes()
+                        finally:
+                            grab.Release()
+                    except Exception:
+                        continue
+            else:
+                # OpenCV backend
+                while self.is_streaming:
+                    ret, frame = self.camera.read()
+                    if not ret or frame is None:
+                        time.sleep(0.001)
+                        continue
+                    # Optional resize
+                    if width or height:
+                        h, w = frame.shape[:2]
+                        target_w, target_h = w, h
+                        if width and height:
+                            target_w, target_h = int(width), int(height)
+                        elif width and not height:
+                            scale = float(width) / float(w)
+                            target_w, target_h = int(width), int(h * scale)
+                        elif height and not width:
+                            scale = float(height) / float(h)
+                            target_w, target_h = int(w * scale), int(height)
+                        frame = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_AREA)
+
+                    now = time.perf_counter()
+                    if min_interval is not None and (now - last_sent) < min_interval:
+                        time.sleep(min_interval - (now - last_sent))
+                    ok, buf = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality])
+                    if ok:
+                        last_sent = time.perf_counter()
+                        yield buf.tobytes()
+        finally:
+            self.is_streaming = False
+
+    def stop_streaming(self):
+        """Signal to stop streaming frames."""
+        self.is_streaming = False
     
     def get_device_info(self) -> Dict[str, Any]:
         """Get camera device information"""

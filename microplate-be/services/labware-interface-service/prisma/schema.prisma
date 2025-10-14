@@ -9,6 +9,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Put labware_interface first (owns its own schema), also read prediction_result
   schemas  = ["labware_interface", "prediction_result", "public"]
 }
 

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import client from 'prom-client';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -41,57 +42,33 @@ router.get('/readyz', async (_req, res) => {
   }
 });
 
-// Metrics endpoint
+// Metrics (Prometheus format)
+const register = new client.Registry();
+client.collectDefaultMetrics({ register });
+
+// Custom metrics
+const httpRequestCounter = new client.Counter({
+  name: 'auth_http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status'] as const,
+});
+register.registerMetric(httpRequestCounter);
+
+// Lightweight middleware to count requests (optional to add in server.ts globally)
+router.use((req, res, next) => {
+  res.on('finish', () => {
+    httpRequestCounter.inc({ method: req.method, route: req.path, status: String(res.statusCode) });
+  });
+  next();
+});
+
 router.get('/metrics', async (_req, res) => {
   try {
-    // Get basic metrics
-    const [
-      totalUsers,
-      activeUsers,
-      totalRoles,
-      totalRefreshTokens,
-      expiredRefreshTokens
-    ] = await Promise.all([
-      prisma.user.count(),
-      prisma.user.count({ where: { isActive: true } }),
-      prisma.role.count(),
-      prisma.refreshToken.count(),
-      prisma.refreshToken.count({
-        where: {
-          OR: [
-            { expiresAt: { lt: new Date() } },
-            { revokedAt: { not: null } }
-          ]
-        }
-      })
-    ]);
-
-    const metrics = {
-      timestamp: new Date().toISOString(),
-      service: 'auth-service',
-      metrics: {
-        users: {
-          total: totalUsers,
-          active: activeUsers,
-          inactive: totalUsers - activeUsers
-        },
-        roles: {
-          total: totalRoles
-        },
-        tokens: {
-          total: totalRefreshTokens,
-          expired: expiredRefreshTokens,
-          active: totalRefreshTokens - expiredRefreshTokens
-        }
-      }
-    };
-
-    res.json(metrics);
+    res.set('Content-Type', register.contentType);
+    const metrics = await register.metrics();
+    res.send(metrics);
   } catch (error) {
-    res.status(500).json({
-      error: 'Failed to retrieve metrics',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
+    res.status(500).send('# Metrics collection error');
   }
 });
 

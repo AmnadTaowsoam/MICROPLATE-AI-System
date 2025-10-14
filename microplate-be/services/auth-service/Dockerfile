@@ -9,7 +9,7 @@ RUN apk add --no-cache openssl libc6-compat ca-certificates
 
 # 1) ติดตั้ง deps (รวม dev) ด้วย yarn
 COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
+RUN yarn install --frozen-lockfile || yarn install
 
 ###########
 # BUILDER #
@@ -46,7 +46,8 @@ RUN apk add --no-cache openssl libc6-compat ca-certificates
 # 6) ติดตั้งเฉพาะ prod deps ใน runtime
 COPY package.json yarn.lock ./
 COPY prisma ./prisma
-RUN yarn install --frozen-lockfile --production && yarn cache clean
+RUN yarn install --production --frozen-lockfile || yarn install --production \
+  && yarn cache clean
 
 # 7) คัดลอก Prisma client ที่ generate แล้วจาก builder เข้ามา (สำคัญ: ทำหลัง install)
 #    ตรงนี้จะเอาไฟล์ใน node_modules/.prisma (รวม binary engines) มาไว้ที่ runtime
@@ -68,6 +69,6 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:6401/healthz', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
 # 9) จุดเข้าใช้งาน — ตรวจว่าออกเป็น dist/server.js หรือ dist/src/server.js
-CMD ["node", "dist/server.js"]
+CMD ["sh","-c","npx prisma migrate deploy --schema=./prisma/schema.prisma && node dist/server.js"]
 # ถ้า build ได้เป็น dist/src/server.js ให้เปลี่ยนเป็น:
 # CMD ["node", "dist/src/server.js"]
