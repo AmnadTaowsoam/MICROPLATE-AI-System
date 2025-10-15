@@ -156,3 +156,25 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  # pgAdmin (Postgres GUI)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: microplate-pgadmin
+    restart: unless-stopped
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-admin@local.test}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-admin123}
+      - TZ=Asia/Bangkok
+    ports:
+      - "5050:80"
+    networks:
+      - microplate-network
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:80/misc/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s

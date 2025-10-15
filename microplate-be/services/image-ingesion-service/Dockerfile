@@ -37,7 +37,8 @@ RUN yarn install --frozen-lockfile --production && yarn cache clean
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/prisma ./prisma
 
 EXPOSE 6402
-# ✅ รัน Express อันเดียว (ไม่ fallback ไปไฟล์เก่าอีก)
-CMD ["node","dist/src/server.js"]
+# ✅ รัน migrate deploy แบบถาวรก่อน แล้วค่อยสตาร์ทแอป
+CMD ["sh","-c","npx prisma migrate deploy --schema=./prisma/schema.prisma && node dist/src/server.js"]

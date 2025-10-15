@@ -21,7 +21,7 @@ export interface UseCaptureReturn {
   
   // Connection
   isConnected: boolean;
-  checkConnection: () => Promise<void>;
+  checkConnection: () => Promise<boolean>;
 }
 
 export function useCapture(options: UseCaptureOptions = {}): UseCaptureReturn {
@@ -36,16 +36,19 @@ export function useCapture(options: UseCaptureOptions = {}): UseCaptureReturn {
   const { onSuccess, onError, onStatusChange } = options;
 
   // ตรวจสอบการเชื่อมต่อ
-  const checkConnection = useCallback(async () => {
+  const checkConnection = useCallback(async (): Promise<boolean> => {
     try {
       const connected = await captureService.checkConnection();
       setIsConnected(connected);
       if (!connected) {
         setError('ไม่สามารถเชื่อมต่อกับ Vision Capture Service ได้');
+        return false;
       }
+      return true;
     } catch {
       setIsConnected(false);
       setError('ไม่สามารถเชื่อมต่อกับ Vision Capture Service ได้');
+      return false;
     }
   }, []);
 
@@ -61,9 +64,9 @@ export function useCapture(options: UseCaptureOptions = {}): UseCaptureReturn {
         onStatusChange({ status: 'capturing', message: 'กำลังถ่ายภาพ...' });
       }
 
-      // ตรวจสอบการเชื่อมต่อก่อน
-      await checkConnection();
-      if (!isConnected) {
+      // ตรวจสอบการเชื่อมต่อก่อน (ใช้ค่าจากผลลัพธ์ทันที เลี่ยง race กับ state)
+      const ok = await checkConnection();
+      if (!ok) {
         throw new Error('ไม่สามารถเชื่อมต่อกับ Vision Capture Service ได้');
       }
 

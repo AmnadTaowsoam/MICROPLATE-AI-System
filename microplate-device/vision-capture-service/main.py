@@ -19,16 +19,22 @@ from app.core.auth import verify_token
 from app.api.routes import capture
 from app.api.routes import health
 from app.api.routes import websocket
+from app.api.routes import stream
 from app.services.camera_service import CameraService
 from app.services.status_service import StatusService
 from app.core.websocket_manager import WebSocketManager
+
+# Ensure log directory exists before configuring logging
+log_file = getattr(settings, 'LOG_FILE', 'logs/vision-capture.log')
+log_dir = os.path.dirname(log_file) or '.'
+os.makedirs(log_dir, exist_ok=True)
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/vision-capture.log'),
+        logging.FileHandler(log_file),
         logging.StreamHandler()
     ]
 )
@@ -97,6 +103,7 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(capture.router, prefix="/api/v1/capture", tags=["capture"])
 app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
+app.include_router(stream.router, prefix="/api/v1/stream", tags=["stream"])
 
 
 @app.get("/")
@@ -110,7 +117,8 @@ async def root():
             "health": "/api/v1/capture/health",
             "capture": "/api/v1/capture/image",
             "status": "/api/v1/capture/status",
-            "websocket": "/ws/capture"
+            "websocket": "/ws/capture",
+            "mjpeg": "/api/v1/stream/mjpeg"
         }
     }
 

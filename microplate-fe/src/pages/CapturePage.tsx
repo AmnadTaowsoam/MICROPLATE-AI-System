@@ -6,6 +6,7 @@ import SampleInformation from '../components/capture/SampleInformation';
 import ImageCapture from '../components/capture/ImageCapture';
 import PredictionResults from '../components/capture/PredictionResults';
 import SystemLogs from '../components/capture/SystemLogs';
+// LiveStream is now embedded inside ImageCapture when no image selected
 
 export default function CapturePage() {
   const [sampleNo, setSampleNo] = useState('');
@@ -143,11 +144,8 @@ export default function CapturePage() {
         annotatedImageUrl={annotatedImageUrl}
         onImageSelect={handleImageSelect}
         onCapture={(url) => {
-          setCapturedImageUrl(url);
-          if (sampleNo) {
-            // TODO: Handle captured image upload
-            console.log('Captured image URL:', url);
-          }
+          console.log('onCapture from CapturePage:', url)
+          setCapturedImageUrl(url)
         }}
         onReset={handleReset}
         onRunPrediction={handleRunPrediction}

@@ -4,7 +4,7 @@ Health check API routes
 
 import logging
 from typing import Dict, Any
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 
 from app.services.status_service import StatusService
 
@@ -26,7 +26,7 @@ def get_status_service() -> StatusService:
 
 @router.get("/health")
 async def health_check(
-    status_service: StatusService = get_status_service()
+    status_service: StatusService = Depends(get_status_service)
 ):
     """
     Simple health check endpoint
@@ -47,7 +47,7 @@ async def health_check(
 
 @router.get("/health/detailed")
 async def detailed_health_check(
-    status_service: StatusService = get_status_service()
+    status_service: StatusService = Depends(get_status_service)
 ):
     """
     Detailed health check endpoint
@@ -69,7 +69,7 @@ async def detailed_health_check(
 
 @router.get("/health/system")
 async def system_health_check(
-    status_service: StatusService = get_status_service()
+    status_service: StatusService = Depends(get_status_service)
 ):
     """
     System health check endpoint

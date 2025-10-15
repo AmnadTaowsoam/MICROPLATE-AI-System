@@ -3,7 +3,7 @@
 
 -- Create schemas
 CREATE SCHEMA IF NOT EXISTS auth;
-CREATE SCHEMA IF NOT EXISTS microplates;
+-- CREATE SCHEMA IF NOT EXISTS microplates;
 
 -- Grant permissions
 GRANT USAGE ON SCHEMA auth TO postgres;

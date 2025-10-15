@@ -1,6 +1,5 @@
 # Microplate AI System — Architecture & API Spec (v0.1)
 
-**Owner:** notto
 **Domain:** AI-assisted microplate image capture, analysis, and interfacing to Labware
 **Style:** Microservices (Node.js/TS + Fastify + Prisma + OpenAPI, Python services for vision), PostgreSQL 17, Object Storage (MinIO/S3), React + TS + Tailwind for FE
 **Goal:** Deliver a production-ready blueprint (BE/FE) with schemas, APIs, and flows to implement end‑to‑end capture → predict → aggregate → interface CSV.

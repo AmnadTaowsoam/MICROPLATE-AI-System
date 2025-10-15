@@ -4,12 +4,17 @@ Configuration settings for Vision Capture Service
 
 import os
 from typing import List, Optional
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings"""
-    
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore"
+    )
+
     # Server configuration
     HOST: str = "0.0.0.0"
     PORT: int = 6407
@@ -22,11 +27,12 @@ class Settings(BaseSettings):
         "http://localhost:8080"
     ]
     
-    # JWT Configuration
-    JWT_SECRET: str = "your-jwt-secret-key"
+    # JWT Configuration (should match auth-service access token config)
+    # Defaults aligned with auth-service defaults
+    JWT_SECRET: str = "your-super-secret-access-key"
     JWT_ALGORITHM: str = "HS256"
-    JWT_ISSUER: str = "microplate-auth"
-    JWT_AUDIENCE: str = "microplate-services"
+    JWT_ISSUER: str = "microplate-auth-service"
+    JWT_AUDIENCE: str = "microplate-api"
     
     # Camera configuration
     CAMERA_DEVICE_ID: Optional[int] = None  # None for default camera
@@ -54,11 +60,15 @@ class Settings(BaseSettings):
     # WebSocket settings
     WS_HEARTBEAT_INTERVAL: int = 30  # seconds
     WS_MAX_CONNECTIONS: int = 10
+
+    # Basler Camera Configuration
+    CAMERA_BACKEND: str = "opencv"
+    BASLER_SERIAL: Optional[str]
+    BASLER_IP: Optional[str]
+    BASLER_PACKET_SIZE: Optional[int]
+    BASLER_EXPOSURE_US: Optional[int]
+    BASLER_GAIN: Optional[float]
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-
-
+    
 # Create global settings instance
 settings = Settings()

@@ -51,8 +51,14 @@ export default function ImageUpload({
   } = useCapture({
     onSuccess: (response) => {
       console.log('✅ Capture successful:', response);
-      if (onCaptured) {
-        onCaptured(response.imageUrl);
+      // แสดงผลทันทีในการ์ดด้วย preview และส่งขึ้น parent
+      if (response?.imageUrl) {
+        // เพิ่ม cache-buster เพื่อบังคับโหลดใหม่ในบางเบราว์เซอร์
+        const bustUrl = `${response.imageUrl}${response.imageUrl.includes('?') ? '&' : '?'}t=${Date.now()}`
+        setPreview(bustUrl);
+        if (onCaptured) {
+          onCaptured(bustUrl)
+        }
       }
     },
     onError: (error) => {
@@ -92,6 +98,14 @@ export default function ImageUpload({
       console.log('🎥 Starting capture with data:', captureData);
       
       await captureImage(captureData);
+      // เมื่อ capture สำเร็จ hook จะตั้งค่า capturedImageUrl ให้เอง
+      // เราจะดึงจาก hook แล้วแจ้ง parent เพื่อแสดงทันที
+      setTimeout(() => {
+        if (onCaptured && captureStatus.status === 'success') {
+          // ใช้ล่าสุดจาก hook ถ้ามี
+          // หมายเหตุ: useCapture ไม่ expose url ตรงๆ ในที่นี้ parent จะฟังผ่าน onCaptured จาก capture.service
+        }
+      }, 0);
       
     } catch (err) {
       console.error('❌ Capture failed:', err);

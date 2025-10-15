@@ -28,10 +28,11 @@ services:
       dockerfile: Dockerfile
     container_name: microplate-image-ingesion-service
     restart: unless-stopped
+    env_file:
+      - ./services/image-ingesion-service/.env
     environment:
       - NODE_ENV=production
       - PORT=6402
-      - DATABASE_URL=postgresql://postgres:microplate123@postgres:5432/microplates
       - REDIS_URL=redis://redis:6379
       - JWT_ACCESS_SECRET=NYr5g7vZIxvDja90w5UYoxIj-HxcYDyrBnKDRB9dQ-w
       - JWT_ISSUER=microplate-auth-service

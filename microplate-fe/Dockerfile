@@ -28,12 +28,14 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Copy environment template (will be overridden by docker-compose)
 COPY env.example /usr/share/nginx/html/.env.template
 
-# Create a script to inject environment variables at runtime
+# Create a script to inject environment variables at runtime (only when .env does NOT exist)
 RUN echo '#!/bin/sh' > /docker-entrypoint.d/30-inject-env.sh && \
     echo 'set -e' >> /docker-entrypoint.d/30-inject-env.sh && \
-    echo 'if [ -f /usr/share/nginx/html/.env ]; then' >> /docker-entrypoint.d/30-inject-env.sh && \
+    echo 'TEMPLATE="/usr/share/nginx/html/.env.template"' >> /docker-entrypoint.d/30-inject-env.sh && \
+    echo 'TARGET="/usr/share/nginx/html/.env"' >> /docker-entrypoint.d/30-inject-env.sh && \
+    echo 'if [ ! -f "$TARGET" ] && [ -f "$TEMPLATE" ]; then' >> /docker-entrypoint.d/30-inject-env.sh && \
     echo '  echo "Injecting environment variables..."' >> /docker-entrypoint.d/30-inject-env.sh && \
-    echo '  envsubst < /usr/share/nginx/html/.env.template > /usr/share/nginx/html/.env' >> /docker-entrypoint.d/30-inject-env.sh && \
+    echo '  envsubst < "$TEMPLATE" > "$TARGET" || echo "Skip writing .env (possibly read-only)"' >> /docker-entrypoint.d/30-inject-env.sh && \
     echo 'fi' >> /docker-entrypoint.d/30-inject-env.sh && \
     chmod +x /docker-entrypoint.d/30-inject-env.sh
 
