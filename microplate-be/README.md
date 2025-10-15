@@ -1,938 +1,1184 @@
-# Microplate AI Backend Services
+# Microplate Backend Services
 
-This repository contains all backend microservices for the Microplate AI System.
+> Backend microservices and infrastructure for the Microplate AI System
+
+---
+
+## 📋 Table of Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Services](#services)
+- [Infrastructure](#infrastructure)
+- [Quick Start](#quick-start)
+- [Development](#development)
+- [Database Management](#database-management)
+- [API Documentation](#api-documentation)
+- [Deployment](#deployment)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## 🎯 Overview
+
+This directory contains all backend services and infrastructure components for the Microplate AI System. The backend is built using a **microservices architecture** with Node.js/TypeScript for business services and Python for AI/ML services.
+
+### Key Components
+
+- **6 Backend Services** - Independent, scalable microservices
+- **Infrastructure Services** - PostgreSQL, MinIO, Redis, Prometheus, Grafana
+- **Docker Compose** - Orchestration for development and testing
+- **Shared Libraries** - Common middleware and utilities
+
+---
 
 ## 🏗️ Architecture
 
-The system is built using a microservices architecture with the following services:
+```
+microplate-be/
+├── services/                    # Microservices
+│   ├── auth-service/           # Authentication & Authorization (Port 6401)
+│   ├── image-ingestion-service/# Image Storage & Management (Port 6402)
+│   ├── labware-interface-service/ # CSV Generation (Port 6403)
+│   ├── result-api-service/     # Result APIs & Aggregation (Port 6404)
+│   ├── vision-inference-service/ # AI Model Inference (Port 6405)
+│   └── prediction-db-service/  # Database Operations (Port 6406)
+├── infra/                      # Infrastructure configuration
+│   ├── postgres/               # PostgreSQL setup
+│   ├── minio/                  # MinIO object storage
+│   ├── redis/                  # Redis cache
+│   ├── prometheus/             # Metrics collection
+│   └── grafana/                # Monitoring dashboards
+├── shared/                     # Shared libraries
+│   ├── auth-middleware.ts      # JWT authentication
+│   └── index.ts                # Common utilities
+├── docker-compose.infra.yml    # Infrastructure services
+├── docker-compose.apps.yml     # Application services
+└── env.example                 # Environment variables template
+```
 
-- **API Gateway** (Port 6400) - Single entry point for all services
-- **Auth Service** (Port 6401) - Authentication and authorization
-- **Image Ingestion Service** (Port 6402) - Image storage and management
-- **Labware Interface Service** (Port 6403) - CSV generation and delivery
-- **Result API Service** (Port 6404) - Data aggregation and APIs
-- **Vision Inference Service** (Port 6405) - AI model inference
-- **Prediction DB Service** (Port 6406) - Database operations for prediction data
+---
+
+## 🔧 Services
+
+### Service Matrix
+
+| Service | Port | Technology | Responsibility | Documentation |
+|---------|------|------------|----------------|---------------|
+| **Auth Service** | 6401 | Node.js + Fastify + Prisma | User authentication, JWT tokens, RBAC | [Docs](../docs/03-Auth-Service.md) |
+| **Image Ingestion** | 6402 | Node.js + Fastify + Prisma | Image storage, signed URLs, MinIO integration | [Docs](../docs/04-Image-Ingestion-Service.md) |
+| **Labware Interface** | 6403 | Node.js + Fastify + Prisma | CSV generation, file delivery | [Docs](../docs/07-Labware-Interface-Service.md) |
+| **Result API** | 6404 | Node.js + Fastify + Prisma | Data aggregation, WebSocket, APIs | [Docs](../docs/06-Result-API-Service.md) |
+| **Vision Inference** | 6405 | Python + FastAPI | AI inference, YOLO detection | [Docs](../docs/05-Vision-Inference-Service.md) |
+| **Prediction DB** | 6406 | Node.js + Fastify + Prisma | Database CRUD, data validation | [Docs](../docs/13-Prediction-DB-Service.md) |
+
+### Service Dependencies
+
+```mermaid
+graph LR
+    AUTH[Auth Service<br/>6401]
+    IMG[Image Ingestion<br/>6402]
+    LAB[Labware Interface<br/>6403]
+    RES[Result API<br/>6404]
+    INF[Vision Inference<br/>6405]
+    PDB[Prediction DB<br/>6406]
+    
+    PG[(PostgreSQL)]
+    MINIO[(MinIO)]
+    REDIS[(Redis)]
+    
+    INF -->|Store Results| PDB
+    INF -->|Store Images| IMG
+    RES -->|Query Data| PDB
+    LAB -->|Query Results| RES
+    
+    AUTH --> PG
+    IMG --> PG
+    IMG --> MINIO
+    LAB --> PG
+    RES --> PG
+    RES --> REDIS
+    PDB --> PG
+    INF --> PG
+```
+
+---
+
+## 🏢 Infrastructure
+
+### Infrastructure Services
+
+| Service | Port(s) | Purpose | UI/Console |
+|---------|---------|---------|------------|
+| **PostgreSQL** | 5432 | Primary database | pgAdmin (external) |
+| **MinIO** | 9000, 9001 | Object storage (S3-compatible) | http://localhost:9001 |
+| **Redis** | 6379 | Cache & session storage | redis-cli |
+| **Prometheus** | 9090 | Metrics collection | http://localhost:9090 |
+| **Grafana** | 3001 | Monitoring dashboards | http://localhost:3001 |
+
+### Database Schemas
+
+```sql
+-- Multi-schema architecture
+microplates=# \dn
+
+     Name     | Owner
+--------------+----------
+ auth         | postgres  -- Authentication & users
+ microplates  | postgres  -- Core business data
+ public       | postgres  -- Utilities & health checks
+```
+
+### Object Storage Buckets
+
+```
+MinIO Buckets:
+├── raw-images/          # Original captured images
+├── annotated-images/    # AI-annotated images with bboxes
+└── thumbnails/          # Image thumbnails (optional)
+```
+
+---
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Node.js 18+
-- Python 3.11+
-- PostgreSQL 17
-- Docker 20+
-- Yarn 1.22+
-- Make (optional, for using Makefile commands)
+### 1. Prerequisites
 
-### 🛠️ Development Setup
-
-1. **Clone and Setup**
 ```bash
-# Install dependencies
-make install
-
-# Start infrastructure services (PostgreSQL, MinIO, Redis, etc.)
-make infra-up
-
-# Setup database
-make db-migrate
-make db-seed
-
-# Start all services
-make dev
+# Check versions
+node --version   # Should be 18+
+yarn --version   # Should be 1.22+
+docker --version # Should be 20+
+psql --version   # Should be 17+ (optional, can use Docker)
 ```
 
-2. **Manual Setup (without Makefile)**
+### 2. Setup Environment
+
 ```bash
+# Copy environment template
+cp env.example .env
+
+# Edit .env with your configuration
+# Required variables:
+# - DATABASE_URL
+# - JWT_SECRET
+# - JWT_REFRESH_SECRET
+# - MINIO credentials
+```
+
+### 3. Start Infrastructure
+
+```bash
+# Start PostgreSQL, MinIO, Redis
+docker-compose -f docker-compose.infra.yml up -d
+
+# Check services are running
+docker-compose -f docker-compose.infra.yml ps
+
+# Wait for services to be ready (30 seconds)
+sleep 30
+```
+
+### 4. Initialize Database
+
+```bash
+# Navigate to auth-service
+cd services/auth-service
+
 # Install dependencies
 yarn install
 
+# Generate Prisma client
+yarn prisma generate
+
+# Run migrations
+yarn prisma migrate deploy
+
+# Seed initial data (creates admin user)
+yarn prisma db seed
+```
+
+### 5. Start Application Services
+
+**Option A: Using Docker Compose (Recommended)**
+
+```bash
+# Build and start all services
+docker-compose -f docker-compose.apps.yml up --build -d
+
+# View logs
+docker-compose -f docker-compose.apps.yml logs -f
+
+# Check service health
+curl http://localhost:6401/healthz  # Auth
+curl http://localhost:6404/healthz  # Result API
+curl http://localhost:6406/health   # Prediction DB
+```
+
+**Option B: Individual Development Mode**
+
+```bash
+# Terminal 1 - Auth Service
+cd services/auth-service
+yarn install
+yarn dev
+
+# Terminal 2 - Result API Service
+cd services/result-api-service
+yarn install
+yarn dev
+
+# Terminal 3 - Prediction DB Service
+cd services/prediction-db-service
+yarn install
+yarn dev
+
+# Terminal 4 - Image Ingestion Service
+cd services/image-ingestion-service
+yarn install
+yarn dev
+
+# Terminal 5 - Labware Interface Service
+cd services/labware-interface-service
+yarn install
+yarn dev
+
+# Terminal 6 - Vision Inference Service (Python)
+cd services/vision-inference-service
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python -m app.main
+```
+
+### 6. Verify Installation
+
+```bash
+# Run health check script
+./scripts/health-check.sh
+
+# Or manually check each service
+for port in 6401 6402 6403 6404 6406; do
+  echo "Checking port $port:"
+  curl -s http://localhost:$port/healthz | jq
+done
+```
+
+---
+
+## 💻 Development
+
+### Development Workflow
+
+```bash
+# 1. Create feature branch
+git checkout -b feature/my-feature
+
+# 2. Make changes to service
+cd services/result-api-service
+# ... edit code ...
+
+# 3. Run tests
+yarn test
+
+# 4. Run linting
+yarn lint
+
+# 5. Build
+yarn build
+
+# 6. Commit changes
+git add .
+git commit -m "feat: add new feature"
+git push origin feature/my-feature
+```
+
+### Adding a New Service
+
+```bash
+# 1. Create service directory
+mkdir services/new-service
+cd services/new-service
+
+# 2. Initialize Node.js project
+yarn init -y
+
+# 3. Install dependencies
+yarn add fastify @fastify/cors @fastify/helmet
+yarn add prisma @prisma/client
+yarn add -D typescript @types/node tsx nodemon
+
+# 4. Setup Prisma
+npx prisma init
+
+# 5. Create service structure
+mkdir -p src/{config,controllers,services,routes,middleware,utils}
+touch src/app.ts
+
+# 6. Add to docker-compose.apps.yml
+```
+
+### Database Migrations
+
+```bash
+# Create new migration
+cd services/auth-service
+yarn prisma migrate dev --name add_user_roles
+
+# Apply migrations to production
+yarn prisma migrate deploy
+
+# Reset database (⚠️ DEVELOPMENT ONLY)
+yarn prisma migrate reset
+
+# View migration status
+yarn prisma migrate status
+
+# Open Prisma Studio (GUI)
+yarn prisma studio
+```
+
+### Working with Shared Libraries
+
+```bash
+# Install shared package
+cd services/result-api-service
+yarn add file:../../shared
+
+# Use shared middleware
+import { authenticateRequest } from '@microplate/shared';
+
+fastify.addHook('preHandler', authenticateRequest);
+```
+
+---
+
+## 🗄️ Database Management
+
+### Accessing PostgreSQL
+
+```bash
+# Using Docker
+docker exec -it microplate-postgres psql -U postgres -d microplates
+
+# Using local psql
+psql -h localhost -U postgres -d microplates
+
+# Common queries
+\l                              # List databases
+\dn                             # List schemas
+\dt microplates.*              # List tables in schema
+\d microplates.prediction_run  # Describe table
+```
+
+### Backup & Restore
+
+```bash
+# Backup database
+docker exec microplate-postgres pg_dump -U postgres microplates > backup.sql
+
+# Backup with timestamp
+docker exec microplate-postgres pg_dump -U postgres microplates > \
+  backup_$(date +%Y%m%d_%H%M%S).sql
+
+# Restore database
+docker exec -i microplate-postgres psql -U postgres microplates < backup.sql
+
+# Backup to S3 (production)
+pg_dump -U postgres microplates | gzip | \
+  aws s3 cp - s3://backups/microplate_$(date +%Y%m%d).sql.gz
+```
+
+### Database Maintenance
+
+```sql
+-- Vacuum and analyze
+VACUUM ANALYZE;
+
+-- Check database size
+SELECT pg_size_pretty(pg_database_size('microplates'));
+
+-- Check table sizes
+SELECT
+    schemaname,
+    tablename,
+    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
+FROM pg_tables
+WHERE schemaname IN ('auth', 'microplates')
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+
+-- Check slow queries
+SELECT query, mean_time, calls
+FROM pg_stat_statements
+ORDER BY mean_time DESC
+LIMIT 10;
+```
+
+---
+
+## 📖 API Documentation
+
+### OpenAPI/Swagger
+
+Each service exposes interactive API documentation:
+
+- Auth Service: http://localhost:6401/docs
+- Image Ingestion: http://localhost:6402/docs
+- Result API: http://localhost:6404/docs
+- Prediction DB: http://localhost:6406/docs
+
+### API Testing
+
+**Using cURL:**
+
+```bash
+# Login
+curl -X POST http://localhost:6401/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin@example.com","password":"admin123"}'
+
+# Save token
+export TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+# Get sample summary
+curl http://localhost:6404/api/v1/results/direct/samples \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Using HTTPie:**
+
+```bash
+# Login
+http POST localhost:6401/api/v1/auth/login \
+  username=admin@example.com password=admin123
+
+# Get results
+http localhost:6404/api/v1/results/direct/samples \
+  Authorization:"Bearer $TOKEN"
+```
+
+---
+
+## 🚢 Deployment
+
+### Local Development
+
+```bash
 # Start infrastructure
 docker-compose -f docker-compose.infra.yml up -d
 
-# Setup database
-cd auth-service
-yarn prisma migrate dev
-yarn prisma db seed
-
-# Start services
-yarn dev:all
+# Start services (development mode)
+docker-compose -f docker-compose.apps.yml up --build
 ```
 
-### 📊 Infrastructure Services
-
-After running `make infra-up`, you'll have access to:
-
-- **PostgreSQL**: `localhost:35432` (postgres/microplate123)
-- **File Storage**: `./shared-storage/` (local folders)
-- **Redis**: `localhost:6379`
-- **Prometheus**: `localhost:9090`
-- **Grafana**: `localhost:3001` (admin/grafana123)
-- **Jaeger**: `localhost:16686`
-
-> **Note**: PostgreSQL uses port **35432** instead of the default **5432** to avoid conflicts with existing PostgreSQL services.
-
-### 🔧 Available Commands
+### Production Deployment
 
 ```bash
-# Development
-make dev              # Start all services
-make dev-auth         # Start auth service only
-make dev-images       # Start image service only
-make dev-inference    # Start inference service only
-make dev-results      # Start results service only
-make dev-interface    # Start interface service only
-make dev-capture      # Start capture service only
-make dev-gateway      # Start gateway only
+# Build production images
+docker-compose -f docker-compose.apps.yml build
 
-# Infrastructure
-make infra-up         # Start infrastructure services
-make infra-down       # Stop infrastructure services
-make infra-logs       # Show infrastructure logs
-make infra-restart    # Restart infrastructure services
-
-# Database
-make db-migrate       # Run database migrations
-make db-seed          # Seed database with initial data
-make db-reset         # Reset database
-make db-studio        # Open Prisma Studio
-
-# Testing
-make test             # Run all tests
-make test-auth        # Test auth service
-make test-images      # Test image service
-make test-results     # Test results service
-make test-interface   # Test interface service
-make test-gateway     # Test gateway
-make test-inference   # Test inference service
-
-# Utilities
-make lint             # Run linting
-make format           # Format code
-make clean            # Clean build artifacts
-make health           # Check service health
-make status           # Check service status
-make logs             # Show all logs
-
-# Setup
-make setup            # Complete development setup
-```
-
-## 📁 Project Structure
-
-```
-microplate-be/
-├── auth-service/                 # Authentication and authorization
-├── image-ingestion-service/      # Image storage and management
-├── vision-inference-service/     # AI model inference
-├── result-api-service/          # Data aggregation and APIs
-├── labware-interface-service/   # CSV generation and delivery
-├── vision-capture-service/      # Camera control and capture
-├── gateway/                     # API Gateway
-├── shared/                      # Shared utilities and types
-├── infra/                       # Infrastructure configuration
-│   ├── postgres/               # PostgreSQL setup
-│   ├── redis/                  # Redis configuration
-│   ├── prometheus/             # Prometheus monitoring
-│   ├── grafana/                # Grafana dashboards
-│   └── minio/                  # MinIO object storage
-├── docker-compose.infra.yml    # Infrastructure services
-├── docker-compose.apps.yml     # Application services
-├── docker-compose.prod.yml     # Production setup
-├── Makefile                    # Development commands
-└── README.md
-```
-
-## 🔐 Default Credentials
-
-After running the seed script, you'll have these default users:
-
-- **Admin**: `admin@microplate-ai.com` / `Admin123!`
-- **Operator**: `john.doe@microplate-ai.com` / `Test123!`
-- **User**: `jane.smith@microplate-ai.com` / `Test123!`
-- **Lab Tech**: `lab.tech@microplate-ai.com` / `Test123!`
-
-## 🌐 API Documentation
-
-Each service provides OpenAPI documentation:
-- **Gateway**: http://localhost:6400/docs
-- **Auth Service**: http://localhost:6401/docs
-- **Image Service**: http://localhost:6402/docs
-- **Labware Interface Service**: http://localhost:6403/docs
-- **Results Service**: http://localhost:6404/docs
-- **Vision Inference Service**: http://localhost:6405/docs
-- **Prediction DB Service**: http://localhost:6406/docs
-
-## 📈 Monitoring
-
-### Health Checks
-- Gateway: http://localhost:6400/healthz
-- Individual services: http://localhost:PORT/healthz
-
-### Metrics
-- Prometheus metrics: http://localhost:PORT/metrics
-- Grafana dashboards: http://localhost:3001
-
-### Tracing
-- Jaeger UI: http://localhost:16686
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-make test
-
-# Run tests for specific service
-make test-auth
-make test-images
-make test-results
-make test-interface
-make test-gateway
-make test-inference
-
-# Run tests with coverage
-yarn test:coverage
-```
-
-## 🚀 Production Deployment
-
-### Docker Compose
-```bash
-# Build and start production stack
-make prod-build
-make prod-up
-
-# Or manually
-docker-compose -f docker-compose.prod.yml up -d
-```
-
-### Kubernetes
-```bash
-# Apply Kubernetes manifests
-kubectl apply -f k8s/
-```
-
-## 🐳 Docker Compose Setup Guide
-
-### Environment Configuration
-
-The `docker-compose.apps.yml` uses environment variables from `.env` files for better configuration management.
-
-#### Setup Steps
-
-1. **Copy environment template:**
-   ```bash
-   cp env.example .env
-   ```
-
-2. **Update .env with your values:**
-   - Set strong JWT secrets (32+ characters)
-   - Configure database URL
-   - Set up SMTP for email notifications
-   - Adjust ports and URLs as needed
-
-3. **Run services:**
-   ```bash
-   # Start all services
-   docker-compose -f docker-compose.infra.yml up -d
-   docker-compose -f docker-compose.apps.yml up -d
-   
-   # View logs
-   docker-compose -f docker-compose.apps.yml logs -f auth-service
-   
-   # Stop services
-   docker-compose -f docker-compose.apps.yml down
-   ```
-
-#### Environment Variables
-
-**Required Variables:**
-- `DATABASE_URL` - PostgreSQL connection string
-- `JWT_ACCESS_SECRET` - JWT access token secret
-- `JWT_REFRESH_SECRET` - JWT refresh token secret
-
-**Optional Variables (with defaults):**
-- `AUTH_PORT` - Auth service port (default: 6401)
-- `NODE_ENV` - Environment (default: production)
-- `LOG_LEVEL` - Log level (default: info)
-- `CORS_ORIGIN` - CORS origin (default: http://localhost:3000)
-- `RATE_LIMIT_MAX_REQUESTS` - Rate limit (default: 100)
-
-**Service-Specific Variables:**
-- `SMTP_*` - Email configuration
-- `BCRYPT_ROUNDS` - Password hashing rounds
-- `TOKEN_EXPIRY_*` - Token expiration settings
-
-#### File Structure
-
-```
-microplate-be/
-├── .env                    # Main environment file
-├── env.example            # Environment template
-├── docker-compose.infra.yml    # Infrastructure services
-├── docker-compose.apps.yml     # Application services
-└── services/
-    └── auth-service/
-        ├── .env           # Service-specific overrides
-        └── env.example    # Service environment template
-```
-
-#### Environment File Priority
-
-1. Service-specific `.env` (e.g., `services/auth-service/.env`)
-2. Main `.env` file
-3. Default values in docker-compose.yml
-
-## 🔧 Configuration
-
-### Environment Variables
-
-The system uses a centralized environment configuration approach:
-
-#### Docker Compose Setup (Recommended)
-
-```bash
-# 1. Copy main environment template
-cd microplate-be
-cp env.example .env
-
-# 2. Update .env with your values
-# 3. Run Docker Compose
-docker-compose -f docker-compose.infra.yml up -d
+# Start with production config
 docker-compose -f docker-compose.apps.yml up -d
+
+# Scale services
+docker-compose -f docker-compose.apps.yml up -d --scale result-api-service=3
 ```
 
-**Main .env file location:** `microplate-be/.env`
-
-```env
-# Database
-DATABASE_URL="postgresql://postgres:microplate123@localhost:35432/microplates"
-
-# JWT Secrets (32+ characters)
-JWT_ACCESS_SECRET="your-access-secret-key-here"
-JWT_REFRESH_SECRET="your-refresh-secret-key-here"
-
-# Service Ports
-AUTH_PORT=6401
-IMAGE_PORT=6402
-LABWARE_PORT=6403
-RESULT_PORT=6404
-INFERENCE_PORT=6405
-PREDICTION_DB_PORT=6406
-
-# File Storage
-FILE_STORAGE_BASE_PATH="./shared-storage"
-FILE_BASE_URL="http://localhost:6400/files"
-
-# Cache
-REDIS_URL="redis://localhost:6379"
-
-# Monitoring
-PROMETHEUS_URL="http://localhost:9090"
-GRAFANA_URL="http://localhost:3001"
-JAEGER_URL="http://localhost:16686"
-```
-
-#### Local Development Setup
-
-For individual service development:
+### Kubernetes Deployment
 
 ```bash
-# 1. Copy service-specific template
-cd microplate-be/services/auth-service
-cp env.example .env
+# Create namespace
+kubectl create namespace microplate-ai
 
-# 2. Update .env for local development
-# 3. Run service
+# Deploy infrastructure
+kubectl apply -f k8s/postgres.yaml
+kubectl apply -f k8s/redis.yaml
+kubectl apply -f k8s/minio.yaml
+
+# Wait for infrastructure
+kubectl wait --for=condition=ready pod -l app=postgres -n microplate-ai --timeout=300s
+
+# Deploy services
+kubectl apply -f k8s/auth-service.yaml
+kubectl apply -f k8s/result-api-service.yaml
+kubectl apply -f k8s/prediction-db-service.yaml
+# ... other services
+
+# Check deployment
+kubectl get pods -n microplate-ai
+kubectl get services -n microplate-ai
+```
+
+---
+
+## 🔧 Service Details
+
+### Auth Service (Port 6401)
+
+**Technology:** Node.js 18+ | Fastify 4.x | Prisma 5.x | PostgreSQL 17
+
+**Responsibilities:**
+- User registration and login
+- JWT token management (access + refresh)
+- Password reset and email verification
+- Role-based access control (RBAC)
+- Audit logging
+
+**Key Endpoints:**
+```
+POST /api/v1/auth/register      # Register new user
+POST /api/v1/auth/login         # Login user
+POST /api/v1/auth/refresh       # Refresh access token
+POST /api/v1/auth/logout        # Logout user
+GET  /api/v1/auth/me            # Get current user
+```
+
+**Environment Variables:**
+```bash
+DATABASE_URL="postgresql://postgres:password@postgres:5432/microplates"
+JWT_SECRET="your-secret-key"
+JWT_REFRESH_SECRET="your-refresh-secret"
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=587
+PORT=6401
+```
+
+**Running:**
+```bash
+cd services/auth-service
+yarn install
+yarn prisma generate
 yarn dev
 ```
 
-**Service .env files location:** `microplate-be/services/{service-name}/.env`
+---
 
-```env
-# Database (use localhost for local development)
-DATABASE_URL="postgresql://postgres:microplate123@localhost:35432/microplates"
+### Image Ingestion Service (Port 6402)
 
-# JWT Secrets
-JWT_ACCESS_SECRET="your-access-secret-key-here"
-JWT_REFRESH_SECRET="your-refresh-secret-key-here"
+**Technology:** Node.js 18+ | Fastify 4.x | Prisma 5.x | MinIO/S3
 
-# Service Configuration
-PORT=6401
-NODE_ENV="development"
-LOG_LEVEL="info"
+**Responsibilities:**
+- Image upload and storage
+- Signed URL generation
+- Image metadata management
+- MinIO/S3 integration
+- Thumbnail generation
+
+**Key Endpoints:**
+```
+POST /api/v1/images                    # Upload image
+POST /api/v1/signed-urls               # Generate signed URL
+POST /api/v1/signed-urls/batch         # Generate batch signed URLs
+GET  /api/v1/images/:id                # Get image metadata
+GET  /api/v1/images/by-run/:runId     # Get images by run
 ```
 
-### Environment File Priority
+**Environment Variables:**
+```bash
+DATABASE_URL="postgresql://postgres:password@postgres:5432/microplates"
+OBJECT_STORAGE_ENDPOINT="http://minio:9000"
+OBJECT_STORAGE_EXTERNAL_ENDPOINT="http://localhost:9000"
+OBJECT_STORAGE_ACCESS_KEY="minioadmin"
+OBJECT_STORAGE_SECRET_KEY="minioadmin123"
+PORT=6402
+```
 
-1. **Service-specific .env** (e.g., `services/auth-service/.env`)
-2. **Main .env file** (`microplate-be/.env`)
-3. **Default values** in docker-compose.yml
+**Running:**
+```bash
+cd services/image-ingestion-service
+yarn install
+yarn dev
+```
 
-### Port Configuration
+---
 
-| Service | Port | Description |
-|---------|------|-------------|
-| **PostgreSQL** | **35432** | Database (mapped from container port 5432) |
-| **API Gateway** | 6400 | Main entry point |
-| **Auth Service** | 6401 | Authentication |
-| **Image Ingestion** | 6402 | Image storage |
-| **Labware Interface** | 6403 | CSV generation |
-| **Result API** | 6404 | Data aggregation |
-| **Vision Inference** | 6405 | AI inference |
-| **Prediction DB** | 6406 | Database operations |
+### Result API Service (Port 6404)
 
-> **Important**: PostgreSQL uses port **35432** to avoid conflicts with existing PostgreSQL services.
+**Technology:** Node.js 18+ | Fastify 4.x | Prisma 5.x | WebSocket
+
+**Responsibilities:**
+- Sample data aggregation
+- Real-time WebSocket updates
+- Query APIs for frontend
+- Background data processing
+- Statistics and analytics
+
+**Key Endpoints:**
+```
+GET  /api/v1/results/direct/samples           # Get all samples
+GET  /api/v1/results/direct/samples/:id/runs  # Get sample runs
+DELETE /api/v1/results/direct/runs/:runId     # Delete run & recalc
+WS   /api/v1/results/ws                       # WebSocket connection
+```
+
+**Environment Variables:**
+```bash
+DATABASE_URL="postgresql://postgres:password@postgres:5432/microplates"
+REDIS_URL="redis://redis:6379"
+PREDICTION_DB_SERVICE_URL="http://prediction-db-service:6406"
+PORT=6404
+```
+
+**Running:**
+```bash
+cd services/result-api-service
+yarn install
+yarn dev
+```
+
+---
+
+### Prediction DB Service (Port 6406)
+
+**Technology:** Node.js 18+ | Fastify 4.x | Prisma 5.x
+
+**Responsibilities:**
+- Database CRUD operations for predictions
+- Data validation and integrity
+- Schema management
+- Migration handling
+
+**Key Endpoints:**
+```
+POST /api/v1/predictions           # Create prediction run
+GET  /api/v1/predictions/:id       # Get prediction by ID
+PUT  /api/v1/predictions/:id       # Update prediction
+DELETE /api/v1/predictions/:id     # Delete prediction
+POST /api/v1/predictions/:id/wells # Create well predictions
+```
+
+**Environment Variables:**
+```bash
+DATABASE_URL="postgresql://postgres:password@postgres:5432/microplates"
+REDIS_URL="redis://redis:6379"
+PORT=6406
+```
+
+**Running:**
+```bash
+cd services/prediction-db-service
+yarn install
+yarn prisma generate
+yarn dev
+```
+
+---
+
+### Vision Inference Service (Port 6405)
+
+**Technology:** Python 3.11+ | FastAPI | PyTorch | OpenCV
+
+**Responsibilities:**
+- AI model inference
+- YOLO object detection
+- Image analysis and prediction
+- Bounding box generation
+- Domain-specific logic calculation
+
+**Key Endpoints:**
+```
+POST /api/v1/inference/predict    # Run inference on image
+GET  /api/v1/inference/models     # Get available models
+GET  /api/v1/inference/health     # Health check
+```
+
+**Environment Variables:**
+```bash
+DATABASE_URL="postgresql://postgres:password@postgres:5432/microplates"
+MODEL_PATH="/app/models"
+DEFAULT_MODEL_VERSION="v1.2.0"
+CONFIDENCE_THRESHOLD=0.5
+PORT=6405
+```
+
+**Running:**
+```bash
+cd services/vision-inference-service
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python -m app.main
+```
+
+---
+
+### Labware Interface Service (Port 6403)
+
+**Technology:** Node.js 18+ | Fastify 4.x | Prisma 5.x
+
+**Responsibilities:**
+- CSV file generation
+- Data formatting for labware systems
+- File delivery to shared folders
+- Template management
+
+**Key Endpoints:**
+```
+POST /api/v1/interface/generate        # Generate CSV
+GET  /api/v1/interface/files/:id       # Get file info
+GET  /api/v1/interface/files/:id/download # Download CSV
+GET  /api/v1/interface/templates       # Get templates
+```
+
+**Environment Variables:**
+```bash
+DATABASE_URL="postgresql://postgres:password@postgres:5432/microplates"
+OUTPUT_DIRECTORY="/app/generated"
+DEFAULT_DELIVERY_METHOD="folder"
+PORT=6403
+```
+
+**Running:**
+```bash
+cd services/labware-interface-service
+yarn install
+yarn dev
+```
+
+---
+
+## 🧪 Testing
+
+### Run All Tests
+
+```bash
+# Backend unit tests
+yarn test:backend
+
+# Service integration tests
+yarn test:integration
+
+# API contract tests
+yarn test:contracts
+
+# Load tests
+yarn test:load
+```
+
+### Service-Specific Tests
+
+```bash
+# Test individual service
+cd services/result-api-service
+yarn test
+
+# Watch mode
+yarn test:watch
+
+# Coverage report
+yarn test:coverage
+```
+
+---
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
-1. **Database Connection**: Check PostgreSQL is running on port **35432** and credentials are correct
-2. **Service Communication**: Verify all services are running and ports are available
-3. **Environment Variables**: Ensure `.env` files are properly configured
-4. **Port Conflicts**: Check if ports are already in use
+#### Port Already in Use
 
-### Environment Setup Issues
-
-#### Docker Compose Issues
 ```bash
-# Check if main .env exists
-ls -la microplate-be/.env
+# Find process using port
+lsof -i :6404
 
-# Verify environment variables
-docker-compose -f docker-compose.apps.yml config
+# Kill process
+kill -9 PID
 
-# Check specific service environment
-docker exec microplate-auth-service env | grep JWT
+# Or use different port
+PORT=6405 yarn dev
 ```
 
-#### Local Development Issues
-```bash
-# Check if service .env exists
-ls -la microplate-be/services/auth-service/.env
-
-# Verify database connection
-psql -h localhost -p 35432 -U postgres -d microplates
-
-# Check port availability
-netstat -an | grep 35432
-```
-
-### Database Connection Issues
+#### Database Connection Failed
 
 ```bash
-# Test PostgreSQL connection
-make health
+# Check PostgreSQL is running
+docker-compose -f docker-compose.infra.yml ps postgres
 
-# Or manually test
-curl -s http://localhost:35432 > /dev/null && echo "PostgreSQL is running" || echo "PostgreSQL is not responding"
-
-# Check container logs
+# Check logs
 docker-compose -f docker-compose.infra.yml logs postgres
+
+# Test connection
+psql "postgresql://postgres:password@localhost:5432/microplates"
+
+# Restart PostgreSQL
+docker-compose -f docker-compose.infra.yml restart postgres
 ```
 
-### Port Configuration Issues
+#### MinIO Connection Failed
 
 ```bash
-# Check if port is available
-netstat -an | grep 6401
+# Check MinIO is running
+docker-compose -f docker-compose.infra.yml ps minio
 
-# Check Docker container status
-docker-compose -f docker-compose.apps.yml ps
+# Access MinIO console
+open http://localhost:9001
 
-# Verify port mappings
-docker-compose -f docker-compose.apps.yml config
+# Check buckets exist
+mc ls local/
+
+# Create missing buckets
+mc mb local/raw-images
+mc mb local/annotated-images
 ```
 
-### Debug Mode
-
-Set `LOG_LEVEL=debug` in environment variables for detailed logging.
-
-### Health Checks
+#### Service Won't Start
 
 ```bash
-# Check all service health
-make health
+# Check logs
+docker-compose -f docker-compose.apps.yml logs -f service-name
 
-# Check service status
-make status
+# Rebuild service
+docker-compose -f docker-compose.apps.yml build service-name
+docker-compose -f docker-compose.apps.yml up -d service-name
 
-# View logs
-make logs
-
-# Check specific service logs
-docker-compose -f docker-compose.apps.yml logs -f auth-service
+# Check dependencies
+docker-compose -f docker-compose.infra.yml ps
 ```
 
-### Security Notes
+For more troubleshooting, see [Troubleshooting Guide](../docs/16-Troubleshooting-Guide.md).
 
-- Never commit `.env` files to version control
-- Use strong, unique secrets for production (32+ characters)
-- Rotate JWT secrets regularly
-- Use environment-specific configurations
+---
 
-## 📚 Documentation
+## 📊 Monitoring
 
-- [Architecture Overview](docs/01-Architecture-Overview.md)
-- [Database Schema](docs/02-Database-Schema.md)
-- [Auth Service](docs/03-Auth-Service.md)
-- [Image Ingestion Service](docs/04-Image-Ingestion-Service.md)
-- [Vision Inference Service](docs/05-Vision-Inference-Service.md)
-- [Result API Service](docs/06-Result-API-Service.md)
-- [Labware Interface Service](docs/07-Labware-Interface-Service.md)
-- [Vision Capture Service](docs/08-Vision-Capture-Service.md)
-- [API Gateway](docs/09-API-Gateway.md)
-- [Implementation Guide](docs/11-Implementation-Guide.md)
-- [Deployment Guide](docs/12-Deployment-Guide.md)
+### Prometheus Metrics
 
-## 📋 Recent Changes
+Access Prometheus: http://localhost:9090
 
-### Service Port Allocation Updates
+**Key Metrics:**
+- `http_requests_total` - Total HTTP requests
+- `http_request_duration_seconds` - Request duration
+- `database_connections_active` - Active DB connections
+- `redis_cache_hit_rate` - Cache hit rate
 
-The system has been updated with a new service architecture and port allocation:
+### Grafana Dashboards
 
-| Service | Old Port | New Port | Status |
-|---------|----------|----------|---------|
-| **API Gateway** | 6400 | 6400 | ✅ Unchanged |
-| **Auth Service** | 6401 | 6401 | ✅ Unchanged |
-| **Image Ingestion** | 6402 | 6402 | ✅ Unchanged |
-| **Labware Interface** | 6405 | 6403 | 🔄 **Updated** |
-| **Result API** | - | 6404 | 🆕 **New** |
-| **Vision Inference** | 6403 | 6405 | 🔄 **Updated** |
-| **Prediction DB** | - | 6406 | 🆕 **New** |
-| **PostgreSQL** | 5432 | 35432 | 🔄 **Updated** |
+Access Grafana: http://localhost:3001
 
-### Key Changes
+**Default credentials:** `admin` / `admin`
 
-1. **New Services Added:**
-   - **Result API Service** (Port 6404) - Data aggregation and real-time updates
-   - **Prediction DB Service** (Port 6406) - Database operations for prediction data
+**Dashboards:**
+- Microplate System Overview
+- Service Health Dashboard
+- Database Performance
+- API Request Analytics
 
-2. **Port Reorganization:**
-   - **Labware Interface Service** moved from 6405 to 6403
-   - **Vision Inference Service** moved from 6403 to 6405
-   - **PostgreSQL** moved from 5432 to 35432 to avoid conflicts
+### Logs
 
-3. **Gateway Integration:**
-   - JWT, CORS, and Rate Limiting are now handled by the API Gateway
-   - Services receive user information via headers from the Gateway
-   - Simplified service configuration and security management
+```bash
+# View all service logs
+docker-compose -f docker-compose.apps.yml logs -f
 
-4. **Environment Configuration:**
-   - Centralized `.env` file management for Docker Compose
-   - Service-specific `.env` files for local development
-   - Clear separation between Docker and local development setups
+# View specific service
+docker-compose -f docker-compose.apps.yml logs -f result-api-service
 
-### Migration Notes
+# Filter logs
+docker-compose -f docker-compose.apps.yml logs -f | grep ERROR
 
-If you have existing applications:
-- Update connection strings to use PostgreSQL port **35432**
-- Update service URLs to reflect new port allocations
-- Ensure `.env` files are properly configured for your deployment method
+# Export logs
+docker-compose -f docker-compose.apps.yml logs > logs.txt
+```
+
+---
+
+## 🔐 Security
+
+### Secret Generation
+
+```bash
+# Generate strong secrets
+export JWT_SECRET=$(openssl rand -base64 32)
+export JWT_REFRESH_SECRET=$(openssl rand -base64 32)
+export DATABASE_PASSWORD=$(openssl rand -base64 32)
+export MINIO_SECRET_KEY=$(openssl rand -base64 32)
+
+# Save to .env
+echo "JWT_SECRET=$JWT_SECRET" >> .env
+echo "JWT_REFRESH_SECRET=$JWT_REFRESH_SECRET" >> .env
+```
+
+### Security Scanning
+
+```bash
+# Scan dependencies for vulnerabilities
+cd services/result-api-service
+yarn audit
+
+# Fix vulnerabilities
+yarn audit fix
+
+# Scan Docker images
+docker scan microplate/result-api-service:latest
+
+# Use Trivy
+trivy image microplate/result-api-service:latest
+```
+
+See [Security Best Practices](../docs/18-Security-Best-Practices.md) for comprehensive security guidelines.
+
+---
+
+## 📝 Environment Variables
+
+### Shared Variables (All Services)
+
+```bash
+# Node Environment
+NODE_ENV=development              # development | production
+LOG_LEVEL=info                    # debug | info | warn | error
+PORT=6404                         # Service port
+
+# Database
+DATABASE_URL="postgresql://postgres:password@postgres:5432/microplates"
+
+# JWT Authentication
+JWT_SECRET="your-secret-key"
+JWT_REFRESH_SECRET="your-refresh-secret"
+JWT_ALGORITHM="HS256"
+JWT_ISSUER="microplate-auth"
+JWT_AUDIENCE="microplate-services"
+
+# Redis
+REDIS_URL="redis://redis:6379"
+REDIS_PASSWORD=""                 # Optional
+
+# CORS
+CORS_ORIGIN="http://localhost:6410,http://localhost:3000"
+CORS_CREDENTIALS=true
+```
+
+### Service-Specific Variables
+
+**Image Ingestion Service:**
+```bash
+OBJECT_STORAGE_ENDPOINT="http://minio:9000"
+OBJECT_STORAGE_EXTERNAL_ENDPOINT="http://localhost:9000"
+OBJECT_STORAGE_ACCESS_KEY="minioadmin"
+OBJECT_STORAGE_SECRET_KEY="minioadmin123"
+OBJECT_STORAGE_BUCKET_RAW="raw-images"
+OBJECT_STORAGE_BUCKET_ANNOTATED="annotated-images"
+```
+
+**Result API Service:**
+```bash
+PREDICTION_DB_SERVICE_URL="http://prediction-db-service:6406"
+IMAGE_SERVICE_URL="http://image-ingestion-service:6402"
+WEBSOCKET_PATH="/api/v1/results/ws"
+```
+
+**Vision Inference Service:**
+```bash
+MODEL_PATH="/app/models"
+DEFAULT_MODEL_VERSION="v1.2.0"
+CONFIDENCE_THRESHOLD=0.5
+ENABLE_GPU=true
+```
+
+---
 
 ## 🤝 Contributing
 
-1. Follow the coding standards defined in each service
-2. Write tests for new features
-3. Update documentation as needed
-4. Use conventional commit messages
+### Development Standards
+
+- **Code Style**: ESLint + Prettier for TypeScript/JavaScript, Black for Python
+- **Commits**: Conventional Commits (feat, fix, docs, etc.)
+- **Branching**: GitFlow (main, develop, feature/*, hotfix/*)
+- **Testing**: Write tests for all new features
+- **Documentation**: Update API docs and README
+
+### Commit Message Format
+
+```bash
+# Feature
+git commit -m "feat(auth): add password reset functionality"
+
+# Bug fix
+git commit -m "fix(results): correct sample summary aggregation"
+
+# Documentation
+git commit -m "docs(api): update endpoint documentation"
+
+# Refactoring
+git commit -m "refactor(inference): optimize image preprocessing"
+```
+
+### Pull Request Process
+
+1. Create feature branch from `develop`
+2. Make changes and write tests
+3. Ensure all tests pass
+4. Update documentation
+5. Submit PR to `develop`
+6. Address review comments
+7. Merge after approval
+
+---
+
+## 📦 Available Scripts
+
+### Infrastructure
+
+```bash
+# Start infrastructure only
+yarn infra:up
+
+# Stop infrastructure
+yarn infra:down
+
+# Reset infrastructure (⚠️ Deletes data!)
+yarn infra:reset
+```
+
+### Services
+
+```bash
+# Start all services
+yarn services:up
+
+# Stop all services
+yarn services:down
+
+# Rebuild services
+yarn services:rebuild
+
+# View logs
+yarn services:logs
+```
+
+### Database
+
+```bash
+# Run migrations
+yarn db:migrate
+
+# Seed database
+yarn db:seed
+
+# Reset database (⚠️ Development only!)
+yarn db:reset
+
+# Open Prisma Studio
+yarn db:studio
+```
+
+### Testing
+
+```bash
+# Run all tests
+yarn test
+
+# Unit tests only
+yarn test:unit
+
+# Integration tests
+yarn test:integration
+
+# E2E tests
+yarn test:e2e
+
+# Coverage report
+yarn test:coverage
+```
+
+---
+
+## 📚 Additional Resources
+
+### Documentation
+- [Complete Documentation](../docs/)
+- [Architecture Overview](../docs/01-Architecture-Overview.md)
+- [Implementation Guide](../docs/11-Implementation-Guide.md)
+- [Deployment Guide](../docs/12-Deployment-Guide.md)
+- [API Reference](../docs/15-API-Reference.md)
+- [Troubleshooting](../docs/16-Troubleshooting-Guide.md)
+
+### External Links
+- [Fastify Documentation](https://www.fastify.io)
+- [Prisma Documentation](https://www.prisma.io/docs)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs)
+- [MinIO Documentation](https://min.io/docs)
+
+---
+
+## 🔍 Service Health Status
+
+Check real-time service status:
+
+```bash
+#!/bin/bash
+# scripts/check-health.sh
+
+echo "🔍 Checking service health..."
+echo "================================"
+
+services=(
+  "Auth:6401:/healthz"
+  "Image:6402:/healthz"
+  "Labware:6403:/healthz"
+  "Results:6404:/api/v1/results/health"
+  "Inference:6405:/api/v1/inference/health"
+  "PredictionDB:6406:/health"
+)
+
+for service in "${services[@]}"; do
+  IFS=':' read -r name port path <<< "$service"
+  
+  status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$port$path 2>/dev/null)
+  
+  if [ "$status" = "200" ]; then
+    echo "✅ $name (port $port): Healthy"
+  else
+    echo "❌ $name (port $port): Unhealthy (HTTP $status)"
+  fi
+done
+
+echo "================================"
+```
+
+---
+
+## 📞 Support
+
+### Getting Help
+
+- 📖 Check [Documentation](../docs/)
+- 🐛 Search [Issues](https://github.com/your-org/microplate-ai/issues)
+- 💬 Ask in [Discussions](https://github.com/your-org/microplate-ai/discussions)
+- 📧 Email: dev@microplate-ai.com
+
+### Reporting Issues
+
+When reporting issues, please include:
+- Service name and version
+- Error messages and stack traces
+- Steps to reproduce
+- Environment details (OS, Docker version, etc.)
+- Relevant logs
+
+---
 
 ## 📄 License
 
-This project is proprietary and confidential.
+This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.
 
 ---
 
-# Gateway Removal and Service Authentication Implementation
+## 🙏 Acknowledgments
 
-## Overview
-This document summarizes the changes made to remove the API Gateway and implement direct authentication in all services.
-
-## Changes Made
-
-### 1. Shared Authentication Middleware
-- **Created**: `microplate-be/shared/auth-middleware.ts`
-- **Purpose**: Reusable JWT authentication middleware for Express services
-- **Features**:
-  - Token validation with configurable issuer/audience
-  - Optional authentication support
-  - Role-based authorization
-  - Service-to-service authentication
-  - Comprehensive error handling
-
-### 2. Service Conversions
-
-#### Image Ingestion Service
-- **Converted**: Fastify → Express
-- **Changes**:
-  - Updated `package.json` dependencies
-  - Converted `server.ts` to Express
-  - Updated routes to use Express middleware
-  - Added JWT authentication to all endpoints
-  - Implemented multer for file uploads
-
-#### Prediction DB Service
-- **Converted**: Fastify → Express
-- **Changes**:
-  - Updated `package.json` dependencies
-  - Converted `server.ts` to Express
-  - Added JWT authentication to protected endpoints
-  - Maintained health check endpoints without auth
-
-#### Result API Service
-- **Converted**: Fastify → Express
-- **Changes**:
-  - Updated `package.json` dependencies
-  - Completely rewrote `server.ts` for Express
-  - Added WebSocket support using `ws` library
-  - Implemented JWT authentication
-  - Added Swagger documentation
-
-#### Vision Inference Service
-- **Status**: Python FastAPI (kept as-is)
-- **Changes**:
-  - Added JWT token validation to all endpoints
-  - Implemented `verify_token` dependency function
-  - Added authentication to all API endpoints
-
-#### Labware Interface Service
-- **Created**: New Express service
-- **Features**:
-  - Basic Express server setup
-  - JWT authentication middleware
-  - Health check endpoints
-  - Swagger documentation
-  - Prisma integration ready
-
-### 3. Docker Configuration
-- **Updated**: `docker-compose.apps.yml`
-- **Changes**:
-  - Removed gateway service completely
-  - Removed all `depends_on: gateway` references
-  - Added labware-interface service
-  - Updated port mappings
-
-### 4. Environment Configuration
-- **Updated**: All service `env.example` files
-- **Added**:
-  - `JWT_SECRET` configuration
-  - `JWT_ISSUER` configuration
-  - `JWT_AUDIENCE` configuration
-  - `CORS_ORIGIN` configuration
-
-## Service Ports
-- **Auth Service**: 6401
-- **Image Ingestion**: 6402
-- **Vision Inference**: 6403
-- **Result API**: 6404
-- **Labware Interface**: 6405
-- **Prediction DB**: 6406
-
-## Authentication Flow
-1. Client authenticates with Auth Service (port 6401)
-2. Auth Service returns JWT token
-3. Client includes token in `Authorization: Bearer <token>` header
-4. Each service validates token using shared middleware
-5. Services extract user information from token payload
-
-## Security Features
-- JWT token validation with configurable secret
-- Token expiration handling
-- Invalid token rejection
-- Role-based access control (ready for implementation)
-- Service-to-service authentication support
-- CORS configuration
-- Rate limiting
-- Security headers (helmet)
-
-## Next Steps
-1. **Update Frontend**: Modify frontend to call services directly instead of through gateway
-2. **Service Discovery**: Implement service discovery or load balancer if needed
-3. **Monitoring**: Update monitoring to track individual services
-4. **Documentation**: Update API documentation to reflect direct service access
-5. **Testing**: Test authentication flow end-to-end
-
-## Breaking Changes
-- **Frontend**: Must now call services directly on their individual ports
-- **Service Communication**: Services must include JWT tokens in inter-service calls
-- **Deployment**: Gateway service is no longer needed in deployment
-
-## Benefits
-- **Reduced Complexity**: Eliminated gateway layer
-- **Better Performance**: Direct service access
-- **Simplified Architecture**: Fewer moving parts
-- **Individual Scaling**: Each service can be scaled independently
-- **Direct Debugging**: Easier to debug individual services
+Built with these amazing technologies:
+- [Node.js](https://nodejs.org) - JavaScript runtime
+- [Fastify](https://fastify.io) - Fast web framework
+- [Prisma](https://prisma.io) - Next-generation ORM
+- [PostgreSQL](https://postgresql.org) - Advanced database
+- [MinIO](https://min.io) - High-performance object storage
+- [Docker](https://docker.com) - Containerization platform
 
 ---
 
-# Login Test Guide
+<div align="center">
 
-## ✅ Problem Fixed!
+**Microplate Backend Services** - Part of the Microplate AI System
 
-The issue was a **field name mismatch** between frontend and backend:
+[Documentation](../docs/) • [Frontend](../microplate-fe/) • [Device Services](../microplate-device/)
 
-- **Frontend was sending**: `usernameOrEmail`
-- **Backend expected**: `username`
-
-## 🔧 Changes Made
-
-1. **Updated Frontend Types** (`src/services/auth.service.ts`):
-   ```typescript
-   export type LoginRequest = {
-     username: string  // Changed from usernameOrEmail
-     password: string
-   }
-   ```
-
-2. **Updated Frontend Login Call** (`src/pages/AuthPage.tsx`):
-   ```typescript
-   await authService.login({ username: username || email, password });
-   ```
-
-## 🧪 Test Login
-
-Now you can test login with the existing user:
-
-### User Credentials
-- **Email**: `qi@qi.com`
-- **Username**: `qiadmin`
-- **Password**: `[original password]` (the one you used when creating the user)
-
-### Test Steps
-
-1. **Open Frontend**: http://localhost:6410
-2. **Go to Login Page**
-3. **Enter Credentials**:
-   - Username/Email: `qi@qi.com` or `qiadmin`
-   - Password: `[your original password]`
-4. **Click Login**
-
-### Expected Result
-- ✅ Login successful
-- ✅ JWT token received
-- ✅ Redirected to main app
-- ✅ Token stored in localStorage
-
-## 🔍 Debug Information
-
-### Frontend Network Tab
-Look for:
-- **Request**: `POST http://localhost:6401/api/v1/auth/login`
-- **Request Body**: `{"username":"qi@qi.com","password":"..."}`
-- **Response**: `{"success":true,"data":{"accessToken":"...","user":{...}}}`
-
-### Auth Service Logs
-Should show:
-```
-Request started: POST /api/v1/auth/login
-Request completed: 200 OK
-```
-
-## 🚨 If Still Not Working
-
-### Check Password
-The user password is hashed with Argon2. If you don't remember the original password:
-
-1. **Create a new user** via registration
-2. **Or reset password** via forgot password flow
-
-### Check Database
-Verify user exists:
-```sql
-SELECT email, username, isActive, emailVerified 
-FROM auth."User" 
-WHERE email = 'qi@qi.com';
-```
-
-### Check Auth Service
-Test directly with curl:
-```bash
-curl -X POST http://localhost:6401/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"qi@qi.com","password":"YOUR_PASSWORD"}'
-```
-
-## 🎉 Success!
-
-Once login works, you should see:
-- JWT token in browser localStorage
-- All API calls include `Authorization: Bearer <token>` header
-- Access to protected routes and services
-
----
-
-**The login should now work perfectly!** 🚀
-
----
-
-# Troubleshooting Guide - Auth Service
-
-## Problem: ERR_EMPTY_RESPONSE on Login
-
-### Symptoms
-- Frontend shows `ERR_EMPTY_RESPONSE` when calling auth service
-- Auth service logs show `INVALID_CREDENTIALS` error
-- Server crashes instead of returning proper error response
-
-### Root Causes
-1. **No users in database** - Auth service can't find user to authenticate
-2. **Error handling issues** - Server crashes instead of returning error response
-3. **CORS issues** - Browser blocks the request
-
-### Solutions
-
-#### 1. Fix Error Handling ✅
-- Updated auth service to use custom error classes
-- Fixed error handling in routes to return proper HTTP responses
-- Added proper error logging
-
-#### 2. Create Test Users
-Run the seed script to create test users:
-
-```bash
-cd microplate-be/services/auth-service
-npm run prisma:seed
-# or
-yarn prisma:seed
-```
-
-This will create:
-- **Test User**: `test@example.com` / `testuser` / `password123`
-- **Admin User**: `admin@example.com` / `admin` / `password123`
-
-#### 3. Test Auth Service
-Run the test script to verify auth service is working:
-
-```bash
-cd microplate-be
-node test-auth.js
-```
-
-#### 4. Check Database Connection
-Ensure PostgreSQL is running and accessible:
-
-```bash
-# Check if database is accessible
-psql -h localhost -U microplate -d microplate_db -c "SELECT 1;"
-```
-
-#### 5. Verify Service is Running
-Check if auth service is running on port 6401:
-
-```bash
-curl http://localhost:6401/healthz
-```
-
-Should return: `{"status":"ok"}`
-
-### Step-by-Step Fix
-
-1. **Start Database** (if not running):
-   ```bash
-   cd microplate-be
-   docker-compose -f docker-compose.infra.yml up -d postgres
-   ```
-
-2. **Run Database Migrations**:
-   ```bash
-   cd microplate-be/services/auth-service
-   npm run prisma:deploy
-   ```
-
-3. **Seed Database**:
-   ```bash
-   npm run prisma:seed
-   ```
-
-4. **Start Auth Service**:
-   ```bash
-   npm run dev
-   ```
-
-5. **Test Login**:
-   ```bash
-   curl -X POST http://localhost:6401/api/v1/auth/login \
-     -H "Content-Type: application/json" \
-     -d '{"usernameOrEmail":"test@example.com","password":"password123"}'
-   ```
-
-### Expected Response
-```json
-{
-  "success": true,
-  "data": {
-    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "user": {
-      "id": "uuid",
-      "email": "test@example.com",
-      "username": "testuser"
-    }
-  }
-}
-```
-
-### Frontend Testing
-1. Open browser developer tools
-2. Go to Network tab
-3. Try to login with:
-   - Email: `test@example.com`
-   - Password: `password123`
-4. Check if request returns proper response
-
-### Common Issues
-
-#### Issue: "User not found"
-**Solution**: Run the seed script to create test users
-
-#### Issue: "Database connection failed"
-**Solution**: 
-1. Check if PostgreSQL is running
-2. Verify DATABASE_URL in .env file
-3. Run migrations
-
-#### Issue: "CORS error"
-**Solution**: 
-1. Check CORS_ORIGIN in auth service config
-2. Ensure frontend URL is allowed
-
-#### Issue: "JWT secret not set"
-**Solution**: 
-1. Set JWT_ACCESS_SECRET in .env file
-2. Restart auth service
-
-### Debug Commands
-
-```bash
-# Check auth service logs
-docker logs microplate-auth-service
-
-# Check database connection
-psql -h localhost -U microplate -d microplate_db
-
-# Test auth service directly
-curl -v http://localhost:6401/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"usernameOrEmail":"test@example.com","password":"password123"}'
-
-# Check if port is open
-netstat -tulpn | grep 6401
-```
-
-### Environment Variables
-Make sure these are set in `microplate-be/services/auth-service/.env`:
-
-```env
-DATABASE_URL=postgresql://microplate:microplate123@postgres:5432/microplate_db?schema=auth
-JWT_ACCESS_SECRET=your-super-secret-access-key
-JWT_REFRESH_SECRET=your-super-secret-refresh-key
-PORT=6401
-CORS_ORIGIN=true
-NODE_ENV=development
-```
-
----
-
-**After following these steps, the auth service should work properly!** 🚀
+</div>

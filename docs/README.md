@@ -1,719 +1,682 @@
-# Microplate AI System — Architecture & API Spec (v0.1)
+# Microplate AI System - Complete Documentation Index
 
-**Domain:** AI-assisted microplate image capture, analysis, and interfacing to Labware
-**Style:** Microservices (Node.js/TS + Fastify + Prisma + OpenAPI, Python services for vision), PostgreSQL 17, Object Storage (MinIO/S3), React + TS + Tailwind for FE
-**Goal:** Deliver a production-ready blueprint (BE/FE) with schemas, APIs, and flows to implement end‑to‑end capture → predict → aggregate → interface CSV.
+> Comprehensive documentation for the Microplate AI System
 
 ---
 
-## 0) Scope & Principles
+## 📋 Documentation Navigation
 
-* Strictly **microservice** oriented: each capability isolated behind its own API.
-* **Stateless** services with **12-factor** configs; state only in Postgres + Object Storage.
-* **Observability-first**: health, metrics, structured logs, trace IDs across services.
-* **Security**: JWT access + refresh, service-to-service auth via gateway; signed URLs for images.
-* **Idempotency** for ingestion and interface generation.
-* **Eventually consistent** aggregates (sum\_by\_sample\_no) with DB trigger + optional worker.
+### 🎯 Quick Start
+
+**New to the project?** Start here:
+
+1. 📖 **[Project Summary](00-Project-Summary.md)** - Complete system overview
+2. 🏗️ **[Architecture Overview](01-Architecture-Overview.md)** - System design and components
+3. 🚀 **[Quick Start Guide](#quick-start-guide)** - Get up and running in minutes
 
 ---
 
-## 1) High-Level Architecture
+## 📚 Documentation Structure
 
-```mermaid
-flowchart LR
-    subgraph Device Layer
-        VC[vision-capture-service (Python)]
-    end
+### Core Documentation (Read First)
 
-    subgraph Application Layer
-        AUTH[auth-service (Node/TS + Prisma) :6401]
-        IMG[image-ingestion-service (Node/TS) :6402]
-        INF[vision-inference-service (Python) :6403]
-        RES[result-api-service (Node/TS) :6404]
-        LAB[labware-interface-service (Node/TS) :6405]
-        PDB[prediction-db-service (Node/TS + Prisma) :6406]
-        PG[(PostgreSQL 17)]
-        OBJ[(Object Storage: MinIO/S3)]
-    end
+| # | Document | Description | Status |
+|---|----------|-------------|--------|
+| 00 | [Project Summary](00-Project-Summary.md) | Complete project overview and features | ✅ Complete |
+| 01 | [Architecture Overview](01-Architecture-Overview.md) | System architecture and design patterns | ✅ Complete |
+| 02 | [Database Schema](02-Database-Schema.md) | Complete database design with ERD | ✅ Complete |
 
-    subgraph Web Application
-        FE[React + TS + Tailwind]
-    end
+### Service Documentation
 
-    FE -- capture/preview --> VC
-    FE -- upload/query --> IMG
-    FE -- predict --> INF
-    INF -- write results --> PDB
-    INF -- write annotated img --> IMG -- store --> OBJ
-    RES -- read aggregates --> PDB
-    FE -- sample detail/summary --> RES
-    FE -- interface CSV --> LAB -- write CSV --> FS[Shared Folder]
+| # | Service | Port | Document | Status |
+|---|---------|------|----------|--------|
+| 03 | Auth Service | 6401 | [Auth Service](03-Auth-Service.md) | ✅ Complete |
+| 04 | Image Ingestion | 6402 | [Image Ingestion Service](04-Image-Ingestion-Service.md) | ✅ Complete |
+| 05 | Vision Inference | 6405 | [Vision Inference Service](05-Vision-Inference-Service.md) | ✅ Complete |
+| 06 | Result API | 6404 | [Result API Service](06-Result-API-Service.md) | ✅ Complete |
+| 07 | Labware Interface | 6403 | [Labware Interface Service](07-Labware-Interface-Service.md) | ✅ Complete |
+| 08 | Vision Capture | 6407 | [Vision Capture Service](08-Vision-Capture-Service.md) | ✅ Complete |
+| 13 | Prediction DB | 6406 | [Prediction DB Service](13-Prediction-DB-Service.md) | ✅ Complete |
+
+### Architecture & Design
+
+| # | Document | Description | Status |
+|---|----------|-------------|--------|
+| 09 | [Direct Service Access](09-Direct-Service-Access.md) | Why no API Gateway? Architecture rationale | ✅ Complete |
+| 10 | [Frontend Design](10-Frontend-Design.md) | Frontend architecture and components | ✅ Complete |
+| 14 | [Service Port Allocation](14-Service-Port-Allocation.md) | Port mapping and network configuration | ✅ Complete |
+
+### Implementation & Operations
+
+| # | Document | Description | Status |
+|---|----------|-------------|--------|
+| 11 | [Implementation Guide](11-Implementation-Guide.md) | Step-by-step implementation | ✅ Complete |
+| 12 | [Deployment Guide](12-Deployment-Guide.md) | Production deployment guide | ✅ Complete |
+| 15 | [API Reference](15-API-Reference.md) | Complete API documentation | ✅ Complete |
+| 16 | [Troubleshooting Guide](16-Troubleshooting-Guide.md) | Common issues and solutions | ✅ Complete |
+| 17 | [Testing Strategy](17-Testing-Strategy.md) | Comprehensive testing guide | ✅ Complete |
+| 18 | [Security Best Practices](18-Security-Best-Practices.md) | Security guidelines | ✅ Complete |
+
+---
+
+## 🎯 Quick Start Guide
+
+### 1. System Requirements
+
+**Prerequisites:**
+- Node.js 18+
+- Python 3.11+
+- Docker 20+
+- PostgreSQL 17 (or use Docker)
+- Yarn 1.22+
+
+**Hardware:**
+- CPU: Quad-core processor
+- RAM: 8 GB minimum, 16 GB recommended
+- Storage: 50 GB SSD
+- Camera: USB/CSI camera for image capture (optional)
+
+### 2. Installation Steps
+
+```bash
+# 1. Clone repository
+git clone <repository-url>
+cd microplate-ai-system
+
+# 2. Start infrastructure (PostgreSQL, MinIO, Redis)
+cd microplate-be
+docker-compose -f docker-compose.infra.yml up -d
+
+# 3. Setup database
+cd services/auth-service
+yarn install
+yarn prisma migrate deploy
+yarn prisma db seed
+
+# 4. Start backend services
+cd ../..
+docker-compose -f docker-compose.apps.yml up -d
+
+# 5. Start frontend
+cd ../microplate-fe
+yarn install
+yarn dev
+
+# 6. Access application
+# Frontend: http://localhost:6410
+# Default credentials: admin@example.com / admin123
 ```
 
-### 1.1 Service Responsibilities
-
-* **vision-capture-service (Python)**: controls the USB/CSI camera, exposes `/capture`, `/preview`, returns image bytes/URL.
-* **image-ingestion-service (Node/TS)**: receives raw & annotated images, writes metadata to DB, stores file into `raw-images` / `annotated-images` buckets (MinIO/S3) or mounted folder; returns signed URLs.
-* **vision-inference-service (Python)**: runs model inference, computes domain logic, persists results (normalized), requests IMG to persist annotated images.
-* **prediction-db-service (Node/TS)**: database operations for prediction data, CRUD APIs, data validation and integrity.
-* **result-api-service (Node/TS)**: query endpoints for FE; emits/maintains aggregates (`sum_by_sample_no`) into `sample_summary` (aka `interface_data`).
-* **labware-interface-service (Node/TS)**: transforms results/summary into per-sample CSV files; writes to shared folder for Labware pickup.
-* **auth-service (Node/TS)**: users, roles, permissions, login, refresh, reset/forgot password.
-
----
-
-## 2) Storage & Buckets
-
-* **PostgreSQL 17** with schema `microplates` for domain, `auth` for identity.
-* **Object Storage (MinIO/S3)** buckets:
-
-  * `raw-images/` → original uploads/captures
-  * `annotated-images/` → images with bounding boxes
-  * Naming: `{sample_no}/{run_id}/{ts}-{uuid}.jpg`
-  * Signed URLs (15–60 min) for FE display
-
----
-
-## 3) Database Design (Microplates)
-
-> You provided a solid baseline. We’ll keep your DDL and add one view + optional NOTIFY trigger to drive workers. Prisma mapping is in §7.
-
-### 3.1 Your DDL (kept)
-
-* `microplates.prediction_run` — one row per inference run; **1 sample can have many runs** (store all runs)
-* `microplates.row_counts` — JSONB row counts per run
-* `microplates.interface_results` — JSONB domain result per run (contains `distribution` node used for summary)
-* `microplates.well_prediction` — normalized predictions per detection
-* `microplates.image_file` — file metadata (raw/annotated)
-* `microplates.sample_summary` — aggregated by `sample_no`, `{ distribution: {...} }`
-* Trigger `trg_upsert_sample_summary` maintains `sample_summary` after insert/update `interface_results`
-
-### 3.2 Additional Objects (recommended)
-
-```sql
--- View used by result-api-service for a stable interface name
-CREATE OR REPLACE VIEW microplates.interface_data AS
-SELECT
-  sample_no,
-  summary->'distribution' AS distribution
-FROM microplates.sample_summary;
-
--- Optional: event trigger to notify workers (LISTEN/NOTIFY pattern)
-CREATE OR REPLACE FUNCTION microplates.fn_notify_interface_results() RETURNS TRIGGER AS $$
-BEGIN
-  PERFORM pg_notify('interface_results_new', NEW.run_id::text);
-  RETURN NEW;
-END;$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS trg_notify_interface_results ON microplates.interface_results;
-CREATE TRIGGER trg_notify_interface_results
-AFTER INSERT ON microplates.interface_results
-FOR EACH ROW EXECUTE FUNCTION microplates.fn_notify_interface_results();
-```
-
----
-
-## 4) Authentication & Authorization
-
-* **Identity**: `auth-service` manages Users, Roles, (optional) Permissions.
-* **JWT**: short-lived **access\_token** (e.g., 15m), long-lived **refresh\_token** (e.g., 7–30d) with rotation & revocation.
-* **Flows**:
-
-  * **Register** (admin-only or open w/ email verification)
-  * **Login** → access + refresh
-  * **Refresh** → rotate refresh, revoke old (token table)
-  * **Forgot password** → email OTP or signed link
-  * **Reset password** → verify token, enforce password policy
-  * **Logout** → revoke refresh token(s)
-* **Service-to-service**: gateway enforces; internal calls carry **service JWT** or mTLS (optional).
-
----
-
-## 5) API Surface (by Service)
-
-> All endpoints JSON unless noted. Use OpenAPI 3 with schemas.
-> Prefix with `/api/v1`. Every service exposes `/healthz`, `/readyz`, `/metrics`.
-
----
-
-### 5.1 auth-service (Fastify + Prisma)
-
-**Entities**: User, Role, UserRole, RefreshToken, PasswordResetToken, EmailVerificationToken (optional)
-
-**Endpoints**
-
-* `POST /api/v1/auth/register` → {email, username, password}
-* `POST /api/v1/auth/login` → {username|email, password} → {access\_token, refresh\_token}
-* `POST /api/v1/auth/refresh` → {refresh\_token} → rotate tokens
-* `POST /api/v1/auth/logout` → revoke current refresh token
-* `POST /api/v1/auth/forgot-password` → {email}
-* `POST /api/v1/auth/reset-password` → {token, new\_password}
-* `GET  /api/v1/auth/me` → user profile (requires access token)
-* `GET  /api/v1/auth/roles` → list roles (admin)
-* `POST /api/v1/auth/users/:id/roles` → assign roles (admin)
-
-**Notes**
-
-* **Password hashing**: Argon2id
-* **Refresh rotation**: store token family, detect reuse → revoke family
-* **Token claims**: `sub`, `roles`, `jti`, `exp`
-
----
-
-### 5.2 image-ingestion-service (Fastify + Prisma)
-
-**Responsibilities**: persist image metadata; upload to object storage; produce signed URLs; link to `prediction_run`.
-
-**Endpoints**
-
-* `POST /api/v1/images` (multipart or JSON with presigned PUT) → {sample\_no, run\_id?, file\_type: "raw"|"annotated", file}
-* `POST /api/v1/images/presign` → returns {upload\_url, path}
-* `GET  /api/v1/images/:id` → metadata + signed URL
-* `GET  /api/v1/images/by-run/:run_id` → list images (raw/annotated)
-* `DELETE /api/v1/images/:id` → soft-delete/mark
-
-**Buckets**
-
-* `raw-images` / `annotated-images`
-
----
-
-### 5.3 vision-capture-service (Python)
-
-**Responsibilities**: control camera; capture still image; optional preview stream.
-
-**Endpoints**
-
-* `POST /api/v1/capture` → {sample\_no, options?} → returns `{path, url, run_seed}`
-* `GET  /api/v1/preview` (optional MJPEG) → live stream
-* `GET  /api/v1/healthz`
-
-**Implementation notes**
-
-* UVC/V4L2 (Linux) or DirectShow (Windows) abstraction
-* Expose brightness/exposure params (optional)
-
----
-
-### 5.4 vision-inference-service (Python)
-
-**Responsibilities**: predict & compute logic; persist to DB; request annotated upload via image-ingestion.
-
-**Endpoints**
-
-* `POST /api/v1/inference/predict` → body: `{ sample_no, image_path|image_url, model_version? }`
-
-  * Steps:
-
-    1. Load image
-    2. Run model → boxes, classes, confidences
-    3. Domain logic compute → row\_counts, interface\_results
-    4. Save: `prediction_run`, `well_prediction`, `row_counts`, `interface_results`
-    5. Draw boxes → save annotated → call IMG `/images` (file\_type="annotated")
-    6. Update `prediction_run.annotated_image_path`
-  * Returns: `{ run_id, sample_no, predict_at, annotated_url, stats }`
-
-**Notes**
-
-* Handle **multiple runs per sample**; never overwrite; always append.
-* Emit NOTIFY via DB or simply rely on trigger in §3.2 for summary updates.
-
----
-
-### 5.5 result-api-service (Fastify + Prisma)
-
-**Responsibilities**: FE-facing queries; aggregate by sample; optional background worker reading NOTIFY.
-
-**Endpoints (read)**
-
-* `GET /api/v1/results/run/:run_id` → details of a run (predictions, row\_counts, interface\_results, images)
-* `GET /api/v1/results/sample/:sample_no/runs` → list runs for a sample (paged)
-* `GET /api/v1/results/sample/:sample_no/summary` → from `interface_data` view
-* `GET /api/v1/results/sample/:sample_no/last` → most recent run metadata + annotated URL
-
-**Worker**
-
-* Subscribes `LISTEN interface_results_new` (optional) and queries the changed `sample_no` to ensure `sample_summary` consistency (idempotent). If DB trigger exists, worker only verifies/repairs.
-
----
-
-### 5.6 labware-interface-service (Fastify + Prisma)
-
-**Responsibilities**: generate CSV per sample for Labware.
-
-**Endpoints**
-
-* `POST /api/v1/interface/generate` → `{ sample_no }` → returns `{ csv_path, csv_url? }`
-* `GET  /api/v1/interface/by-sample/:sample_no` → latest CSV metadata
-
-**CSV Contract (example)**
-
-```
-# Filename: {sample_no}_{yyyyMMddHHmmss}.csv
-sample_no,well,label,class,confidence,xmin,ymin,xmax,ymax
-S123,A1,obj,positive,0.98,12,34,56,78
-...
-# or aggregated sheet:
-sample_no,key,count
-S123,positive,37
-S123,negative,59
-```
-
-* Choose **normalized** (per detection) or **aggregated** (distribution). Many labs prefer **aggregated**.
-* Write to shared folder `//labshare/inbox/` or `/mnt/labshare/inbox/`.
-
----
-
-## 6) OpenAPI – Example Fragments
-
-> Keep each service’s spec in its repo at `openapi.yaml` and publish via `/docs`.
-
-```yaml
-openapi: 3.0.3
-info:
-  title: result-api-service
-  version: 1.0.0
-paths:
-  /api/v1/results/sample/{sample_no}/summary:
-    get:
-      summary: Get aggregated distribution for a sample
-      parameters:
-        - name: sample_no
-          in: path
-          required: true
-          schema: { type: string }
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  sample_no: { type: string }
-                  distribution:
-                    type: object
-                    additionalProperties:
-                      type: integer
+### 3. Verification
+
+```bash
+# Check all services are running
+curl http://localhost:6401/healthz  # Auth Service
+curl http://localhost:6402/healthz  # Image Ingestion
+curl http://localhost:6403/healthz  # Labware Interface
+curl http://localhost:6404/api/v1/results/health  # Result API
+curl http://localhost:6405/api/v1/inference/health  # Vision Inference
+curl http://localhost:6406/health  # Prediction DB
+curl http://localhost:6407/api/v1/capture/health  # Vision Capture
 ```
 
 ---
 
-## 7) Prisma Schema (PostgreSQL 17, multi-schema)
+## 🗺️ Documentation by Role
 
-> Requires Prisma ≥5.7 for `schemas` / `@@schema`. Map to your existing snake\_case tables.
+### For Developers
 
-```prisma
-// schema.prisma
-generator client {
-  provider = "prisma-client-js"
-}
+**Getting Started:**
+1. [Implementation Guide](11-Implementation-Guide.md) - How to build the system
+2. [Architecture Overview](01-Architecture-Overview.md) - Understand the design
+3. [Database Schema](02-Database-Schema.md) - Database structure
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  schemas  = ["public", "auth", "microplates"]
-}
+**Service Development:**
+- [Auth Service](03-Auth-Service.md) - Authentication implementation
+- [Result API Service](06-Result-API-Service.md) - API development
+- [Frontend Design](10-Frontend-Design.md) - UI/UX development
 
-// =========================
-// AUTH SCHEMA
-// =========================
-model User {
-  id        String   @id @default(uuid()) @db.Uuid
-  email     String   @unique
-  username  String   @unique
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  roles     UserRole[]
-  refreshes RefreshToken[]
-}
-@@schema("auth")
+**Best Practices:**
+- [Testing Strategy](17-Testing-Strategy.md) - How to test
+- [Security Best Practices](18-Security-Best-Practices.md) - Security guidelines
+- [Direct Service Access](09-Direct-Service-Access.md) - Architecture patterns
 
-model Role {
-  id    Int       @id @default(autoincrement())
-  name  String    @unique
-  users UserRole[]
-}
-@@schema("auth")
+### For DevOps Engineers
 
-model UserRole {
-  userId String @db.Uuid
-  roleId Int
-  user   User   @relation(fields: [userId], references: [id])
-  role   Role   @relation(fields: [roleId], references: [id])
-  @@id([userId, roleId])
-}
-@@schema("auth")
+**Deployment:**
+1. [Deployment Guide](12-Deployment-Guide.md) - Production deployment
+2. [Service Port Allocation](14-Service-Port-Allocation.md) - Network configuration
+3. [Troubleshooting Guide](16-Troubleshooting-Guide.md) - Problem solving
 
-model RefreshToken {
-  id           String   @id @default(uuid()) @db.Uuid
-  userId       String   @db.Uuid
-  token        String   @unique
-  family       String   // rotation family id
-  issuedAt     DateTime @default(now())
-  expiresAt    DateTime
-  revokedAt    DateTime?
-  user         User     @relation(fields: [userId], references: [id])
-  reused       Boolean  @default(false)
-}
-@@schema("auth")
+**Operations:**
+- [Database Schema](02-Database-Schema.md) - Database management
+- [Security Best Practices](18-Security-Best-Practices.md) - Security hardening
+- [API Reference](15-API-Reference.md) - API endpoints
 
-model PasswordResetToken {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  token     String   @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  user      User     @relation(fields: [userId], references: [id])
-}
-@@schema("auth")
+### For Architects
 
-// =========================
-// MICROPLATES SCHEMA (maps to your tables)
-// =========================
-model PredictionRun {
-  id                   Int       @id @default(autoincrement()) @map("id")
-  sampleNo             String    @map("sample_no")
-  description          String?   @map("description")
-  predictAt            DateTime  @default(now()) @map("predict_at")
-  annotatedImagePath   String    @map("annotated_image_path")
-  modelVersion         String?   @map("model_version")
-  status               String    @default("pending") @map("status")
-  errorMsg             String?   @map("error_msg")
-  rowCounts            RowCounts[]
-  interfaceResults     InterfaceResults[]
-  wellPredictions      WellPrediction[]
-  imageFiles           ImageFile[]
-  @@map("prediction_run")
-}
-@@schema("microplates")
+**System Design:**
+1. [Architecture Overview](01-Architecture-Overview.md) - System architecture
+2. [Direct Service Access](09-Direct-Service-Access.md) - Architectural decisions
+3. [Database Schema](02-Database-Schema.md) - Data model design
 
-model RowCounts {
-  id        Int      @id @default(autoincrement())
-  runId     Int      @map("run_id")
-  counts    Json     @map("counts")
-  createdAt DateTime @default(now()) @map("created_at")
-  run       PredictionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  @@map("row_counts")
-}
-@@schema("microplates")
+**Technical Details:**
+- All service documentation (03-08, 13)
+- [Service Port Allocation](14-Service-Port-Allocation.md)
+- [API Reference](15-API-Reference.md)
 
-model InterfaceResults {
-  id        Int      @id @default(autoincrement())
-  runId     Int      @map("run_id")
-  results   Json     @map("results")
-  createdAt DateTime @default(now()) @map("created_at")
-  run       PredictionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  @@map("interface_results")
-}
-@@schema("microplates")
+### For QA Engineers
 
-model WellPrediction {
-  id         Int      @id @default(autoincrement())
-  runId      Int      @map("run_id")
-  label      String   @map("label")
-  class_     String   @map("class")
-  confidence Float    @map("confidence")
-  bbox       Json     @map("bbox")
-  createdAt  DateTime @default(now()) @map("created_at")
-  run        PredictionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  @@map("well_prediction")
-}
-@@schema("microplates")
-
-model ImageFile {
-  id        Int      @id @default(autoincrement())
-  runId     Int      @map("run_id")
-  sampleNo  String   @map("sample_no")
-  fileType  String   @map("file_type")
-  path      String   @map("path")
-  createdAt DateTime @default(now()) @map("created_at")
-  run       PredictionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  @@map("image_file")
-}
-@@schema("microplates")
-
-// Optional: a read-only model mapped to the view for convenience
-model InterfaceData {
-  sampleNo     String @id @map("sample_no")
-  distribution Json   @map("distribution")
-  @@map("interface_data")
-}
-@@schema("microplates")
-```
-
-**Notes**
-
-* Use `prisma migrate dev` to add new objects (view creation via SQL migration).
-* For existing tables, use `prisma db pull` then adjust mappings.
+**Testing:**
+1. [Testing Strategy](17-Testing-Strategy.md) - Complete testing guide
+2. [API Reference](15-API-Reference.md) - API testing reference
+3. [Troubleshooting Guide](16-Troubleshooting-Guide.md) - Bug investigation
 
 ---
 
-## 8) Service Implementation Notes
+## 🏗️ System Components
 
-### 8.1 Common Fastify Plugins
+### Microservices Overview
 
-* `@fastify/jwt` for access token verification (gateway), but auth logic stays in **auth-service**
-* `@fastify/helmet`, `@fastify/rate-limit`, `@fastify/cors`
-* `pino` logs with `requestId`: include `sample_no`, `run_id` in child loggers
-* `@fastify/swagger` + `@fastify/swagger-ui` for `/docs`
-
-### 8.2 Error Model
-
-```json
-{
-  "error": "BadRequestError",
-  "message": "sample_no is required",
-  "code": "E_BAD_REQUEST",
-  "requestId": "..."
-}
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Frontend Layer                          │
+│  React + TypeScript + Tailwind CSS (Port 6410)              │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                ┌─────────┴─────────┐
+                │                   │
+┌───────────────▼───────────────────▼─────────────────────────┐
+│              Application Layer - Microservices              │
+├─────────────────────────────────────────────────────────────┤
+│ Auth (6401) │ Image (6402) │ Labware (6403) │ Results (6404)│
+│ Inference (6405) │ PredictionDB (6406) │ Capture (6407)    │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                ┌─────────┴─────────┐
+                │                   │
+┌───────────────▼───────────────────▼─────────────────────────┐
+│                  Infrastructure Layer                       │
+├─────────────────────────────────────────────────────────────┤
+│  PostgreSQL 17  │  MinIO/S3  │  Redis  │  Prometheus │Grafana│
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### 8.3 Object Storage Access
+### Technology by Service
 
-* Prefer pre-signed **PUT** from FE for raw images: FE uploads to `raw-images`, then calls **inference** with the returned `path`.
-* Annotated images saved by **inference** via `image-ingestion-service`.
-
-### 8.4 Aggregation Strategy
-
-* Your DB **trigger** is the source of truth for `sample_summary`.
-* `result-api-service` worker is **optional**, reacts to NOTIFY to validate/repair aggregates.
+| Service | Primary Tech | Secondary Tech | Database |
+|---------|-------------|----------------|----------|
+| Auth | Node.js + TypeScript | Fastify + Prisma | PostgreSQL (auth schema) |
+| Image Ingestion | Node.js + TypeScript | Fastify + Prisma + Sharp | PostgreSQL + MinIO |
+| Labware Interface | Node.js + TypeScript | Fastify + Prisma | PostgreSQL |
+| Result API | Node.js + TypeScript | Fastify + Prisma + WS | PostgreSQL + Redis |
+| Vision Inference | Python | FastAPI + PyTorch | PostgreSQL |
+| Prediction DB | Node.js + TypeScript | Fastify + Prisma | PostgreSQL (microplates schema) |
+| Vision Capture | Python | FastAPI + OpenCV | - |
+| Frontend | React + TypeScript | Vite + Tailwind CSS | - |
 
 ---
 
-## 9) Frontend (React + TS + Tailwind)
+## 🔌 Service Ports Reference
 
-**Design goals**: white background, clean, premium/professional, fast keyboard/QR entry.
-
-### 9.1 Pages
-
-* **/capture**: input (text/QR) for `{sample_no, submission_no?}`; large center image panel; right sidebar with tabs **Predict** (last run) & **Summary** (sum\_by\_sample\_no); buttons: **Capture**, **Predict**, **Interface**.
-* **/samples/{sample\_no}**: history of runs, thumbnails, open annotated.
-* **/auth**: login/reset flows.
-
-### 9.2 Layout Wireframe
-
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ Header (logo, user menu)                                                     │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ Sample Input [  S123456  ] [Scan QR]     (Capture) (Predict) (Interface)     │
-├───────────────────────────────┬───────────────────────────────────────────────┤
-│                               │                                               │
-│  [ Center Image Panel ]       │  Sidebar                                      │
-│  - shows last captured/pred   │  ┌─Predict (Run)────────────┐                │
-│  - swaps to annotated image   │  │ boxes, confidences, meta │                │
-│                               │  └──────────────────────────┘                │
-│                               │  ┌─Summary (Aggregated)─────┐                │
-│                               │  │ key → count              │                │
-│                               │  └──────────────────────────┘                │
-├───────────────────────────────┴───────────────────────────────────────────────┤
-│ Footer (version, latency)                                                     │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
-
-### 9.3 Component Tree
-
-* `AppShell` (Header, Footer)
-* `CapturePage`
-
-  * `SampleForm` (text + QR)
-  * `ImagePanel`
-  * `ActionsBar` (Capture, Predict, Interface)
-  * `PredictTab`, `SummaryTab`
-* `SampleHistory`
-
-### 9.4 State & Data Fetching
-
-* **TanStack Query** for `/results/*` + cache by `sample_no`.
-* Global `AuthProvider` storing access token (refresh on 401 → call `/auth/refresh`).
-
-### 9.5 Minimal API Calls
-
-* Capture: `POST /capture` (returns path) → display image via signed URL.
-* Predict: `POST /inference/predict { sample_no, image_path }` → then refresh **Predict** + **Summary** tabs.
-* Summary: `GET /results/sample/{sample_no}/summary`.
-* Last run: `GET /results/sample/{sample_no}/last` → annotated URL → show in `ImagePanel`.
-* Interface: `POST /interface/generate { sample_no }` → toast with CSV path.
-
-### 9.6 Tailwind Style Hints
-
-* White background `bg-white`, generous whitespace, 12-column layout, cards with `rounded-2xl shadow-sm border`.
-* Use neutral grays for text; primary accent = blue for CTA.
+| Service | Port | Protocol | Health Check |
+|---------|------|----------|--------------|
+| **Auth Service** | 6401 | HTTP | `GET /healthz` |
+| **Image Ingestion** | 6402 | HTTP | `GET /healthz` |
+| **Labware Interface** | 6403 | HTTP | `GET /healthz` |
+| **Result API** | 6404 | HTTP/WS | `GET /api/v1/results/health` |
+| **Vision Inference** | 6405 | HTTP | `GET /api/v1/inference/health` |
+| **Prediction DB** | 6406 | HTTP | `GET /health` |
+| **Vision Capture** | 6407 | HTTP/WS | `GET /api/v1/capture/health` |
+| **Frontend** | 6410 | HTTP | - |
+| **PostgreSQL** | 5432 | PostgreSQL | - |
+| **Redis** | 6379 | Redis | - |
+| **MinIO API** | 9000 | HTTP (S3) | `GET /minio/health/live` |
+| **MinIO Console** | 9001 | HTTP | - |
 
 ---
 
-## 10) Config & DevOps
+## 📖 Documentation by Topic
 
-### 10.1 .env Examples
+### Authentication & Security
 
-```
-# Shared
-NODE_ENV=production
-LOG_LEVEL=info
-JWT_SECRET=change-me
-SERVICE_JWT=internal-service-token
-OBJECT_STORAGE_ENDPOINT=http://minio:9000
-OBJECT_STORAGE_ACCESS_KEY=...
-OBJECT_STORAGE_SECRET_KEY=...
-OBJECT_STORAGE_BUCKET_RAW=raw-images
-OBJECT_STORAGE_BUCKET_ANN=annotated-images
+- [Auth Service](03-Auth-Service.md) - Complete authentication service
+- [Security Best Practices](18-Security-Best-Practices.md) - Security guidelines
+- [Direct Service Access](09-Direct-Service-Access.md) - Service security model
 
-# Database
-DATABASE_URL=postgresql://postgres:postgres@postgres:5432/microplates
+**Key Topics:**
+- JWT token management
+- Role-based access control
+- Password policies
+- Token rotation
+- API security
 
-# Services (Direct Access)
-# Auth Service
-AUTH_PORT=6401
+### Database & Data
 
-# Image Ingestion Service  
-IMAGE_PORT=6402
+- [Database Schema](02-Database-Schema.md) - Complete schema design
+- [Prediction DB Service](13-Prediction-DB-Service.md) - Database operations
+- [Result API Service](06-Result-API-Service.md) - Data aggregation
 
-# Vision Inference Service
-INFERENCE_PORT=6403
+**Key Topics:**
+- Multi-schema design (auth, microplates, public)
+- Database triggers and functions
+- Data aggregation strategy
+- Performance optimization
+- Backup and recovery
 
-# Result API Service
-RESULT_PORT=6404
+### Image Processing & AI
 
-# Labware Interface Service
-LABWARE_PORT=6405
+- [Image Ingestion Service](04-Image-Ingestion-Service.md) - Image storage
+- [Vision Inference Service](05-Vision-Inference-Service.md) - AI inference
+- [Vision Capture Service](08-Vision-Capture-Service.md) - Camera control
 
-# Prediction DB Service
-PREDICTION_PORT=6406
+**Key Topics:**
+- Image upload and storage
+- Signed URL generation
+- YOLO model inference
+- Bounding box annotation
+- Camera configuration
 
-# Vision Capture Service
-CAPTURE_PORT=6407
-```
+### User Interface
 
-### 10.2 Health/Readiness/Metrics
+- [Frontend Design](10-Frontend-Design.md) - UI/UX design
+- [Implementation Guide](11-Implementation-Guide.md) - Frontend development
 
-* `/healthz` returns `{status:"ok"}` when process is alive.
-* `/readyz` checks DB + object storage connectivity.
-* `/metrics` (Prometheus) per service.
+**Key Topics:**
+- React component architecture
+- State management with TanStack Query
+- Real-time WebSocket updates
+- Responsive design
+- Accessibility
 
-### 10.3 Logging
+### Deployment & Operations
 
-* Pino JSON logs; include `requestId`, `sample_no`, `run_id` where available.
+- [Deployment Guide](12-Deployment-Guide.md) - Production deployment
+- [Service Port Allocation](14-Service-Port-Allocation.md) - Network setup
+- [Troubleshooting Guide](16-Troubleshooting-Guide.md) - Problem solving
+
+**Key Topics:**
+- Docker deployment
+- Kubernetes deployment
+- Cloud platforms (AWS, Azure, GCP)
+- Monitoring with Prometheus/Grafana
+- Health checks and logging
+
+### Testing & Quality
+
+- [Testing Strategy](17-Testing-Strategy.md) - Comprehensive testing
+- [Implementation Guide](11-Implementation-Guide.md) - Code quality
+
+**Key Topics:**
+- Unit testing
+- Integration testing
+- E2E testing with Cypress
+- Performance testing with k6
+- Security testing
 
 ---
 
-## 11) Security Details
+## 🔍 Finding Information
 
-* **Access JWT** verified at each service; pass user claims via headers
-* **Refresh JWT** handled only in `auth-service` with rotation
-* **CORS**: FE origin allowlist at each service
-* **RBAC** roles: `admin`, `operator`, `viewer`
-* **Signed URLs** for images; no public bucket
+### By Service
+
+- **Auth Service** → [03-Auth-Service.md](03-Auth-Service.md)
+- **Image Ingestion** → [04-Image-Ingestion-Service.md](04-Image-Ingestion-Service.md)
+- **Vision Inference** → [05-Vision-Inference-Service.md](05-Vision-Inference-Service.md)
+- **Result API** → [06-Result-API-Service.md](06-Result-API-Service.md)
+- **Labware Interface** → [07-Labware-Interface-Service.md](07-Labware-Interface-Service.md)
+- **Vision Capture** → [08-Vision-Capture-Service.md](08-Vision-Capture-Service.md)
+- **Prediction DB** → [13-Prediction-DB-Service.md](13-Prediction-DB-Service.md)
+
+### By Technology
+
+**Node.js + TypeScript:**
+- Auth Service, Image Ingestion, Labware Interface, Result API, Prediction DB
+- See [Implementation Guide](11-Implementation-Guide.md) for setup
+
+**Python + FastAPI:**
+- Vision Inference Service, Vision Capture Service
+- See individual service docs for setup
+
+**React + TypeScript:**
+- Frontend application
+- See [Frontend Design](10-Frontend-Design.md)
+
+**PostgreSQL:**
+- Database schema and design
+- See [Database Schema](02-Database-Schema.md)
+
+### By Task
+
+**I want to...**
+
+- 🔧 **Install the system** → [Quick Start](#quick-start-guide) → [Implementation Guide](11-Implementation-Guide.md)
+- 🚀 **Deploy to production** → [Deployment Guide](12-Deployment-Guide.md)
+- 🔐 **Implement authentication** → [Auth Service](03-Auth-Service.md)
+- 🤖 **Add AI features** → [Vision Inference Service](05-Vision-Inference-Service.md)
+- 📊 **Work with results** → [Result API Service](06-Result-API-Service.md)
+- 🐛 **Fix a bug** → [Troubleshooting Guide](16-Troubleshooting-Guide.md)
+- ✅ **Write tests** → [Testing Strategy](17-Testing-Strategy.md)
+- 🔒 **Improve security** → [Security Best Practices](18-Security-Best-Practices.md)
+- 📡 **Understand architecture** → [Architecture Overview](01-Architecture-Overview.md)
+- 🔌 **Use the API** → [API Reference](15-API-Reference.md)
 
 ---
 
-## 12) Testing Strategy
+## 📊 System Overview
 
-* **Contract tests** per service using OpenAPI schemas.
-* **Integration**: docker-compose for services + Postgres + MinIO.
-* **Synthetic data**: seed scripts generating fake runs and summaries.
-* **E2E**: Cypress (FE) interacting with gateway.
-
----
-
-## 13) Example Sequences
-
-### 13.1 Capture → Predict → Display
+### Data Flow
 
 ```mermaid
 sequenceDiagram
-  participant FE
-  participant VC as vision-capture-service
-  participant INF as vision-inference-service
-  participant IMG as image-ingestion-service
-  participant PG as Postgres
+    participant User
+    participant Frontend
+    participant Capture
+    participant ImageService
+    participant Inference
+    participant PredictionDB
+    participant ResultAPI
+    participant MinIO
 
-  FE->>VC: POST /api/v1/capture {sample_no}
-  VC-->>FE: {path, url}
-  FE->>INF: POST /api/v1/inference/predict {sample_no, image_path}
-  INF->>PG: INSERT prediction_run, well_prediction, row_counts, interface_results
-  INF->>IMG: POST /images (annotated)
-  IMG->>OBJ: store annotated
-  IMG-->>INF: {annotated_url}
-  INF->>PG: UPDATE prediction_run.annotated_image_path
-  FE->>RES: GET /api/v1/results/sample/{sample}/last
-  RES->>PG: query
-  RES-->>FE: {annotated_url}
+    User->>Frontend: Enter sample info
+    User->>Frontend: Click "Capture"
+    Frontend->>Capture: POST /api/v1/capture/image
+    Capture-->>Frontend: Image data
+    Frontend->>ImageService: POST /api/v1/images (upload)
+    ImageService->>MinIO: Store raw image
+    MinIO-->>ImageService: File stored
+    ImageService-->>Frontend: Image metadata + signed URL
+    
+    User->>Frontend: Click "Predict"
+    Frontend->>Inference: POST /api/v1/inference/predict
+    Inference->>Inference: Run AI model
+    Inference->>PredictionDB: Store predictions
+    Inference->>ImageService: Upload annotated image
+    ImageService->>MinIO: Store annotated image
+    Inference-->>Frontend: Prediction results
+    
+    Frontend->>ResultAPI: GET /api/v1/results/direct/samples
+    ResultAPI->>PredictionDB: Query data
+    PredictionDB-->>ResultAPI: Sample data
+    ResultAPI-->>Frontend: Display results
 ```
 
-### 13.2 New Interface Results → Aggregate
+### Service Dependencies
 
 ```mermaid
-sequenceDiagram
-  participant INF as vision-inference-service
-  participant PG as Postgres
-  participant RES as result-api-service (worker)
-
-  INF->>PG: INSERT interface_results
-  Note over PG: Trigger updates sample_summary
-  PG-->>RES: NOTIFY interface_results_new (run_id)
-  RES->>PG: SELECT to verify sample_summary for sample_no
-  RES-->>RES: (Optional) repair if mismatch
+graph TD
+    FE[Frontend]
+    AUTH[Auth Service]
+    IMG[Image Ingestion]
+    CAP[Vision Capture]
+    INF[Vision Inference]
+    PDB[Prediction DB]
+    RES[Result API]
+    LAB[Labware Interface]
+    
+    PG[(PostgreSQL)]
+    MINIO[(MinIO)]
+    REDIS[(Redis)]
+    
+    FE -->|Authenticates| AUTH
+    FE -->|Captures| CAP
+    FE -->|Uploads| IMG
+    FE -->|Predicts| INF
+    FE -->|Views Results| RES
+    FE -->|Generates CSV| LAB
+    
+    CAP -->|Stores Image| IMG
+    IMG -->|Saves to| MINIO
+    INF -->|Stores Results| PDB
+    RES -->|Queries| PDB
+    RES -->|Caches| REDIS
+    
+    AUTH --> PG
+    IMG --> PG
+    PDB --> PG
+    LAB --> PG
+    
+    style FE fill:#3b82f6
+    style AUTH fill:#10b981
+    style IMG fill:#10b981
+    style CAP fill:#f59e0b
+    style INF fill:#f59e0b
+    style PDB fill:#10b981
+    style RES fill:#10b981
+    style LAB fill:#10b981
+    style PG fill:#6366f1
+    style MINIO fill:#6366f1
+    style REDIS fill:#6366f1
 ```
 
 ---
 
-## 14) Additional Recommendations
+## 🎓 Learning Path
 
-* **Version your models**: `model_version` recorded; keep model registry (table) if needed.
-* **Confidence calibration**: store thresholds in config table, expose `/config` in result-api-service.
-* **Idempotent interface generation**: if same `{sample_no}` called within N minutes & no new runs, return existing CSV.
-* **Audit trail**: who clicked Interface; store in a small table.
-* **Permissions**: only `operator` can trigger predict/interface; `viewer` is read-only.
+### Beginner Track
+
+If you're new to the project, follow this path:
+
+1. **Week 1: Understanding**
+   - Read [Project Summary](00-Project-Summary.md)
+   - Review [Architecture Overview](01-Architecture-Overview.md)
+   - Study [Database Schema](02-Database-Schema.md)
+
+2. **Week 2: Setup**
+   - Follow [Implementation Guide](11-Implementation-Guide.md)
+   - Set up development environment
+   - Run the system locally
+
+3. **Week 3: Development**
+   - Study service documentation (03-08, 13)
+   - Make small changes
+   - Run tests
+
+4. **Week 4: Testing**
+   - Read [Testing Strategy](17-Testing-Strategy.md)
+   - Write tests for your changes
+   - Review [Security Best Practices](18-Security-Best-Practices.md)
+
+### Advanced Track
+
+For experienced developers:
+
+1. **Architecture Deep Dive**
+   - [Architecture Overview](01-Architecture-Overview.md)
+   - [Direct Service Access](09-Direct-Service-Access.md)
+   - [Service Port Allocation](14-Service-Port-Allocation.md)
+
+2. **Service Implementation**
+   - Choose a service to work on
+   - Read its documentation
+   - Implement features or improvements
+
+3. **DevOps & Deployment**
+   - [Deployment Guide](12-Deployment-Guide.md)
+   - Set up Kubernetes
+   - Configure monitoring
+
+4. **Security & Quality**
+   - [Security Best Practices](18-Security-Best-Practices.md)
+   - [Testing Strategy](17-Testing-Strategy.md)
+   - Implement security features
 
 ---
 
-## 15) Backlog (Next)
+## 📋 Documentation Checklist
 
-* Add **permissions** table (fine-grained), policy cache at gateway.
-* Add **OpenTelemetry** tracing across services.
-* Add **background reprocessing** job for retrospectively applying new logic on old runs.
+### Before Development
+
+- [ ] Read Project Summary
+- [ ] Understand Architecture
+- [ ] Review Database Schema
+- [ ] Set up development environment
+- [ ] Review relevant service documentation
+
+### During Development
+
+- [ ] Follow implementation guide
+- [ ] Write unit tests
+- [ ] Update API documentation
+- [ ] Check security best practices
+- [ ] Run linting and type checking
+
+### Before Deployment
+
+- [ ] Review deployment guide
+- [ ] Run integration tests
+- [ ] Check security configuration
+- [ ] Verify health checks
+- [ ] Review troubleshooting guide
 
 ---
 
-## 16) Appendix – Sample Fastify Route (result-api-service)
+## 🔗 External Resources
 
-```ts
-fastify.get('/api/v1/results/sample/:sample_no/summary', async (req, reply) => {
-  const { sample_no } = req.params as { sample_no: string };
-  const row = await prisma.interfaceData.findUnique({ where: { sampleNo: sample_no } });
-  if (!row) return reply.code(404).send({ error: 'NotFound', message: 'No summary' });
-  return { sample_no, distribution: row.distribution };
-});
+### Official Documentation
+
+- [Node.js Docs](https://nodejs.org/docs)
+- [Python Docs](https://docs.python.org)
+- [React Docs](https://react.dev)
+- [FastAPI Docs](https://fastapi.tiangolo.com)
+- [Prisma Docs](https://www.prisma.io/docs)
+- [PostgreSQL Docs](https://www.postgresql.org/docs)
+
+### Learning Resources
+
+- [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook)
+- [Tailwind CSS Docs](https://tailwindcss.com/docs)
+- [Docker Docs](https://docs.docker.com)
+- [Kubernetes Docs](https://kubernetes.io/docs)
+
+### Tools
+
+- [Postman](https://www.postman.com) - API testing
+- [pgAdmin](https://www.pgadmin.org) - PostgreSQL GUI
+- [VS Code](https://code.visualstudio.com) - Code editor
+- [Docker Desktop](https://www.docker.com/products/docker-desktop)
+
+---
+
+## 🆘 Getting Help
+
+### Documentation Issues
+
+If you find issues in the documentation:
+
+1. Check if information is in another document
+2. Search across all documentation files
+3. Create an issue with specific details
+4. Suggest improvements via pull request
+
+### Technical Support
+
+- 📖 **Documentation** - Check this index and linked docs
+- 🐛 **Troubleshooting** - See [Troubleshooting Guide](16-Troubleshooting-Guide.md)
+- 💬 **Community** - GitHub Discussions
+- 📧 **Email** - support@microplate-ai.com
+
+---
+
+## 📝 Document Status Legend
+
+- ✅ **Complete** - Comprehensive and ready to use
+- 🔄 **In Progress** - Being updated
+- 📝 **Draft** - Initial version, needs review
+- ⚠️ **Outdated** - Needs update
+
+All documents in this index are marked as ✅ **Complete**.
+
+---
+
+## 🎯 Quick Reference
+
+### Common Commands
+
+```bash
+# Start everything
+docker-compose -f microplate-be/docker-compose.infra.yml up -d
+docker-compose -f microplate-be/docker-compose.apps.yml up -d
+cd microplate-fe && yarn dev
+
+# Check health
+curl http://localhost:6401/healthz  # Auth
+curl http://localhost:6404/api/v1/results/health  # Results
+
+# View logs
+docker-compose -f microplate-be/docker-compose.apps.yml logs -f
+
+# Stop everything
+docker-compose -f microplate-be/docker-compose.apps.yml down
+docker-compose -f microplate-be/docker-compose.infra.yml down
 ```
 
-## 17) Appendix – Password Reset Flow (auth-service)
+### Common API Calls
 
-* `POST /forgot-password` → generate token row (expires 30 min) + email link
-* `POST /reset-password` → validate token, set new hash, invalidate token family (all refresh)
-* `POST /logout` → revoke current refresh token
+```bash
+# Login
+curl -X POST http://localhost:6401/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin@example.com","password":"admin123"}'
+
+# Get samples
+curl http://localhost:6404/api/v1/results/direct/samples \
+  -H "Authorization: Bearer $TOKEN"
+
+# Capture image
+curl -X POST http://localhost:6407/api/v1/capture/image \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"sample_no":"TEST001","quality":95}'
+```
 
 ---
 
-**This spec is ready for team development.**
+## 📅 Document Maintenance
 
-* Start with DB & Prisma models (§7), wire up `result-api-service` reads.
-* Implement `vision-inference-service` writing normalized results (§5.5).
-* FE can already display **last run** and **summary** once reads exist (§9).
+### Review Schedule
+
+- **Monthly**: Review for accuracy
+- **Quarterly**: Update for new features
+- **Major Release**: Complete documentation review
+- **On Issue**: Update specific sections
+
+### Contributing to Documentation
+
+1. Create branch: `docs/update-xyz`
+2. Make changes
+3. Test examples and commands
+4. Submit pull request
+5. Request review
 
 ---
 
-## Service Port Allocation
+## 📞 Contact
 
-| Service | Port | Protocol | Description |
-|---------|------|----------|-------------|
-| **Auth Service** | 6401 | HTTP | User authentication and authorization |
-| **Image Ingestion Service** | 6402 | HTTP | Image storage and management |
-| **Vision Inference Service** | 6403 | HTTP | AI model inference and analysis |
-| **Result API Service** | 6404 | HTTP/WebSocket | Data aggregation and real-time updates |
-| **Labware Interface Service** | 6405 | HTTP | CSV generation and delivery |
-| **Prediction DB Service** | 6406 | HTTP | Database operations for prediction data |
-| **Vision Capture Service** | 6407 | HTTP/WebSocket | Camera capture and real-time status |
+### Documentation Team
 
-For detailed service configuration and Docker integration, see **14-Service-Port-Allocation.md**.
+- 📧 Email: docs@microplate-ai.com
+- 💬 Slack: #documentation
+- 🐛 Issues: GitHub Issues with `documentation` label
+
+### Version Information
+
+- **Documentation Version:** 1.0.0
+- **Last Updated:** January 2024
+- **Maintained By:** Microplate AI Team
+
+---
+
+<div align="center">
+
+## 🎉 Happy Coding!
+
+This documentation covers everything you need to build, deploy, and maintain the Microplate AI System.
+
+**Questions?** Check the [Troubleshooting Guide](16-Troubleshooting-Guide.md) or [open an issue](https://github.com/your-org/microplate-ai/issues).
+
+---
+
+[⬆ Back to Top](#microplate-ai-system---complete-documentation-index)
+
+</div>
