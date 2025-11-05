@@ -17,7 +17,7 @@ export default function CapturePage() {
   const [capturedImageUrl, setCapturedImageUrl] = useState<string | null>(null);
   const [annotatedImageUrl, setAnnotatedImageUrl] = useState<string | null>(null);
   
-  console.log('CapturePage rendered with description:', description);
+  logger.debug('CapturePage rendered with description:', description);
   
   const { 
     uploadImage, 
@@ -38,42 +38,42 @@ export default function CapturePage() {
 
   // Update annotated image URL when prediction completes
   React.useEffect(() => {
-    console.log('Prediction data changed:', predictionData);
+    logger.debug('Prediction data changed:', predictionData);
     if (predictionData?.data?.annotated_image_url) {
       let imageUrl = predictionData.data.annotated_image_url;
-      console.log('Raw annotated image URL:', imageUrl);
+      logger.debug('Raw annotated image URL:', imageUrl);
       
       // If it's a MinIO URL, convert to accessible URL
       if (imageUrl.includes('minio:9000')) {
         // Replace minio:9000 with localhost:9000 for frontend access
         imageUrl = imageUrl.replace('minio:9000', 'localhost:9000');
-        console.log('Converted MinIO URL for frontend access:', imageUrl);
+        logger.debug('Converted MinIO URL for frontend access:', imageUrl);
         
         // Test the URL accessibility
         fetch(imageUrl, { method: 'HEAD' })
           .then(response => {
-            console.log('URL accessibility test:', response.status, response.statusText);
+            logger.debug('URL accessibility test:', response.status, response.statusText);
             if (response.ok) {
-              console.log('✅ URL is accessible');
+              logger.debug('✅ URL is accessible');
             } else {
-              console.log('❌ URL is not accessible:', response.status);
+              logger.warn('❌ URL is not accessible:', response.status);
             }
           })
           .catch(error => {
-            console.log('❌ URL test failed:', error);
+            logger.error('❌ URL test failed:', error);
           });
       }
       // If it's a relative URL, make it absolute
       else if (imageUrl.startsWith('/')) {
-        const visionServiceUrl = import.meta.env.VITE_VISION_SERVICE_URL || 'http://localhost:6403';
+        const visionServiceUrl = process.env.VITE_VISION_SERVICE_URL || 'http://localhost:6403';
         imageUrl = `${visionServiceUrl}${imageUrl}`;
-        console.log('Converted to absolute URL:', imageUrl);
+        logger.debug('Converted to absolute URL:', imageUrl);
       }
       
-      console.log('Setting annotated image URL:', imageUrl);
+      logger.debug('Setting annotated image URL:', imageUrl);
       setAnnotatedImageUrl(imageUrl);
     } else {
-      console.log('No annotated_image_url found in prediction data');
+      logger.debug('No annotated_image_url found in prediction data');
     }
   }, [predictionData]);
 
@@ -144,7 +144,7 @@ export default function CapturePage() {
         annotatedImageUrl={annotatedImageUrl}
         onImageSelect={handleImageSelect}
         onCapture={(url) => {
-          console.log('onCapture from CapturePage:', url)
+          logger.debug('onCapture from CapturePage:', url)
           setCapturedImageUrl(url)
         }}
         onReset={handleReset}

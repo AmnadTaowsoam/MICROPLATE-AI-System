@@ -1,5 +1,6 @@
 import { labwareApi } from './api';
 import { authService } from './auth.service';
+import logger from '../utils/logger';
 
 // Interface types based on labware-interface-service
 export interface InterfaceRequest {
@@ -47,44 +48,44 @@ export interface CsvPreviewData {
 export const labwareService = {
   // Generate interface CSV
   async generateInterfaceCsv(sampleNo: string): Promise<InterfaceResponse> {
-    console.log('🚀 labwareService: generateInterfaceCsv called for sample:', sampleNo);
+    logger.debug('🚀 labwareService: generateInterfaceCsv called for sample:', sampleNo);
     try {
       const token = authService.loadTokenFromStorage();
-      console.log('🔑 labwareService: Token loaded:', token ? `Token exists (${token.substring(0, 20)}...)` : 'No token');
+      logger.debug('🔑 labwareService: Token loaded:', token ? `Token exists (${token.substring(0, 20)}...)` : 'No token');
       
       if (token) {
         // Decode JWT to check expiration and payload
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
           const now = Math.floor(Date.now() / 1000);
-          console.log('🕒 Token expiration:', new Date(payload.exp * 1000).toISOString());
-          console.log('🕒 Current time:', new Date(now * 1000).toISOString());
-          console.log('🕒 Token expired:', payload.exp < now ? 'YES' : 'NO');
-          console.log('🏷️ Token issuer (iss):', payload.iss);
-          console.log('🎯 Token audience (aud):', payload.aud);
-          console.log('👤 Token subject (sub):', payload.sub);
+          logger.debug('🕒 Token expiration:', new Date(payload.exp * 1000).toISOString());
+          logger.debug('🕒 Current time:', new Date(now * 1000).toISOString());
+          logger.debug('🕒 Token expired:', payload.exp < now ? 'YES' : 'NO');
+          logger.debug('🏷️ Token issuer (iss):', payload.iss);
+          logger.debug('🎯 Token audience (aud):', payload.aud);
+          logger.debug('👤 Token subject (sub):', payload.sub);
         } catch (e) {
-          console.warn('⚠️ Could not decode token:', e);
+          logger.warn('⚠️ Could not decode token:', e);
         }
         
         labwareApi.setAccessToken(token);
-        console.log('✅ labwareService: Token set to labwareApi');
+        logger.debug('✅ labwareService: Token set to labwareApi');
       } else {
-        console.warn('❌ labwareService: No token available - user needs to login');
+        logger.warn('❌ labwareService: No token available - user needs to login');
       }
       
       // Check the actual token being sent
       const currentToken = (labwareApi as any).accessToken;
-      console.log('📤 labwareService: Token being sent:', currentToken ? `${currentToken.substring(0, 20)}...` : 'No token');
+      logger.debug('📤 labwareService: Token being sent:', currentToken ? `${currentToken.substring(0, 20)}...` : 'No token');
       
       const response = await labwareApi.post<InterfaceResponse>('/api/v1/labware/interface/generate', {
         sampleNo,
       });
       
-      console.log('labwareService: Interface CSV generated:', response);
+      logger.info('labwareService: Interface CSV generated:', response);
       return response;
     } catch (error) {
-      console.error('labwareService: Failed to generate interface CSV:', error);
+      logger.error('labwareService: Failed to generate interface CSV:', error);
       throw error;
     }
   },
@@ -100,10 +101,10 @@ export const labwareService = {
       const params = sampleNo ? `?sampleNo=${sampleNo}` : '';
       const response = await labwareApi.get<{ success: boolean; data: InterfaceFileData[] }>(`/api/v1/labware/interface/files${params}`);
       
-      console.log('labwareService: Interface files retrieved:', response);
+      logger.info('labwareService: Interface files retrieved:', response);
       return response;
     } catch (error) {
-      console.error('labwareService: Failed to get interface files:', error);
+      logger.error('labwareService: Failed to get interface files:', error);
       throw error;
     }
   },
@@ -118,10 +119,10 @@ export const labwareService = {
       
       const response = await labwareApi.get<{ success: boolean; data: InterfaceFileData }>(`/api/v1/labware/interface/files/${id}`);
       
-      console.log('labwareService: Interface file details:', response);
+      logger.info('labwareService: Interface file details:', response);
       return response;
     } catch (error) {
-      console.error('labwareService: Failed to get interface file:', error);
+      logger.error('labwareService: Failed to get interface file:', error);
       throw error;
     }
   },
@@ -142,7 +143,7 @@ export const labwareService = {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('labwareService: Failed to download CSV file:', error);
+      logger.error('labwareService: Failed to download CSV file:', error);
       throw error;
     }
   },

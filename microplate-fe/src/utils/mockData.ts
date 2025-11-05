@@ -126,6 +126,6 @@ export const getMockInferenceResults = async (runId: number | string): Promise<a
     createdAt: new Date().toISOString()
   };
   
-  console.log(`Generated mock data for run ${numericRunId}:`, mockResult);
+  logger.debug(`Generated mock data for run ${numericRunId}:`, mockResult);
   return [mockResult];
 };

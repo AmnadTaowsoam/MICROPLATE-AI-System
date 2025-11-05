@@ -100,7 +100,7 @@ export function useCapture(options: UseCaptureOptions = {}): UseCaptureReturn {
           });
         }
         
-        console.log('✅ Capture successful:', captureResponse);
+        logger.info('✅ Capture successful:', captureResponse);
       } else {
         throw new Error('ไม่ได้รับข้อมูลภาพจาก Vision Capture Service');
       }
@@ -127,7 +127,7 @@ export function useCapture(options: UseCaptureOptions = {}): UseCaptureReturn {
         });
       }
       
-      console.error('❌ Capture failed:', err);
+      logger.error('❌ Capture failed:', err);
     } finally {
       setIsCapturing(false);
     }

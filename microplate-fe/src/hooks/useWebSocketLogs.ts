@@ -1,3 +1,4 @@
+import logger from '../utils/logger'
 import { useState, useEffect, useRef } from 'react'
 // Define LogEntry type locally since it's not exported from LogsPanel
 interface LogEntry {
@@ -20,9 +21,9 @@ export function useWebSocketLogs() {
     
     // Connect to WebSocket for real-time logs
     const makeWsUrl = () => {
-      const explicit = import.meta.env.VITE_WS_URL as string | undefined
+      const explicit = process.env.VITE_WS_URL as string | undefined
       if (explicit) return explicit
-      const api = (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'http://localhost:6400'
+      const api = (process.env.VITE_API_BASE_URL as string | undefined) || 'http://localhost:6400'
       try {
         const u = new URL(api)
         u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -75,7 +76,7 @@ export function useWebSocketLogs() {
             })
           }
         } catch (err) {
-          console.error('Failed to parse WebSocket message:', err)
+          logger.error('Failed to parse WebSocket message:', err)
         }
       }
 
@@ -92,14 +93,14 @@ export function useWebSocketLogs() {
       }
 
       ws.onerror = (error) => {
-        console.error('WebSocket error:', error)
+        logger.error('WebSocket error:', error)
         addLog({
           level: 'error',
           message: 'WebSocket connection error',
         })
       }
     } catch (error) {
-      console.error('Failed to create WebSocket connection:', error)
+      logger.error('Failed to create WebSocket connection:', error)
       addLog({
         level: 'error',
         message: 'Failed to connect to logs stream',

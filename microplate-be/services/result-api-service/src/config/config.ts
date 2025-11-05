@@ -16,7 +16,6 @@ export const config = {
     url: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/microplates',
   },
 
-  // Gateway Integration - JWT, CORS, Rate Limiting handled by gateway
 
   // WebSocket configuration
   websocket: {

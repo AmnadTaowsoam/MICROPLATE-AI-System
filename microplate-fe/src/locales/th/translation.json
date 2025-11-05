@@ -1,0 +1,53 @@
+{
+  "common": {
+    "loading": "กำลังโหลด...",
+    "error": "เกิดข้อผิดพลาด",
+    "success": "สำเร็จ",
+    "cancel": "ยกเลิก",
+    "save": "บันทึก",
+    "delete": "ลบ",
+    "edit": "แก้ไข",
+    "search": "ค้นหา",
+    "submit": "ส่ง",
+    "back": "กลับ",
+    "next": "ถัดไป",
+    "previous": "ก่อนหน้า"
+  },
+  "auth": {
+    "login": "เข้าสู่ระบบ",
+    "logout": "ออกจากระบบ",
+    "register": "ลงทะเบียน",
+    "email": "อีเมล",
+    "password": "รหัสผ่าน",
+    "username": "ชื่อผู้ใช้",
+    "forgotPassword": "ลืมรหัสผ่าน",
+    "resetPassword": "รีเซ็ตรหัสผ่าน",
+    "rememberMe": "จำฉันไว้"
+  },
+  "capture": {
+    "title": "บันทึกภาพ",
+    "sampleNo": "หมายเลขตัวอย่าง",
+    "submissionNo": "หมายเลขการส่ง",
+    "description": "คำอธิบาย",
+    "captureImage": "บันทึกภาพ",
+    "uploadImage": "อัปโหลดภาพ",
+    "processing": "กำลังประมวลผล...",
+    "success": "บันทึกสำเร็จ"
+  },
+  "results": {
+    "title": "ผลลัพธ์",
+    "sampleNo": "หมายเลขตัวอย่าง",
+    "runId": "รหัสการรัน",
+    "confidence": "ความมั่นใจ",
+    "positive": "บวก",
+    "negative": "ลบ",
+    "viewDetails": "ดูรายละเอียด"
+  },
+  "settings": {
+    "title": "ตั้งค่า",
+    "language": "ภาษา",
+    "theme": "ธีม",
+    "notifications": "การแจ้งเตือน"
+  }
+}
+

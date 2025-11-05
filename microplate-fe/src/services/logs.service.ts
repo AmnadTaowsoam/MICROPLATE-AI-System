@@ -1,4 +1,5 @@
 import { ApiService } from './api'
+import logger from '../utils/logger'
 
 export type LogLevel = 'info' | 'error' | 'warn'
 
@@ -34,21 +35,21 @@ export type LogsStats = {
 }
 
 // Create API service for logs
-const logsApi = new ApiService(import.meta.env.VITE_RESULTS_SERVICE_URL || 'http://localhost:6404')
+const logsApi = new ApiService(process.env.VITE_RESULTS_SERVICE_URL || 'http://localhost:6404')
 
 export const logsService = {
   async getAllLogs(): Promise<LogsResponse> {
-    console.log('logsService: Getting all logs')
+    logger.debug('logsService: Getting all logs')
     return logsApi.get<LogsResponse>('/api/v1/results/logs')
   },
 
   async getLogsByLevel(level: LogLevel): Promise<LogsResponse> {
-    console.log('logsService: Getting logs by level:', level)
+    logger.debug('logsService: Getting logs by level:', level)
     return logsApi.get<LogsResponse>(`/api/v1/results/logs?level=${level}`)
   },
 
   async clearLogs(): Promise<{ success: boolean; message: string }> {
-    console.log('logsService: Clearing logs')
+    logger.debug('logsService: Clearing logs')
     return logsApi.delete<{ success: boolean; message: string }>('/api/v1/results/logs')
   },
 

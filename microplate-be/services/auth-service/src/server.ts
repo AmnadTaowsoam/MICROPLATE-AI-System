@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import morgan from 'morgan';
@@ -11,27 +10,17 @@ import { healthRoutes } from './routes/health.routes';
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logging.middleware';
 import { config } from './config/config';
+import logger from './utils/logger';
 
 const app = express();
 
-// Basic middleware
 app.use(helmet());
-app.use(cors({
-  origin: config.corsOrigin,
-  credentials: config.corsCredentials,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID']
-}));
 
-// Body parsing
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
-
-// Logging
 app.use(morgan('combined'));
 app.use(requestLogger);
 
-// Rate limiting
 const limiter = rateLimit({
   windowMs: config.rateLimitWindowMs,
   max: config.rateLimitMaxRequests,
@@ -45,7 +34,6 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Swagger documentation
 const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
@@ -79,14 +67,9 @@ app.get('/docs', (_req, res) => {
   res.send(swaggerUi.generateHTML(swaggerSpec));
 });
 
-// Routes
 app.use('/', healthRoutes);
 app.use('/api/v1/auth', authRoutes);
-
-// Error handling
 app.use(errorHandler);
-
-// 404 handler
 app.use('*', (_req, res) => {
   res.status(404).json({
     success: false,
@@ -97,27 +80,25 @@ app.use('*', (_req, res) => {
   });
 });
 
-// Start server
 const start = async () => {
   try {
     app.listen(config.port, '0.0.0.0', () => {
-      console.log(`Auth service running on port ${config.port}`);
-      console.log(`API documentation available at http://localhost:${config.port}/docs`);
+      logger.info(`Auth service running on port ${config.port}`);
+      logger.info(`API documentation available at http://localhost:${config.port}/docs`);
     });
   } catch (err) {
-    console.error('Failed to start server:', err);
+    logger.error('Failed to start server:', err);
     process.exit(1);
   }
 };
 
-// Graceful shutdown
 process.on('SIGINT', () => {
-  console.log('Received SIGINT, shutting down gracefully...');
+  logger.info('Received SIGINT, shutting down gracefully...');
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  console.log('Received SIGTERM, shutting down gracefully...');
+  logger.info('Received SIGTERM, shutting down gracefully...');
   process.exit(0);
 });
 

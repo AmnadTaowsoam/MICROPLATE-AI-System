@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './App.css';
+import logger from './utils/logger';
 import AuthGuard from './components/AuthGuard';
 import ResultsPage from './pages/ResultsPage';
 import Results from './pages/Results';
@@ -75,49 +76,49 @@ function CapturePage() {
 
   // Update annotated image URL when prediction completes
   useEffect(() => {
-    console.log('App.tsx: Prediction data changed:', predictionData);
+    logger.debug('App.tsx: Prediction data changed:', predictionData);
     if (predictionData?.data?.annotated_image_url) {
       let imageUrl = predictionData.data.annotated_image_url;
-      console.log('App.tsx: Raw annotated image URL:', imageUrl);
+      logger.debug('App.tsx: Raw annotated image URL:', imageUrl);
       
       // If it's a MinIO URL, convert to accessible URL
       if (imageUrl.includes('minio:9000')) {
         // Replace minio:9000 with localhost:9000 for frontend access
         imageUrl = imageUrl.replace('minio:9000', 'localhost:9000');
-        console.log('App.tsx: Converted MinIO URL for frontend access:', imageUrl);
+        logger.debug('App.tsx: Converted MinIO URL for frontend access:', imageUrl);
         
         // If it's a signed URL, convert to direct URL immediately
         if (imageUrl.includes('?')) {
           const directUrl = imageUrl.split('?')[0];
-          console.log('App.tsx: Converting signed URL to direct URL:', directUrl);
+          logger.debug('App.tsx: Converting signed URL to direct URL:', directUrl);
           imageUrl = directUrl; // Use direct URL immediately
         }
       }
       // If it's a relative URL, make it absolute
       else if (imageUrl.startsWith('/')) {
-        const visionServiceUrl = import.meta.env.VITE_VISION_SERVICE_URL || 'http://localhost:6403';
+        const visionServiceUrl = process.env.VITE_VISION_SERVICE_URL || 'http://localhost:6403';
         imageUrl = `${visionServiceUrl}${imageUrl}`;
-        console.log('App.tsx: Converted to absolute URL:', imageUrl);
+        logger.debug('App.tsx: Converted to absolute URL:', imageUrl);
       }
       
-      console.log('App.tsx: Setting annotated image URL:', imageUrl);
+      logger.debug('App.tsx: Setting annotated image URL:', imageUrl);
       setAnnotatedImageUrl(imageUrl);
       
       // Test the URL accessibility (async, but don't wait for it)
       fetch(imageUrl, { method: 'HEAD' })
         .then(response => {
-          console.log('App.tsx: URL accessibility test:', response.status, response.statusText);
+          logger.debug('App.tsx: URL accessibility test:', response.status, response.statusText);
           if (response.ok) {
-            console.log('App.tsx: ✅ URL is accessible');
+            logger.debug('App.tsx: ✅ URL is accessible');
           } else {
-            console.log('App.tsx: ❌ URL is not accessible:', response.status);
+            logger.warn('App.tsx: ❌ URL is not accessible:', response.status);
           }
         })
         .catch(error => {
-          console.log('App.tsx: ❌ URL test failed:', error);
+          logger.error('App.tsx: ❌ URL test failed:', error);
         });
     } else {
-      console.log('App.tsx: No annotated_image_url found in prediction data');
+      logger.debug('App.tsx: No annotated_image_url found in prediction data');
     }
   }, [predictionData]);
 
@@ -515,19 +516,19 @@ export default function App() {
   useEffect(() => {
     // Check authentication status on app load
     const checkAuth = () => {
-      console.log('App: Checking authentication...');
+      logger.debug('App: Checking authentication...');
       const token = authService.loadTokenFromStorage();
       const isValid = authService.isTokenValid();
       const authenticated = !!token && isValid;
-      console.log('App: Token present:', !!token);
-      console.log('App: Token valid:', isValid);
-      console.log('App: Authenticated:', authenticated);
+      logger.debug('App: Token present:', !!token);
+      logger.debug('App: Token valid:', isValid);
+      logger.debug('App: Authenticated:', authenticated);
       setIsAuthenticated(authenticated);
       setIsCheckingAuth(false);
       
       // Ensure token is set for all services
       if (token && isValid) {
-        console.log('App: Setting token for all services...');
+        logger.debug('App: Setting token for all services...');
         authService.setTokensForAllServices(token);
       }
     };
@@ -536,7 +537,7 @@ export default function App() {
 
     // Listen for storage changes (when user logs in/out in another tab)
     const handleStorageChange = (e: StorageEvent) => {
-      console.log('App: Storage change detected:', e.key, e.newValue ? 'Present' : 'Missing');
+      logger.debug('App: Storage change detected:', e.key, e.newValue ? 'Present' : 'Missing');
       if (e.key === 'access_token') {
         checkAuth();
       }

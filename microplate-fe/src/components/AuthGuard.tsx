@@ -12,13 +12,13 @@ export default function AuthGuard({ children }: Props) {
 
   useEffect(() => {
     const checkAuth = async () => {
-      console.log('AuthGuard: Checking authentication...')
+      logger.debug('AuthGuard: Checking authentication...')
       // Load token from storage and set for all services
       const token = authService.loadTokenFromStorage()
-      console.log('AuthGuard: Token present:', !!token)
+      logger.debug('AuthGuard: Token present:', !!token)
       
       if (!token) {
-        console.log('AuthGuard: No token, redirecting to auth')
+        logger.debug('AuthGuard: No token, redirecting to auth')
         setIsAuthenticated(false)
         navigate('/auth', { replace: true })
         return
@@ -26,17 +26,17 @@ export default function AuthGuard({ children }: Props) {
       
       // Check if token is valid
       const isValid = authService.isTokenValid()
-      console.log('AuthGuard: Token valid:', isValid)
+      logger.debug('AuthGuard: Token valid:', isValid)
       
       if (!isValid) {
-        console.log('AuthGuard: Token invalid, trying to refresh...')
+        logger.debug('AuthGuard: Token invalid, trying to refresh...')
         // Try to refresh token if available
         try {
           await authService.refreshToken()
-          console.log('AuthGuard: Token refreshed successfully')
+          logger.debug('AuthGuard: Token refreshed successfully')
           setIsAuthenticated(true)
         } catch (error) {
-          console.log('AuthGuard: Token refresh failed, logging out')
+          logger.debug('AuthGuard: Token refresh failed, logging out')
           // Refresh failed, logout user
           authService.logout()
           setIsAuthenticated(false)
@@ -45,7 +45,7 @@ export default function AuthGuard({ children }: Props) {
         return
       }
       
-      console.log('AuthGuard: Authentication successful')
+      logger.debug('AuthGuard: Authentication successful')
       setIsAuthenticated(true)
     }
 

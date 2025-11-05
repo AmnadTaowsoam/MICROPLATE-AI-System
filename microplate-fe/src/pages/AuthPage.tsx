@@ -5,6 +5,7 @@ import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { authService } from '../services/auth.service';
+import logger from '../utils/logger';
 
 function PasswordStrength({ value }: { value: string }) {
   const rules = [
@@ -50,33 +51,48 @@ export default function AuthPage() {
         setMode('login');
         setPassword('');
       } else {
-        console.log('Starting login process...');
+        logger.debug('Starting login process...');
         const loginResult = await authService.login({ username: username || email, password });
-        console.log('Login result:', loginResult);
+        logger.debug('Login result:', loginResult);
         
         const token = authService.getCurrentToken();
-        console.log('Token after login:', token ? 'Present' : 'Missing');
-        console.log('Token valid:', authService.isTokenValid());
+        logger.debug('Token after login:', token ? 'Present' : 'Missing');
+        logger.debug('Token valid:', authService.isTokenValid());
         
-        // Trigger storage event to update App state
-        console.log('Triggering storage event...');
         window.dispatchEvent(new StorageEvent('storage', {
           key: 'access_token',
           newValue: token,
           storageArea: localStorage
         }));
         
-        // Small delay to ensure state updates
         setTimeout(() => {
-          console.log('Navigating to /capture...');
+          logger.debug('Navigating to /capture...');
           navigate('/capture', { replace: true });
         }, 100);
       }
     } catch (e: unknown) {
       let message = 'Request failed';
-      if (typeof e === 'object' && e !== null && 'message' in e && typeof (e as {message: string}).message === 'string') {
-        message = (e as {message: string}).message;
+      
+      // Check if it's an ApiError with connection/CORS issue
+      if (typeof e === 'object' && e !== null && 'message' in e) {
+        const errorMessage = (e as {message: string}).message || '';
+        
+        // Handle connection/CORS errors with user-friendly messages
+        if (errorMessage.includes('CORS error') || 
+            errorMessage.includes('CORS is not configured')) {
+          message = 'Backend service is running but CORS is not configured. Please use a gateway or configure CORS in the backend.';
+        } else if (errorMessage.includes('Network error') || 
+                   errorMessage.includes('Unable to connect') ||
+                   errorMessage.includes('Backend service may not be running')) {
+          message = 'Unable to connect to backend service. Please ensure the backend services are running.';
+        } else if (errorMessage.includes('ERR_CONNECTION_REFUSED') ||
+                   errorMessage.includes('ERR_FAILED')) {
+          message = 'Backend service is not available. Please start the backend services.';
+        } else {
+          message = errorMessage;
+        }
       }
+      
       setMessage(message);
     } finally {
       setLoading(false);

@@ -22,18 +22,18 @@ export function useSampleSummary(sampleNo?: string) {
     queryKey: ['sampleSummary', sampleNo],
     queryFn: async () => {
       if (!sampleNo) throw new Error('No sample number')
-      console.log('useSampleSummary: Fetching summary for sample:', sampleNo)
+      logger.debug('useSampleSummary: Fetching summary for sample:', sampleNo)
       try {
         const result = await resultsService.getSampleSummary(sampleNo)
-        console.log('useSampleSummary: API response:', result)
+        logger.debug('useSampleSummary: API response:', result)
         return result
       } catch (error: unknown) {
-        console.error('useSampleSummary: API error:', error)
+        logger.error('useSampleSummary: API error:', error)
         
         // Check if it's a NOT_FOUND error (404) - sample doesn't exist yet
         const errorObj = error as { status?: number; message?: string };
         if (errorObj?.status === 404 || errorObj?.message?.includes('NOT_FOUND') || errorObj?.message?.includes('Sample with ID')) {
-          console.log('useSampleSummary: Sample not found, returning null instead of throwing')
+          logger.debug('useSampleSummary: Sample not found, returning null instead of throwing')
           return null // Return null instead of throwing error
         }
         

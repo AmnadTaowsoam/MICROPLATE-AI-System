@@ -33,9 +33,9 @@ export default function ImageCapture({
   description,
   canRunPrediction = false
 }: ImageCaptureProps) {
-  console.log('ImageCapture render - annotatedImageUrl:', annotatedImageUrl);
-  console.log('ImageCapture render - capturedImageUrl:', capturedImageUrl);
-  console.log('ImageCapture render - selectedFile:', selectedFile?.name);
+  logger.debug('ImageCapture render - annotatedImageUrl:', annotatedImageUrl);
+  logger.debug('ImageCapture render - capturedImageUrl:', capturedImageUrl);
+  logger.debug('ImageCapture render - selectedFile:', selectedFile?.name);
   
   return (
     <div className="col-span-12 md:col-span-6 xl:col-span-8">
@@ -50,13 +50,13 @@ export default function ImageCapture({
                   className="max-h-96 max-w-full object-contain rounded-lg"
                   onLoad={() => {
                     const currentSrc = annotatedImageUrl || capturedImageUrl || (selectedFile ? URL.createObjectURL(selectedFile) : '');
-                    console.log('Image loaded successfully:', currentSrc);
-                    console.log('Is annotated image?', !!annotatedImageUrl);
+                    logger.debug('Image loaded successfully:', currentSrc);
+                    logger.debug('Is annotated image?', !!annotatedImageUrl);
                   }}
                   onError={(e) => {
-                    console.error('Image failed to load:', e.currentTarget.src);
-                    console.error('Annotated URL:', annotatedImageUrl);
-                    console.error('Captured URL:', capturedImageUrl);
+                    logger.error('Image failed to load:', e.currentTarget.src);
+                    logger.error('Annotated URL:', annotatedImageUrl);
+                    logger.error('Captured URL:', capturedImageUrl);
                   }}
                 />
                 {annotatedImageUrl ? (

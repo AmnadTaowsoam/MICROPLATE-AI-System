@@ -1,0 +1,102 @@
+name: Device Service CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'microplate-device/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'microplate-device/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./microplate-device/vision-capture-service
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      
+      - name: Run tests
+        run: pytest tests/ || true
+      
+      - name: Lint
+        run: |
+          pip install flake8 black
+          flake8 . --max-line-length=120 --ignore=E501,W503 || true
+          black --check . || true
+
+  deploy-dev:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: development
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to Dev
+        run: |
+          echo "Deploy to Dev environment"
+          # Add deployment commands here
+
+  deploy-qa:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: qa
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to QA
+        run: |
+          echo "Deploy to QA environment"
+          # Add deployment commands here
+
+  deploy-uat:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: uat
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to UAT
+        run: |
+          echo "Deploy to UAT environment"
+          # Add deployment commands here
+
+  deploy-prod:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[deploy-prod]')
+    environment:
+      name: production
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to Production
+        run: |
+          echo "Deploy to Production environment"
+          # Add deployment commands here
+

@@ -4,6 +4,7 @@ import Button from '../ui/Button'
 import { FolderOpenIcon, CameraIcon, ArrowPathIcon, PlayCircleIcon } from '@heroicons/react/24/outline'
 import { useCapture } from '../../hooks/useCapture'
 import CameraStatus from './CameraStatus'
+import logger from '../../utils/logger'
 
 type Props = {
   onSelect: (file: File) => void
@@ -50,7 +51,7 @@ export default function ImageUpload({
     checkConnection
   } = useCapture({
     onSuccess: (response) => {
-      console.log('✅ Capture successful:', response);
+      logger.info('✅ Capture successful:', response);
       // แสดงผลทันทีในการ์ดด้วย preview และส่งขึ้น parent
       if (response?.imageUrl) {
         // เพิ่ม cache-buster เพื่อบังคับโหลดใหม่ในบางเบราว์เซอร์
@@ -62,12 +63,12 @@ export default function ImageUpload({
       }
     },
     onError: (error) => {
-      console.error('❌ Capture failed:', error);
+      logger.error('❌ Capture failed:', error);
     }
   });
   
-  console.log('ImageUpload render - annotatedImageUrl:', annotatedImageUrl);
-  console.log('ImageUpload render - preview:', preview);
+  logger.debug('ImageUpload render - annotatedImageUrl:', annotatedImageUrl);
+  logger.debug('ImageUpload render - preview:', preview);
 
   const handleChoose = () => inputRef.current?.click()
 
@@ -95,7 +96,7 @@ export default function ImageUpload({
         description: description || 'Captured image'
       };
       
-      console.log('🎥 Starting capture with data:', captureData);
+      logger.debug('🎥 Starting capture with data:', captureData);
       
       await captureImage(captureData);
       // เมื่อ capture สำเร็จ hook จะตั้งค่า capturedImageUrl ให้เอง
@@ -108,7 +109,7 @@ export default function ImageUpload({
       }, 0);
       
     } catch (err) {
-      console.error('❌ Capture failed:', err);
+      logger.error('❌ Capture failed:', err);
     }
   }
 
@@ -127,13 +128,13 @@ export default function ImageUpload({
             className="w-full h-full object-contain"
             onLoad={() => {
               const currentSrc = annotatedImageUrl || preview;
-              console.log('ImageUpload: Image loaded successfully:', currentSrc);
-              console.log('ImageUpload: Is annotated image?', !!annotatedImageUrl);
+              logger.debug('ImageUpload: Image loaded successfully:', currentSrc);
+              logger.debug('ImageUpload: Is annotated image?', !!annotatedImageUrl);
             }}
             onError={(e) => {
-              console.error('ImageUpload: Image failed to load:', e.currentTarget.src);
-              console.error('ImageUpload: Annotated URL:', annotatedImageUrl);
-              console.error('ImageUpload: Preview URL:', preview);
+              logger.error('ImageUpload: Image failed to load:', e.currentTarget.src);
+              logger.error('ImageUpload: Annotated URL:', annotatedImageUrl);
+              logger.error('ImageUpload: Preview URL:', preview);
             }}
           />)
           : (<div className="text-gray-400 dark:text-gray-500 text-sm">No image selected</div>)}

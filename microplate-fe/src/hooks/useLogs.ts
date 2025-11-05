@@ -32,7 +32,7 @@ export function useClearLogs() {
       queryClient.invalidateQueries({ queryKey: ['logs'] })
     },
     onError: (error) => {
-      console.error('Failed to clear logs:', error)
+      logger.error('Failed to clear logs:', error)
     }
   })
 }

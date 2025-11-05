@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { resultsServiceNew } from '../services/results.service.new'
+import logger from '../utils/logger'
 import type { 
   PredictionRun, 
   SampleSummary, 
@@ -17,18 +18,18 @@ export function useSampleSummaryNew(sampleNo?: string) {
     queryKey: ['sampleSummaryNew', sampleNo],
     queryFn: async () => {
       if (!sampleNo) throw new Error('No sample number')
-      console.log('useSampleSummaryNew: Fetching summary for sample:', sampleNo)
+      logger.debug('useSampleSummaryNew: Fetching summary for sample:', sampleNo)
       try {
         const result = await resultsServiceNew.getSampleSummary(sampleNo)
-        console.log('useSampleSummaryNew: API response:', result)
+        logger.debug('useSampleSummaryNew: API response:', result)
         return result
       } catch (error: unknown) {
-        console.error('useSampleSummaryNew: API error:', error)
+        logger.error('useSampleSummaryNew: API error:', error)
         
         // Check if it's a NOT_FOUND error (404) - sample doesn't exist yet
         const errorObj = error as { status?: number; message?: string };
         if (errorObj?.status === 404 || errorObj?.message?.includes('NOT_FOUND') || errorObj?.message?.includes('Sample with ID')) {
-          console.log('useSampleSummaryNew: Sample not found, returning null instead of throwing')
+          logger.debug('useSampleSummaryNew: Sample not found, returning null instead of throwing')
           return null // Return null instead of throwing error
         }
         
@@ -148,7 +149,7 @@ export function useExportSampleData() {
       window.URL.revokeObjectURL(url)
     },
     onError: (error) => {
-      console.error('Export failed:', error)
+      logger.error('Export failed:', error)
     }
   })
 }
@@ -170,7 +171,7 @@ export function useExportRunData() {
       window.URL.revokeObjectURL(url)
     },
     onError: (error) => {
-      console.error('Export failed:', error)
+      logger.error('Export failed:', error)
     }
   })
 }
@@ -203,10 +204,10 @@ export function useRefreshResults() {
       await queryClient.invalidateQueries({ queryKey: ['systemStatistics'] })
     },
     onSuccess: () => {
-      console.log('All results data refreshed successfully')
+      logger.info('All results data refreshed successfully')
     },
     onError: (error) => {
-      console.error('Failed to refresh results:', error)
+      logger.error('Failed to refresh results:', error)
     }
   })
 }

@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { PasswordUtil } from '../utils/password.util';
 import { TokenUtil } from '../utils/token.util';
 import { AuditService } from './audit.service';
-import { InvalidCredentialsError, UserAlreadyExistsError, ValidationError } from '../utils/errors';
+import { InvalidCredentialsError } from '../utils/errors';
 import { 
   LoginCredentials, 
   RegisterData, 

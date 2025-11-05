@@ -22,7 +22,6 @@ const configSchema = z.object({
     password: z.string().optional(),
     db: z.number().default(0),
   }),
-  // cors, rateLimit, jwt handled at gateway level
   logging: z.object({
     level: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
     format: z.enum(['json', 'pretty']).default('json'),
@@ -51,7 +50,6 @@ const rawConfig = {
     password: process.env['REDIS_PASSWORD'],
     db: parseInt(process.env['REDIS_DB'] || '0'),
   },
-  // cors, rateLimit, jwt removed
   logging: {
     level: (process.env['LOG_LEVEL'] || 'info') as 'error' | 'warn' | 'info' | 'debug',
     format: (process.env['LOG_FORMAT'] || 'json') as 'json' | 'pretty',

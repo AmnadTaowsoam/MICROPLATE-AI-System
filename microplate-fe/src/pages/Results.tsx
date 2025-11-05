@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import logger from '../utils/logger';
 import { 
   MdSearch, 
   MdExpandMore, 
@@ -52,8 +53,8 @@ export default function Results() {
   const { data: samplesData, isLoading: isLoadingSamples, refetch } = useQuery({
     queryKey: ['samples', currentPage, searchTerm],
     queryFn: async () => {
-      console.log('🔍 Fetching samples with params:', { currentPage, limit, searchTerm });
-      console.log('🔍 Now using resultsApi (port 6404) - result-api-service gets data from prediction_result.sample_summary');
+      logger.debug('🔍 Fetching samples with params:', { currentPage, limit, searchTerm });
+      logger.debug('🔍 Now using resultsApi (port 6404) - result-api-service gets data from prediction_result.sample_summary');
       const response = await resultsService.getSamples(
         currentPage,
         limit,
@@ -61,34 +62,34 @@ export default function Results() {
         'desc',
         searchTerm || undefined
       );
-      console.log('🔍 Raw samples API response:', response);
-      console.log('🔍 Extracted samples data:', response.data);
+      logger.debug('🔍 Raw samples API response:', response);
+      logger.debug('🔍 Extracted samples data:', response.data);
       
       // Debug: Check each sample's summary data
       if (response.data?.data) {
         response.data.data.forEach((sample: any) => {
-          console.log(`🔍 Sample ${sample.sampleNo} summary:`, sample.summary);
+          logger.debug(`🔍 Sample ${sample.sampleNo} summary:`, sample.summary);
           if (sample.summary?.distribution) {
-            console.log(`🔍 Sample ${sample.sampleNo} distribution:`, sample.summary.distribution);
+            logger.debug(`🔍 Sample ${sample.sampleNo} distribution:`, sample.summary.distribution);
             
             // Check if we're now getting correct data from prediction_result.sample_summary via result-api-service
             if (sample.sampleNo === 'TEST006') {
-              console.log('🔍 TEST006 - API response from result-api-service (gets data from prediction_result.sample_summary):', sample.summary.distribution);
-              console.log('🔍 TEST006 - Expected from DB: {"1":0,"2":2,"3":0,"4":4,"5":6,"6":4,"7":0,"8":0,"9":0,"10":0,"11":0,"12":0,"total":16}');
-              console.log('🔍 TEST006 - Values match:', JSON.stringify(sample.summary.distribution) === '{"1":0,"2":2,"3":0,"4":4,"5":6,"6":4,"7":0,"8":0,"9":0,"10":0,"11":0,"12":0,"total":16}');
+              logger.debug('🔍 TEST006 - API response from result-api-service (gets data from prediction_result.sample_summary):', sample.summary.distribution);
+              logger.debug('🔍 TEST006 - Expected from DB: {"1":0,"2":2,"3":0,"4":4,"5":6,"6":4,"7":0,"8":0,"9":0,"10":0,"11":0,"12":0,"total":16}');
+              logger.debug('🔍 TEST006 - Values match:', JSON.stringify(sample.summary.distribution) === '{"1":0,"2":2,"3":0,"4":4,"5":6,"6":4,"7":0,"8":0,"9":0,"10":0,"11":0,"12":0,"total":16}');
               
               // Debug: Check individual well values
               const expected = {"1":0,"2":2,"3":0,"4":4,"5":6,"6":4,"7":0,"8":0,"9":0,"10":0,"11":0,"12":0,"total":16} as any;
               const actual = sample.summary.distribution;
-              console.log('🔍 TEST006 - Well-by-well comparison:');
+              logger.debug('🔍 TEST006 - Well-by-well comparison:');
               for (let i = 1; i <= 12; i++) {
                 const well = i.toString();
-                console.log(`🔍   Well ${i}: Expected ${expected[well]}, Actual ${(actual as any)[well]}, Match: ${expected[well] === (actual as any)[well]}`);
+                logger.debug(`🔍   Well ${i}: Expected ${expected[well]}, Actual ${(actual as any)[well]}, Match: ${expected[well] === (actual as any)[well]}`);
               }
-              console.log(`🔍   Total: Expected ${expected.total}, Actual ${(actual as any).total}, Match: ${expected.total === (actual as any).total}`);
+              logger.debug(`🔍   Total: Expected ${expected.total}, Actual ${(actual as any).total}, Match: ${expected.total === (actual as any).total}`);
             }
           } else {
-            console.log(`❌ Sample ${sample.sampleNo} has no summary.distribution`);
+            logger.warn(`❌ Sample ${sample.sampleNo} has no summary.distribution`);
           }
         });
       }
@@ -130,18 +131,18 @@ export default function Results() {
 
       try {
         // Fetch runs using direct service (gets data from prediction_result.inference_results via direct endpoint)
-        console.log('Using direct service to fetch runs for sample:', sampleNo);
+        logger.debug('Using direct service to fetch runs for sample:', sampleNo);
         const runsResponse = await resultsServiceDirect.getSampleRuns(sampleNo, { page: 1, limit: 50 });
-        console.log('🔍 Raw runsResponse from direct service:', runsResponse);
-        console.log('🔍 runsResponse structure:', JSON.stringify(runsResponse, null, 2));
+        logger.debug('🔍 Raw runsResponse from direct service:', runsResponse);
+        logger.debug('🔍 runsResponse structure:', JSON.stringify(runsResponse, null, 2));
         
         // Debug: Check if this is TEST006 and log detailed API response
         if (sampleNo === 'TEST006') {
-          console.log('🔍 TEST006 - Raw API response from direct service (gets data from prediction_result.inference_results):', runsResponse);
+          logger.debug('🔍 TEST006 - Raw API response from direct service (gets data from prediction_result.inference_results):', runsResponse);
           if (runsResponse && runsResponse.data && (runsResponse.data as any).data && Array.isArray((runsResponse.data as any).data)) {
-            console.log('🔍 TEST006 - API runs data from direct service:', (runsResponse.data as any).data);
+            logger.debug('🔍 TEST006 - API runs data from direct service:', (runsResponse.data as any).data);
             (runsResponse.data as any).data.forEach((run: any, index: number) => {
-              console.log(`🔍 TEST006 - API Run ${index + 1}:`, {
+              logger.debug(`🔍 TEST006 - API Run ${index + 1}:`, {
                 id: run.id,
                 runId: run.runId,
                 sampleNo: run.sampleNo,
@@ -152,15 +153,15 @@ export default function Results() {
               });
               
               if (run.inferenceResults && run.inferenceResults.length > 0) {
-                console.log(`🔍 TEST006 - API Run ${run.id} inference results:`, run.inferenceResults[0]);
+                logger.debug(`🔍 TEST006 - API Run ${run.id} inference results:`, run.inferenceResults[0]);
                 if (run.inferenceResults[0].results) {
-                  console.log(`🔍 TEST006 - API Run ${run.id} results:`, run.inferenceResults[0].results);
+                  logger.debug(`🔍 TEST006 - API Run ${run.id} results:`, run.inferenceResults[0].results);
                   if (run.inferenceResults[0].results.distribution) {
-                    console.log(`🔍 TEST006 - API Run ${run.id} distribution:`, run.inferenceResults[0].results.distribution);
+                    logger.debug(`🔍 TEST006 - API Run ${run.id} distribution:`, run.inferenceResults[0].results.distribution);
                   }
                 }
               } else {
-                console.log(`❌ TEST006 - API Run ${run.id} has no inference results!`);
+                logger.warn(`❌ TEST006 - API Run ${run.id} has no inference results!`);
               }
             });
           }
@@ -176,14 +177,14 @@ export default function Results() {
             runs = responseData;
           }
         }
-        console.log('🔍 Final runs array:', runs);
+        logger.debug('🔍 Final runs array:', runs);
         
         // Debug: Log runs data for TEST006
         if (sampleNo === 'TEST006') {
-          console.log('🔍 TEST006 - Final runs array:', runs);
-          console.log('🔍 TEST006 - Number of runs:', runs.length);
+          logger.debug('🔍 TEST006 - Final runs array:', runs);
+          logger.debug('🔍 TEST006 - Number of runs:', runs.length);
           runs.forEach((run: any, index: number) => {
-            console.log(`🔍 TEST006 - Run ${index + 1}:`, {
+            logger.debug(`🔍 TEST006 - Run ${index + 1}:`, {
               id: run.id,
               runId: run.runId,
               sampleNo: run.sampleNo,
@@ -194,15 +195,15 @@ export default function Results() {
             });
             
             if (run.inferenceResults && Array.isArray(run.inferenceResults) && run.inferenceResults.length > 0) {
-              console.log(`🔍 TEST006 - Run ${run.id} inference results:`, run.inferenceResults[0]);
+              logger.debug(`🔍 TEST006 - Run ${run.id} inference results:`, run.inferenceResults[0]);
               if (run.inferenceResults[0].results) {
-                console.log(`🔍 TEST006 - Run ${run.id} results:`, run.inferenceResults[0].results);
+                logger.debug(`🔍 TEST006 - Run ${run.id} results:`, run.inferenceResults[0].results);
                 if (run.inferenceResults[0].results.distribution) {
-                  console.log(`🔍 TEST006 - Run ${run.id} distribution:`, run.inferenceResults[0].results.distribution);
+                  logger.debug(`🔍 TEST006 - Run ${run.id} distribution:`, run.inferenceResults[0].results.distribution);
                 }
               }
             } else {
-              console.log(`❌ TEST006 - Run ${run.id} has no inference results`);
+              logger.warn(`❌ TEST006 - Run ${run.id} has no inference results`);
             }
           });
         }
@@ -218,7 +219,7 @@ export default function Results() {
             });
           }
         } catch (interfaceError) {
-          console.warn('Failed to fetch interface files:', interfaceError);
+          logger.warn('Failed to fetch interface files:', interfaceError);
           // Don't fail the whole operation if interface files can't be fetched
         }
         const inferenceResultsMap = new Map<number, any>();
@@ -228,10 +229,10 @@ export default function Results() {
         
         // Debug: Log runs data for TEST006
         if (sampleNo === 'TEST006') {
-          console.log('🔍 TEST006 - Runs data:', runs);
-          console.log('🔍 TEST006 - Number of runs:', runs.length);
+          logger.debug('🔍 TEST006 - Runs data:', runs);
+          logger.debug('🔍 TEST006 - Number of runs:', runs.length);
           runs.forEach((run: any, index: number) => {
-            console.log(`🔍 TEST006 - Run ${index + 1}:`, {
+            logger.debug(`🔍 TEST006 - Run ${index + 1}:`, {
               id: run.id,
               runId: run.runId,
               sampleNo: run.sampleNo,
@@ -244,53 +245,53 @@ export default function Results() {
             
             // Debug: Check inference results structure
             if (run.inferenceResults && Array.isArray(run.inferenceResults) && run.inferenceResults.length > 0) {
-              console.log(`🔍 TEST006 - Run ${run.id} inference results:`, run.inferenceResults[0]);
+              logger.debug(`🔍 TEST006 - Run ${run.id} inference results:`, run.inferenceResults[0]);
               if (run.inferenceResults[0].results) {
-                console.log(`🔍 TEST006 - Run ${run.id} results:`, run.inferenceResults[0].results);
+                logger.debug(`🔍 TEST006 - Run ${run.id} results:`, run.inferenceResults[0].results);
                 if (run.inferenceResults[0].results.distribution) {
-                  console.log(`🔍 TEST006 - Run ${run.id} distribution:`, run.inferenceResults[0].results.distribution);
+                  logger.debug(`🔍 TEST006 - Run ${run.id} distribution:`, run.inferenceResults[0].results.distribution);
                 }
               }
             } else {
-              console.log(`❌ TEST006 - Run ${run.id} has no inference results`);
+              logger.warn(`❌ TEST006 - Run ${run.id} has no inference results`);
             }
           });
         }
 
         // Extract inference results from runs data (they should already be included)
-        console.log('🔍 Processing runs for inference results...');
+        logger.debug('🔍 Processing runs for inference results...');
         const inferencePromises = [];
         
         for (let index = 0; index < runs.length; index++) {
           const run = runs[index];
-          console.log(`🔍 Processing run ${index}:`, run);
+          logger.debug(`🔍 Processing run ${index}:`, run);
           const actualRunId = run.id || run.runId || run.run_id;
           
           if (!actualRunId || actualRunId === 'undefined') {
-            console.warn(`Invalid run ID for run:`, run);
+            logger.warn(`Invalid run ID for run:`, run);
             continue;
           }
 
           // Check if run already has inferenceResults
           if (run.inferenceResults && Array.isArray(run.inferenceResults) && run.inferenceResults.length > 0) {
-            console.log(`✅ Found existing inference results for run ${actualRunId}:`, run.inferenceResults[0]);
+            logger.debug(`✅ Found existing inference results for run ${actualRunId}:`, run.inferenceResults[0]);
             inferenceResultsMap.set(actualRunId, run.inferenceResults[0]);
             
             // Debug: Log inference result details for TEST006
             if (sampleNo === 'TEST006') {
-              console.log(`🔍 TEST006 - Run ${actualRunId} inference result:`, {
+              logger.debug(`🔍 TEST006 - Run ${actualRunId} inference result:`, {
                 runId: actualRunId,
                 results: run.inferenceResults[0].results,
                 distribution: run.inferenceResults[0].results?.distribution
               });
             }
           } else {
-            console.log(`❌ No inference results found for run ${actualRunId} in runs data, trying to fetch separately...`);
+            logger.warn(`❌ No inference results found for run ${actualRunId} in runs data, trying to fetch separately...`);
             
             // Try to fetch inference results separately using direct service
             const fetchInferencePromise = resultsServiceDirect.getRunDetails(actualRunId)
               .then((runDetails: any) => {
-                console.log(`🔍 Fetched run details for ${actualRunId} from direct service:`, runDetails);
+                logger.debug(`🔍 Fetched run details for ${actualRunId} from direct service:`, runDetails);
                 
                 // Look for inference results in different possible locations
                 let inferenceResult = null;
@@ -303,15 +304,15 @@ export default function Results() {
                 }
                 
                 if (inferenceResult) {
-                  console.log(`✅ Found inference result for run ${actualRunId} from direct service:`, inferenceResult);
+                  logger.debug(`✅ Found inference result for run ${actualRunId} from direct service:`, inferenceResult);
                   inferenceResultsMap.set(actualRunId, inferenceResult);
                 } else {
-                  console.log(`❌ Still no inference result found for run ${actualRunId} from direct service`);
+                  logger.warn(`❌ Still no inference result found for run ${actualRunId} from direct service`);
                   inferenceResultsMap.set(actualRunId, null);
                 }
               })
               .catch((error) => {
-                console.error(`❌ Failed to fetch run details for ${actualRunId}:`, error);
+                logger.error(`❌ Failed to fetch run details for ${actualRunId}:`, error);
                 inferenceResultsMap.set(actualRunId, null);
               });
             
@@ -319,7 +320,7 @@ export default function Results() {
           }
 
           // Debug: Log image paths
-          console.log(`🔍 Run ${actualRunId} image paths:`, {
+          logger.debug(`🔍 Run ${actualRunId} image paths:`, {
             rawImagePath: run.rawImagePath,
             annotatedImagePath: run.annotatedImagePath,
             rawImageUrl: run.rawImagePath ? resultsServiceDirect.getRawImageUrl(run) : 'N/A',
@@ -329,20 +330,20 @@ export default function Results() {
         
         // Wait for all inference results to be fetched
         if (inferencePromises.length > 0) {
-          console.log(`🔍 Waiting for ${inferencePromises.length} inference results to be fetched...`);
+          logger.debug(`🔍 Waiting for ${inferencePromises.length} inference results to be fetched...`);
           await Promise.all(inferencePromises);
         }
         
-        console.log('🔍 Final inferenceResultsMap:', inferenceResultsMap);
+        logger.debug('🔍 Final inferenceResultsMap:', inferenceResultsMap);
         
         // Debug: Check if this is TEST006 and log inference results map
         if (sampleNo === 'TEST006') {
-          console.log('🔍 TEST006 - Final inference results map:', inferenceResultsMap);
-          console.log('🔍 TEST006 - Inference results map entries:');
+          logger.debug('🔍 TEST006 - Final inference results map:', inferenceResultsMap);
+          logger.debug('🔍 TEST006 - Inference results map entries:');
           for (const [runId, inferenceResult] of inferenceResultsMap.entries()) {
-            console.log(`🔍 TEST006 - Map entry ${runId}:`, inferenceResult);
+            logger.debug(`🔍 TEST006 - Map entry ${runId}:`, inferenceResult);
             if (inferenceResult?.results?.distribution) {
-              console.log(`🔍 TEST006 - Map entry ${runId} distribution:`, inferenceResult.results.distribution);
+              logger.debug(`🔍 TEST006 - Map entry ${runId} distribution:`, inferenceResult.results.distribution);
             }
           }
         }
@@ -358,7 +359,7 @@ export default function Results() {
         });
         setExpandedSamples(new Map(newExpanded));
       } catch (error) {
-        console.error('Failed to fetch sample details:', error);
+        logger.error('Failed to fetch sample details:', error);
         newExpanded.set(sampleNo, {
           sampleNo,
           runs: [],
@@ -376,7 +377,7 @@ export default function Results() {
 
   const handleInterfaceClick = async (sampleNo: string, runId: number) => {
     const key = `${sampleNo}-${runId}`;
-    console.log('🎯 handleInterfaceClick called for:', { sampleNo, runId });
+    logger.debug('🎯 handleInterfaceClick called for:', { sampleNo, runId });
     
     try {
       setIsGeneratingInterface(prev => new Set([...prev, key]));
@@ -398,7 +399,7 @@ export default function Results() {
           });
           
           // Show success message or preview
-          console.log('Interface CSV generated successfully:', fileDetails.data);
+          logger.info('Interface CSV generated successfully:', fileDetails.data);
           
           // Optionally auto-preview the CSV
           if (fileDetails.data.downloadUrl) {
@@ -408,16 +409,16 @@ export default function Results() {
               setCsvPreview(csvContent);
               setShowCsvPreview(true);
             } catch (previewError) {
-              console.error('Failed to preview generated CSV:', previewError);
+              logger.error('Failed to preview generated CSV:', previewError);
             }
           }
         }
       } else {
-        console.error('Failed to generate interface CSV:', response.error);
+        logger.error('Failed to generate interface CSV:', response.error);
         alert(`Failed to generate interface CSV: ${response.error?.message || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('Error generating interface CSV:', error);
+      logger.error('Error generating interface CSV:', error);
       alert('Error generating interface CSV. Please try again.');
     } finally {
       setIsGeneratingInterface(prev => {
@@ -442,13 +443,13 @@ export default function Results() {
 
   // Calculate statistics functions
   const calculateStatistics = (distribution: any) => {
-    console.log('🔍 calculateStatistics input distribution:', distribution);
+    logger.debug('🔍 calculateStatistics input distribution:', distribution);
     
     const values = Object.keys(distribution)
       .filter(key => !isNaN(Number(key)) && Number(key) >= 1 && Number(key) <= 12)
       .map(key => distribution[key] || 0);
     
-    console.log('🔍 calculateStatistics filtered values:', values);
+    logger.debug('🔍 calculateStatistics filtered values:', values);
     
     const total = values.reduce((sum, val) => sum + val, 0);
     
@@ -479,7 +480,7 @@ export default function Results() {
       cv: Math.round(cv * 100000000) / 100000000
     };
     
-    console.log('🔍 calculateStatistics result:', result);
+    logger.debug('🔍 calculateStatistics result:', result);
     return result;
   };
 
@@ -560,37 +561,37 @@ export default function Results() {
                 .filter(key => !isNaN(Number(key)) && Number(key) >= 1 && Number(key) <= 12)
                 .reduce((sum, key) => sum + (distribution[key] || 0), 0);
               distribution = { ...distribution, total: calculatedTotal };
-              console.log(`🔍 Sample ${sample.sampleNo} calculated missing total: ${calculatedTotal}`);
+              logger.debug(`🔍 Sample ${sample.sampleNo} calculated missing total: ${calculatedTotal}`);
             }
             
             let stats = calculateStatistics(distribution);
             
             // Debug: Log sample summary data
-            console.log(`🔍 Sample ${sample.sampleNo} summary data:`, sample.summary);
-            console.log(`🔍 Sample ${sample.sampleNo} distribution:`, distribution);
-            console.log(`🔍 Sample ${sample.sampleNo} calculated stats:`, stats);
+            logger.debug(`🔍 Sample ${sample.sampleNo} summary data:`, sample.summary);
+            logger.debug(`🔍 Sample ${sample.sampleNo} distribution:`, distribution);
+            logger.debug(`🔍 Sample ${sample.sampleNo} calculated stats:`, stats);
             
             // Debug: Check if we're now getting correct data from prediction_result.sample_summary via result-api-service
             if (sample.sampleNo === 'TEST006') {
-              console.log('🔍 TEST006 - Now using result-api-service (gets data from prediction_result.sample_summary):', distribution);
-              console.log('🔍 TEST006 - Expected from DB: {"1":0,"2":2,"3":0,"4":4,"5":6,"6":4,"7":0,"8":0,"9":0,"10":0,"11":0,"12":0,"total":16}');
-              console.log('🔍 TEST006 - Should now match:', JSON.stringify(distribution) === '{"1":0,"2":2,"3":0,"4":4,"5":6,"6":4,"7":0,"8":0,"9":0,"10":0,"11":0,"12":0,"total":16}');
+              logger.debug('🔍 TEST006 - Now using result-api-service (gets data from prediction_result.sample_summary):', distribution);
+              logger.debug('🔍 TEST006 - Expected from DB: {"1":0,"2":2,"3":0,"4":4,"5":6,"6":4,"7":0,"8":0,"9":0,"10":0,"11":0,"12":0,"total":16}');
+              logger.debug('🔍 TEST006 - Should now match:', JSON.stringify(distribution) === '{"1":0,"2":2,"3":0,"4":4,"5":6,"6":4,"7":0,"8":0,"9":0,"10":0,"11":0,"12":0,"total":16}');
               
               // Debug: Show what will be displayed in the table
-              console.log('🔍 TEST006 - Values that will be displayed in table:');
+              logger.debug('🔍 TEST006 - Values that will be displayed in table:');
               for (let i = 1; i <= 12; i++) {
-                console.log(`🔍   Well ${i}: ${distribution[i] || 0}`);
+                logger.debug(`🔍   Well ${i}: ${distribution[i] || 0}`);
               }
-              console.log(`🔍   Total: ${stats.total}`);
-              console.log(`🔍   GMT: ${stats.gmt}`);
-              console.log(`🔍   MEAN: ${stats.mean}`);
-              console.log(`🔍   SD: ${stats.sd}`);
-              console.log(`🔍   CV: ${stats.cv}`);
+              logger.debug(`🔍   Total: ${stats.total}`);
+              logger.debug(`🔍   GMT: ${stats.gmt}`);
+              logger.debug(`🔍   MEAN: ${stats.mean}`);
+              logger.debug(`🔍   SD: ${stats.sd}`);
+              logger.debug(`🔍   CV: ${stats.cv}`);
             }
             
             // If expanded and we have runs data, calculate from actual runs instead
             if (isExpanded && expandedData && expandedData.runs.length > 0) {
-              console.log('🔍 Recalculating statistics from individual runs...');
+              logger.debug('🔍 Recalculating statistics from individual runs...');
               
               // Calculate aggregated distribution from individual runs
               const aggregatedDistribution: Record<string, number> = {};
@@ -612,11 +613,11 @@ export default function Results() {
               });
               
               if (totalRunsWithData > 0) {
-                console.log('🔍 Aggregated distribution from runs:', aggregatedDistribution);
+                logger.debug('🔍 Aggregated distribution from runs:', aggregatedDistribution);
                 distribution = aggregatedDistribution;
                 stats = calculateStatistics(distribution);
               } else {
-                console.log('🔍 No runs with distribution data, using sample summary');
+                logger.debug('🔍 No runs with distribution data, using sample summary');
               }
             }
 
@@ -778,7 +779,7 @@ export default function Results() {
                                             alert('No interface CSV files found for this sample. Please generate one first.');
                                           }
                                         } catch (error) {
-                                          console.error('Failed to preview CSV:', error);
+                                          logger.error('Failed to preview CSV:', error);
                                           alert('Failed to load CSV preview. Please try again.');
                                         }
                                       }}
@@ -812,11 +813,11 @@ export default function Results() {
                             </span>
                           </div>
                         ) : (() => {
-                          console.log('🔍 Checking runs display condition:');
-                          console.log('🔍 expandedData.runs:', expandedData.runs);
-                          console.log('🔍 expandedData.runs.length:', expandedData.runs.length);
-                          console.log('🔍 expandedData.isLoadingRuns:', expandedData.isLoadingRuns);
-                          console.log('🔍 expandedData.isLoadingInference:', expandedData.isLoadingInference);
+                          logger.debug('🔍 Checking runs display condition:');
+                          logger.debug('🔍 expandedData.runs:', expandedData.runs);
+                          logger.debug('🔍 expandedData.runs.length:', expandedData.runs.length);
+                          logger.debug('🔍 expandedData.isLoadingRuns:', expandedData.isLoadingRuns);
+                          logger.debug('🔍 expandedData.isLoadingInference:', expandedData.isLoadingInference);
                           return expandedData.runs.length > 0;
                         })() ? (
                           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -847,10 +848,10 @@ export default function Results() {
                                   {expandedData.runs.map((run, runIndex) => {
                                     // Debug: Log run object for TEST006
                                     if (sample.sampleNo === 'TEST006') {
-                                      console.log(`🔍 TEST006 - Run ${runIndex + 1} object:`, run);
-                                      console.log(`🔍 TEST006 - Run ${runIndex + 1} keys:`, Object.keys(run));
-                                      console.log(`🔍 TEST006 - Run ${runIndex + 1} id:`, (run as any).id);
-                                      console.log(`🔍 TEST006 - Run ${runIndex + 1} runId:`, (run as any).runId);
+                                      logger.debug(`🔍 TEST006 - Run ${runIndex + 1} object:`, run);
+                                      logger.debug(`🔍 TEST006 - Run ${runIndex + 1} keys:`, Object.keys(run));
+                                      logger.debug(`🔍 TEST006 - Run ${runIndex + 1} id:`, (run as any).id);
+                                      logger.debug(`🔍 TEST006 - Run ${runIndex + 1} runId:`, (run as any).runId);
                                     }
                                     
                                     // Use runId if id is not available
@@ -866,45 +867,45 @@ export default function Results() {
                                         .filter(key => !isNaN(Number(key)) && Number(key) >= 1 && Number(key) <= 12)
                                         .reduce((sum, key) => sum + (distribution[key] || 0), 0);
                                       distribution = { ...distribution, total: calculatedTotal };
-                                      console.log(`🔍 Run ${actualRunId} calculated missing total: ${calculatedTotal}`);
+                                      logger.debug(`🔍 Run ${actualRunId} calculated missing total: ${calculatedTotal}`);
                                     }
                                     
                                     // Fallback: if no distribution from inference result, try to use sample summary distribution
                                     if (Object.keys(distribution).length === 0 && sample.summary?.distribution) {
-                                      console.log(`🔍 Run ${actualRunId} using fallback distribution from sample summary`);
+                                      logger.debug(`🔍 Run ${actualRunId} using fallback distribution from sample summary`);
                                       distribution = sample.summary.distribution;
                                     }
                                     
                                     // Debug: Check if this is TEST006 and log the issue
                                     if (sample.sampleNo === 'TEST006') {
-                                      console.log(`🔍 TEST006 - Run ${actualRunId} display logic:`);
-                                      console.log(`🔍 TEST006 - Run ${actualRunId} inference result:`, inferenceResult);
-                                      console.log(`🔍 TEST006 - Run ${actualRunId} distribution from inference:`, inferenceResult?.results?.distribution);
-                                      console.log(`🔍 TEST006 - Run ${actualRunId} distribution keys length:`, Object.keys(distribution).length);
+                                      logger.debug(`🔍 TEST006 - Run ${actualRunId} display logic:`);
+                                      logger.debug(`🔍 TEST006 - Run ${actualRunId} inference result:`, inferenceResult);
+                                      logger.debug(`🔍 TEST006 - Run ${actualRunId} distribution from inference:`, inferenceResult?.results?.distribution);
+                                      logger.debug(`🔍 TEST006 - Run ${actualRunId} distribution keys length:`, Object.keys(distribution).length);
                                       
                                       if (Object.keys(distribution).length === 0) {
-                                        console.log(`❌ TEST006 - Run ${actualRunId} has no distribution from inference result!`);
-                                        console.log(`❌ TEST006 - Run ${actualRunId} will use fallback from sample summary:`, sample.summary?.distribution);
+                                        logger.warn(`❌ TEST006 - Run ${actualRunId} has no distribution from inference result!`);
+                                        logger.warn(`❌ TEST006 - Run ${actualRunId} will use fallback from sample summary:`, sample.summary?.distribution);
                                       } else {
-                                        console.log(`✅ TEST006 - Run ${actualRunId} has distribution from inference result:`, distribution);
+                                        logger.debug(`✅ TEST006 - Run ${actualRunId} has distribution from inference result:`, distribution);
                                       }
                                     }
                                     
                                     // Debug logging
-                                    console.log(`🔍 Run ${actualRunId} inference result:`, inferenceResult);
-                                    console.log(`🔍 Run ${actualRunId} distribution:`, distribution);
-                                    console.log(`🔍 Run ${actualRunId} rawImagePath:`, (run as any).rawImagePath);
+                                    logger.debug(`🔍 Run ${actualRunId} inference result:`, inferenceResult);
+                                    logger.debug(`🔍 Run ${actualRunId} distribution:`, distribution);
+                                    logger.debug(`🔍 Run ${actualRunId} rawImagePath:`, (run as any).rawImagePath);
                                     
                                     // Additional debug for distribution structure
                                     if (inferenceResult) {
-                                      console.log(`🔍 Run ${actualRunId} inferenceResult structure:`, JSON.stringify(inferenceResult, null, 2));
+                                      logger.debug(`🔍 Run ${actualRunId} inferenceResult structure:`, JSON.stringify(inferenceResult, null, 2));
                                     } else {
-                                      console.log(`❌ Run ${actualRunId} has no inference result`);
+                                      logger.warn(`❌ Run ${actualRunId} has no inference result`);
                                     }
                                     
                                     // Debug: Check if this is TEST006
                                     if (sample.sampleNo === 'TEST006') {
-                                      console.log(`🔍 TEST006 - Individual Run ${actualRunId} display data:`, {
+                                      logger.debug(`🔍 TEST006 - Individual Run ${actualRunId} display data:`, {
                                         runId: actualRunId,
                                         distribution: distribution,
                                         expectedDistribution: actualRunId === 13 ? 
@@ -917,7 +918,7 @@ export default function Results() {
                                         .filter(key => !isNaN(Number(key)) && Number(key) >= 1 && Number(key) <= 12)
                                         .reduce((sum, key) => sum + (distribution[key] || 0), 0);
                                       
-                                      console.log(`🔍 TEST006 - Run ${actualRunId} calculated total:`, runTotal);
+                                      logger.debug(`🔍 TEST006 - Run ${actualRunId} calculated total:`, runTotal);
                                     }
                                     
                                     return (
@@ -947,7 +948,7 @@ export default function Results() {
                                             
                                             // Debug: Log total calculation for TEST006
                                             if (sample.sampleNo === 'TEST006') {
-                                              console.log(`🔍 TEST006 - Run ${actualRunId} total calculation:`, {
+                                              logger.debug(`🔍 TEST006 - Run ${actualRunId} total calculation:`, {
                                                 distribution: distribution,
                                                 calculatedTotal: runTotal,
                                                 distributionTotal: distribution.total
@@ -967,7 +968,7 @@ export default function Results() {
                                                     const imagePath = (run as any).annotatedImagePath || (run as any).rawImagePath;
                                                     const isAnnotated = !!(run as any).annotatedImagePath;
                                                     
-                                                    console.log('Image button clicked:', {
+                                                    logger.debug('Image button clicked:', {
                                                       runId: actualRunId,
                                                       imagePath,
                                                       isAnnotated
@@ -979,11 +980,11 @@ export default function Results() {
                                                       isAnnotated
                                                     );
                                                     
-                                                    console.log('Generated signed URL:', signedUrl);
+                                                    logger.debug('Generated signed URL:', signedUrl);
                                                     setSelectedImageUrl(signedUrl);
                                                     setShowImageModal(true);
                                                   } catch (error) {
-                                                    console.error('Failed to generate signed URL:', error);
+                                                    logger.error('Failed to generate signed URL:', error);
                                                     alert('Failed to load image. Please try again.');
                                                   }
                                                 }}
@@ -1006,13 +1007,13 @@ export default function Results() {
                                                 }
                                                 
                                                 try {
-                                                  console.log('Deleting run:', actualRunId);
+                                                  logger.debug('Deleting run:', actualRunId);
                                                   
                                                   // Call delete API
                                                   const response = await resultsServiceDirect.deleteRun(actualRunId);
                                                   
                                                   if (response) {
-                                                    console.log('Run deleted successfully');
+                                                    logger.info('Run deleted successfully');
                                                     alert('Run deleted successfully. The page will refresh.');
                                                     
                                                     // Refresh the page data
@@ -1022,7 +1023,7 @@ export default function Results() {
                                                     setExpandedSamples(new Map());
                                                   }
                                                 } catch (error) {
-                                                  console.error('Failed to delete run:', error);
+                                                  logger.error('Failed to delete run:', error);
                                                   alert('Failed to delete run. Please try again.');
                                                 }
                                               }}
@@ -1192,7 +1193,7 @@ export default function Results() {
                   alt="Annotated Image"
                   className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
                   onError={(e) => {
-                    console.error('Failed to load image:', selectedImageUrl);
+                    logger.error('Failed to load image:', selectedImageUrl);
                     e.currentTarget.style.display = 'none';
                     const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
                     if (nextElement) {

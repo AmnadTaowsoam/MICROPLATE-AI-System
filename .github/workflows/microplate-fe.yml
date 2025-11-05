@@ -1,0 +1,144 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'microplate-fe/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'microplate-fe/**'
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./microplate-fe
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+      
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      
+      - name: Run linter
+        run: yarn lint
+      
+      - name: Type check
+        run: yarn type-check || true
+      
+      - name: Build
+        run: yarn build
+      
+      - name: Run Knip
+        run: yarn knip || true
+      
+      - name: Security audit
+        run: npm audit --omit=dev || true
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: microplate-fe/build
+          retention-days: 7
+
+  deploy-dev:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: development
+      url: ${{ secrets.DEV_URL }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: microplate-fe/build
+      
+      - name: Deploy to Dev
+        run: |
+          echo "Deploy to Dev environment"
+          # Add deployment commands here
+
+  deploy-qa:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: qa
+      url: ${{ secrets.QA_URL }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: microplate-fe/build
+      
+      - name: Deploy to QA
+        run: |
+          echo "Deploy to QA environment"
+          # Add deployment commands here
+
+  deploy-uat:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: uat
+      url: ${{ secrets.UAT_URL }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: microplate-fe/build
+      
+      - name: Deploy to UAT
+        run: |
+          echo "Deploy to UAT environment"
+          # Add deployment commands here
+
+  deploy-prod:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[deploy-prod]')
+    environment:
+      name: production
+      url: ${{ secrets.PROD_URL }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: microplate-fe/build
+      
+      - name: Deploy to Production
+        run: |
+          echo "Deploy to Production environment"
+          # Add deployment commands here
+

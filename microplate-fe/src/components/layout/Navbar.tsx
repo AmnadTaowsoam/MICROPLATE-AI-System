@@ -6,6 +6,7 @@ import { notificationService } from '../../services/notification.service';
 import type { Notification } from '../../services/notification.service';
 import { searchService } from '../../services/search.service';
 import type { SearchResult } from '../../services/search.service';
+import LanguageSwitcher from '../LanguageSwitcher';
 
 const navigationLinks = [
   { name: 'Dashboard', href: '/capture', icon: MdDashboard },
@@ -76,7 +77,7 @@ export default function Navbar() {
           username: payload.username || payload.name
         });
       } catch (error) {
-        console.error('Error parsing token:', error);
+        logger.error('Error parsing token:', error);
       }
     }
   }, []);
@@ -100,7 +101,7 @@ export default function Navbar() {
           const response = await searchService.search(searchQuery);
           setSearchResults(response.data.results);
         } catch (error) {
-          console.error('Search error:', error);
+          logger.error('Search error:', error);
           setSearchResults([]);
         } finally {
           setIsSearching(false);
@@ -439,7 +440,9 @@ export default function Navbar() {
                       Profile
                     </NavLink>
                     
-                    {/* Settings link */}
+                    <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700">
+                      <LanguageSwitcher />
+                    </div>
                     <NavLink
                       to="/settings"
                       onClick={() => setIsProfileOpen(false)}
@@ -448,8 +451,6 @@ export default function Navbar() {
                       <MdSettings className="h-4 w-4" />
                       Settings
                     </NavLink>
-                    
-                    {/* Divider */}
                     <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                     
                     {/* Logout */}

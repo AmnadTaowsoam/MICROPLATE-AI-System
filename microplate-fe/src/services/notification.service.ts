@@ -1,5 +1,6 @@
 import { logsService } from './logs.service'
 import type { LogEntry } from './logs.service'
+import logger from '../utils/logger'
 
 export interface Notification {
   id: string
@@ -22,9 +23,16 @@ class NotificationService {
   private listeners: ((notifications: Notification[]) => void)[] = []
 
   constructor() {
-    this.loadNotificationsFromLogs()
+    // Load notifications asynchronously without blocking
+    this.loadNotificationsFromLogs().catch(() => {
+      // Silently handle initial load failure
+    })
     // Refresh notifications every 30 seconds
-    setInterval(() => this.loadNotificationsFromLogs(), 30000)
+    setInterval(() => {
+      this.loadNotificationsFromLogs().catch(() => {
+        // Silently handle periodic refresh failures
+      })
+    }, 30000)
   }
 
   async loadNotificationsFromLogs() {
@@ -49,8 +57,33 @@ class NotificationService {
       }))
 
       this.notifyListeners()
-    } catch (error) {
-      console.error('Failed to load notifications from logs:', error)
+    } catch (error: any) {
+      // Silently handle connection errors (backend not running is normal in dev)
+      const isConnectionError = 
+        error?.isConnectionError === true ||
+        error?.status === 0 ||
+        (error?.message && (
+          error.message.includes('Failed to fetch') || 
+          error.message.includes('ERR_CONNECTION_REFUSED') ||
+          error.message.includes('ERR_FAILED') ||
+          error.message.includes('NetworkError') ||
+          error.message.includes('Network error') ||
+          error.message.includes('Unable to connect') ||
+          error.message.includes('Backend service may not be running') ||
+          error.message.includes('CORS error')
+        ))
+
+      if (isConnectionError) {
+        // Silently handle connection errors - don't log at all in dev mode
+        // Backend not running is expected during frontend-only development
+        if (process.env.NODE_ENV === 'production') {
+          logger.debug('Backend service not available, using fallback notifications')
+        }
+      } else {
+        // Only log actual errors (not connection issues)
+        logger.error('Failed to load notifications from logs:', error)
+      }
+      
       // Fallback notifications
       this.notifications = [
         {

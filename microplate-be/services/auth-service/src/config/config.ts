@@ -24,8 +24,6 @@ interface Config {
   passwordResetExpiry: string;
   rateLimitWindowMs: number;
   rateLimitMaxRequests: number;
-  corsOrigin: string;
-  corsCredentials: boolean;
   logLevel: string;
   logFormat: string;
 }
@@ -58,17 +56,10 @@ export const config: Config = {
   tokenExpiryAccess: process.env['TOKEN_EXPIRY_ACCESS'] || '15m',
   tokenExpiryRefresh: process.env['TOKEN_EXPIRY_REFRESH'] || '7d',
   passwordResetExpiry: process.env['PASSWORD_RESET_EXPIRY'] || '30m',
-  // Email verification disabled
 
-  // Rate Limiting
-  rateLimitWindowMs: parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '900000'), // 15 minutes
+  rateLimitWindowMs: parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '900000'),
   rateLimitMaxRequests: parseInt(process.env['RATE_LIMIT_MAX_REQUESTS'] || '100'),
 
-  // CORS
-  corsOrigin: process.env['CORS_ORIGIN'] || true, // Allow all origins in development
-  corsCredentials: process.env['CORS_CREDENTIALS'] === 'true' || true,
-
-  // Logging
   logLevel: process.env['LOG_LEVEL'] || 'info',
   logFormat: process.env['LOG_FORMAT'] || 'pretty'
 };

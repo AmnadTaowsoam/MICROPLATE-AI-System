@@ -1,3 +1,4 @@
+import logger from '../utils/logger'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
 export type Theme = 'light' | 'dark' | 'system'
@@ -33,16 +34,16 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   useEffect(() => {
     const root = document.documentElement
-    console.log('ThemeContext: Applying theme:', theme)
+    logger.debug('ThemeContext: Applying theme:', theme)
     
     if (theme === 'system') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
       const isDark = mediaQuery.matches
       
-      console.log('ThemeContext: System theme, prefers dark:', isDark)
+      logger.debug('ThemeContext: System theme, prefers dark:', isDark)
       
       const handleChange = (e: MediaQueryListEvent) => {
-        console.log('ThemeContext: System preference changed:', e.matches)
+        logger.debug('ThemeContext: System preference changed:', e.matches)
         setActualTheme(e.matches ? 'dark' : 'light')
         root.classList.toggle('dark', e.matches)
       }
@@ -57,7 +58,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       return () => mediaQuery.removeEventListener('change', handleChange)
     } else {
       const isDark = theme === 'dark'
-      console.log('ThemeContext: Manual theme:', theme, 'isDark:', isDark)
+      logger.debug('ThemeContext: Manual theme:', theme, 'isDark:', isDark)
       
       setActualTheme(theme)
       root.classList.toggle('dark', isDark)

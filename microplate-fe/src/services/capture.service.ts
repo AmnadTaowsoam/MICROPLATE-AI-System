@@ -1,4 +1,5 @@
 import { captureApi } from './api';
+import logger from '../utils/logger';
 
 // Define ApiResponse type locally since it's not exported from api module
 interface ApiResponse<T> {
@@ -31,14 +32,14 @@ export interface CaptureStatus {
 }
 
 class CaptureService {
-  private baseUrl = import.meta.env.VITE_VISION_CAPTURE_SERVICE_URL || 'http://localhost:6407';
+  private baseUrl = process.env.VITE_VISION_CAPTURE_SERVICE_URL || 'http://localhost:6407';
 
   /**
    * ส่งคำสั่งถ่ายภาพไปยัง vision-capture-service
    */
   async captureImage(request: CaptureRequest): Promise<ApiResponse<CaptureResponse>> {
     try {
-      console.log('🎥 CaptureService: Sending capture request:', request);
+      logger.debug('🎥 CaptureService: Sending capture request:', request);
       // Backend expects snake_case keys
       const payload = {
         sample_no: request.sampleNo,
@@ -69,10 +70,10 @@ class CaptureService {
         description: request.description
       };
 
-      console.log('📸 CaptureService: Mapped capture response:', mapped);
+      logger.info('📸 CaptureService: Mapped capture response:', mapped);
       return { success: true, data: mapped };
     } catch (error) {
-      console.error('❌ CaptureService: Failed to capture image:', error);
+      logger.error('❌ CaptureService: Failed to capture image:', error);
       throw error;
     }
   }
@@ -88,7 +89,7 @@ class CaptureService {
         data: response
       };
     } catch (error) {
-      console.error('❌ CaptureService: Failed to get capture status:', error);
+      logger.error('❌ CaptureService: Failed to get capture status:', error);
       throw error;
     }
   }
@@ -104,7 +105,7 @@ class CaptureService {
       }
       return await response.blob();
     } catch (error) {
-      console.error('❌ CaptureService: Failed to download image:', error);
+      logger.error('❌ CaptureService: Failed to download image:', error);
       throw error;
     }
   }
@@ -124,7 +125,7 @@ class CaptureService {
       const response = await captureApi.get(`/api/v1/capture/health`) as ApiResponse<unknown>;
       return (response as any)?.success ?? true;
     } catch (error) {
-      console.error('❌ CaptureService: Connection check failed:', error);
+      logger.error('❌ CaptureService: Connection check failed:', error);
       return false;
     }
   }
@@ -138,30 +139,30 @@ class CaptureService {
       const ws = new WebSocket(`${wsUrl}/ws/capture`);
       
       ws.onopen = () => {
-        console.log('🔌 CaptureService: WebSocket connected');
+        logger.info('🔌 CaptureService: WebSocket connected');
       };
       
       ws.onmessage = (event) => {
         try {
           const status: CaptureStatus = JSON.parse(event.data);
-          console.log('📡 CaptureService: Status update:', status);
+          logger.debug('📡 CaptureService: Status update:', status);
           onStatusUpdate(status);
         } catch (error) {
-          console.error('❌ CaptureService: Failed to parse WebSocket message:', error);
+          logger.error('❌ CaptureService: Failed to parse WebSocket message:', error);
         }
       };
       
       ws.onclose = () => {
-        console.log('🔌 CaptureService: WebSocket disconnected');
+        logger.info('🔌 CaptureService: WebSocket disconnected');
       };
       
       ws.onerror = (error) => {
-        console.error('❌ CaptureService: WebSocket error:', error);
+        logger.error('❌ CaptureService: WebSocket error:', error);
       };
       
       return ws;
     } catch (error) {
-      console.error('❌ CaptureService: Failed to connect WebSocket:', error);
+      logger.error('❌ CaptureService: Failed to connect WebSocket:', error);
       return null;
     }
   }

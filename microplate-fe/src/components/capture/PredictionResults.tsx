@@ -79,7 +79,7 @@ export default function PredictionResults({
                       alt="Annotated Result" 
                       className="w-full h-auto rounded"
                       onError={(e) => {
-                        console.error('Failed to load annotated image:', annotatedImageUrl);
+                        logger.error('Failed to load annotated image:', annotatedImageUrl);
                         e.currentTarget.style.display = 'none';
                       }}
                     />

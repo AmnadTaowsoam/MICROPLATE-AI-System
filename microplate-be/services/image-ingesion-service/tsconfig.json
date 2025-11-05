@@ -2,18 +2,19 @@
   "compilerOptions": {
     "module": "commonjs",
     "target": "ES2022",
-    "rootDir": "./",            // ครอบทั้ง src + shared
+    "rootDir": "./src",
     "outDir": "./dist",
     "esModuleInterop": true,
     "strict": true,
     "skipLibCheck": true,
+    "moduleResolution": "node",
     "baseUrl": "./",
     "paths": {
       "@/*": ["src/*"],
       "@shared/*": ["shared/*"]
     }
   },
-  "include": ["src/**/*", "shared/**/*"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }
 

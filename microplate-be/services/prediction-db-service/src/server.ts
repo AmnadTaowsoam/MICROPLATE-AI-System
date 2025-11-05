@@ -1,13 +1,4 @@
-/**
- * Vision Inference Service - Node.js Database Management Service
- * 
- * This service provides database management functionality for the Vision Inference Service
- * using Prisma ORM. It handles database migrations, seeding, and provides a REST API
- * for database operations.
- */
-
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import morgan from 'morgan';
@@ -18,24 +9,14 @@ import { healthRoutes } from './routes/health';
 import { databaseRoutes } from './routes/database';
 import { predictionRoutes } from './routes/predictions';
 import { getRedisClient, disconnectRedis } from './utils/redis';
-// import { authenticateToken } from '../../shared/auth-middleware';
 
-// Initialize Prisma Client
 export const prisma = new PrismaClient({
   log: ['query', 'info', 'warn', 'error'],
 });
 
-// Initialize Express
 const app = express();
 
-// Basic middleware
 app.use(helmet());
-app.use(cors({
-  origin: true,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID']
-}));
 
 // Body parsing
 app.use(express.json({ limit: '1mb' }));
@@ -65,12 +46,10 @@ app.use(limiter);
 //   jwtAudience: process.env['JWT_AUDIENCE']
 // };
 
-// Register routes
 app.use('/api/v1/health', healthRoutes());
 app.use('/api/v1/database', databaseRoutes());
 app.use('/api/v1/predictions', predictionRoutes());
 
-// Error handling
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error('Error:', err);
   res.status(500).json({
@@ -82,7 +61,6 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   });
 });
 
-// 404 handler
 app.use('*', (_req: express.Request, res: express.Response) => {
   res.status(404).json({
     success: false,
@@ -93,7 +71,6 @@ app.use('*', (_req: express.Request, res: express.Response) => {
   });
 });
 
-// Graceful shutdown
 async function gracefulShutdown() {
   logger.info('Shutting down gracefully...');
   
@@ -108,14 +85,10 @@ async function gracefulShutdown() {
   }
 }
 
-// Start server
 async function start() {
   try {
-    // Test database connection
     await prisma.$connect();
     logger.info('Database connected successfully');
-
-    // Initialize Redis (optional)
     await getRedisClient();
 
     // Start server

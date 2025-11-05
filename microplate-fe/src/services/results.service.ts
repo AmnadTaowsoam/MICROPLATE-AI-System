@@ -1,4 +1,5 @@
 import { resultsApi } from './api'
+import logger from '../utils/logger'
 
 // Helper function to get token from localStorage
 const getAuthToken = (): string | null => {
@@ -92,18 +93,18 @@ export const resultsService = {
   },
   
   async getSampleSummary(sampleNo: string) {
-    console.log('resultsService: Getting sample summary for:', sampleNo)
+    logger.debug('resultsService: Getting sample summary for:', sampleNo)
     const token = getAuthToken()
     if (token) {
       resultsApi.setAccessToken(token)
     }
     try {
-      console.log('🔍 Using resultsApi for getSampleSummary - result-api-service gets data from prediction_result.sample_summary')
+      logger.debug('🔍 Using resultsApi for getSampleSummary - result-api-service gets data from prediction_result.sample_summary')
       const result = await resultsApi.get<SampleSummary>(`/api/v1/results/samples/${encodeURIComponent(sampleNo)}/summary`)
-      console.log('resultsService: API response received:', result)
+      logger.debug('resultsService: API response received:', result)
       return result
     } catch (error) {
-      console.error('resultsService: API request failed:', error)
+      logger.error('resultsService: API request failed:', error)
       throw error
     }
   },
@@ -121,7 +122,7 @@ export const resultsService = {
       sortOrder,
       ...(search && { search })
     })
-    console.log('🔍 Using resultsApi for getSamples - result-api-service gets data from prediction_result.sample_summary')
+    logger.debug('🔍 Using resultsApi for getSamples - result-api-service gets data from prediction_result.sample_summary')
     return resultsApi.get<{success: boolean, data: PaginatedResult<SampleListItem>}>(`/api/v1/results/samples?${params}`)
   },
 

@@ -1,5 +1,6 @@
 import { resultsApi } from './api';
 import { authService } from './auth.service';
+import logger from '../utils/logger';
 
 // Define ApiResponse type locally since it's not exported from api module
 interface ApiResponse<T> {
@@ -90,7 +91,7 @@ export interface PaginatedResult<T> {
 export const resultsServiceDirect = {
   // Sample Operations
   async getSampleSummary(sampleNo: string): Promise<SampleSummary> {
-    console.log('resultsServiceDirect: Getting sample summary for:', sampleNo);
+    logger.debug('resultsServiceDirect: Getting sample summary for:', sampleNo);
     const token = getAuthToken();
     if (token) {
       resultsApi.setAccessToken(token);
@@ -98,10 +99,10 @@ export const resultsServiceDirect = {
     
     try {
       const result = await resultsApi.get<SampleSummary>(`/api/v1/results/direct/samples/${sampleNo}/summary`);
-      console.log('resultsServiceDirect: Sample summary response:', result);
+      logger.debug('resultsServiceDirect: Sample summary response:', result);
       return result;
     } catch (error) {
-      console.error('resultsServiceDirect: Failed to get sample summary:', error);
+      logger.error('resultsServiceDirect: Failed to get sample summary:', error);
       throw error;
     }
   },
@@ -110,7 +111,7 @@ export const resultsServiceDirect = {
     sampleNo: string, 
     options: { page?: number; limit?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' } = {}
   ): Promise<PaginatedResult<PredictionRunSummary>> {
-    console.log('resultsServiceDirect: Getting sample runs for:', sampleNo, options);
+    logger.debug('resultsServiceDirect: Getting sample runs for:', sampleNo, options);
     const token = getAuthToken();
     if (token) {
       resultsApi.setAccessToken(token);
@@ -126,17 +127,17 @@ export const resultsServiceDirect = {
       const result = await resultsApi.get<PaginatedResult<PredictionRunSummary>>(
         `/api/v1/results/direct/samples/${sampleNo}/runs?${params.toString()}`
       );
-      console.log('resultsServiceDirect: Sample runs response:', result);
+      logger.debug('resultsServiceDirect: Sample runs response:', result);
       return result;
     } catch (error) {
-      console.error('resultsServiceDirect: Failed to get sample runs:', error);
+      logger.error('resultsServiceDirect: Failed to get sample runs:', error);
       throw error;
     }
   },
 
   // Run Operations
   async getRunDetails(runId: number): Promise<unknown> {
-    console.log('resultsServiceDirect: Getting run details for:', runId);
+    logger.debug('resultsServiceDirect: Getting run details for:', runId);
     const token = getAuthToken();
     if (token) {
       resultsApi.setAccessToken(token);
@@ -144,10 +145,10 @@ export const resultsServiceDirect = {
     
     try {
       const result = await resultsApi.get<unknown>(`/api/v1/results/direct/runs/${runId}`);
-      console.log('resultsServiceDirect: Run details response:', result);
+      logger.debug('resultsServiceDirect: Run details response:', result);
       return result;
     } catch (error) {
-      console.error('resultsServiceDirect: Failed to get run details:', error);
+      logger.error('resultsServiceDirect: Failed to get run details:', error);
       throw error;
     }
   },
@@ -184,7 +185,7 @@ export const resultsServiceDirect = {
     }
     
     // ถ้าเป็น path ธรรมดา ให้สร้าง direct MinIO URL
-    const minioBaseUrl = import.meta.env.VITE_MINIO_BASE_URL || 'http://localhost:9000';
+    const minioBaseUrl = process.env.VITE_MINIO_BASE_URL || 'http://localhost:9000';
     return `${minioBaseUrl}/${imagePath}`;
   },
 
@@ -240,10 +241,10 @@ export const resultsServiceDirect = {
       // Remove query parameters if any
       objectKey = objectKey.split('?')[0];
       
-      console.log('Generating signed URL for:', { bucket, objectKey, originalPath: imagePath });
+      logger.debug('Generating signed URL for:', { bucket, objectKey, originalPath: imagePath });
       
       // Call image-ingestion-service to generate signed URL
-      const imageServiceBaseUrl = import.meta.env.VITE_IMAGE_SERVICE_URL || 'http://localhost:6402';
+      const imageServiceBaseUrl = process.env.VITE_IMAGE_SERVICE_URL || 'http://localhost:6402';
       
       const response = await fetch(`${imageServiceBaseUrl}/api/v1/signed-urls`, {
         method: 'POST',
@@ -270,7 +271,7 @@ export const resultsServiceDirect = {
 
       return result.data.signedUrl;
     } catch (error) {
-      console.error('Error generating signed URL:', error);
+      logger.error('Error generating signed URL:', error);
       throw error;
     }
   },
@@ -278,22 +279,22 @@ export const resultsServiceDirect = {
   // Get all samples
   async getSamples(): Promise<ApiResponse<SampleSummary[]>> {
     try {
-      console.log('🔍 Using resultsApi for getSamples - result-api-service gets data from prediction_result.sample_summary');
+      logger.debug('🔍 Using resultsApi for getSamples - result-api-service gets data from prediction_result.sample_summary');
       const result = await resultsApi.get<SampleSummary[]>('/api/v1/results/direct/samples');
-      console.log('resultsServiceDirect: Samples response:', result);
+      logger.debug('resultsServiceDirect: Samples response:', result);
       return {
         success: true,
         data: result
       };
     } catch (error) {
-      console.error('resultsServiceDirect: Failed to get samples:', error);
+      logger.error('resultsServiceDirect: Failed to get samples:', error);
       throw error;
     }
   },
 
   // Delete a run
   async deleteRun(runId: number): Promise<boolean> {
-    console.log('resultsServiceDirect: Deleting run:', runId);
+    logger.debug('resultsServiceDirect: Deleting run:', runId);
     const token = getAuthToken();
     if (token) {
       resultsApi.setAccessToken(token);
@@ -301,10 +302,10 @@ export const resultsServiceDirect = {
     
     try {
       await resultsApi.delete(`/api/v1/results/direct/runs/${runId}`);
-      console.log('resultsServiceDirect: Run deleted successfully');
+      logger.debug('resultsServiceDirect: Run deleted successfully');
       return true;
     } catch (error) {
-      console.error('resultsServiceDirect: Failed to delete run:', error);
+      logger.error('resultsServiceDirect: Failed to delete run:', error);
       throw error;
     }
   }

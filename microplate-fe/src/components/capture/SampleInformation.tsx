@@ -27,7 +27,7 @@ export default function SampleInformation({
 }: SampleInformationProps) {
   const [barcodeInput, setBarcodeInput] = useState('');
   
-  console.log('SampleInformation rendered with description:', description, 'at', new Date().toISOString());
+  logger.debug('SampleInformation rendered with description:', description, 'at', new Date().toISOString());
 
   const handleScanQR = () => {
     if (barcodeInput.trim()) {

@@ -1,4 +1,5 @@
 import { ApiService } from './api'
+import logger from '../utils/logger'
 
 export interface SearchResult {
   id: string
@@ -24,7 +25,7 @@ class SearchService {
   private searchHistory: string[] = []
 
   constructor() {
-    this.api = new ApiService(import.meta.env.VITE_RESULTS_SERVICE_URL || 'http://localhost:6404')
+    this.api = new ApiService(process.env.VITE_RESULTS_SERVICE_URL || 'http://localhost:6404')
     this.loadSearchHistory()
   }
 
@@ -87,7 +88,7 @@ class SearchService {
         }
       }
     } catch (error) {
-      console.error('Search error:', error)
+      logger.error('Search error:', error)
       return {
         success: false,
         data: {
@@ -112,7 +113,7 @@ class SearchService {
         metadata: sample as Record<string, unknown>
       })) || []
     } catch (error) {
-      console.error('Sample search error:', error)
+      logger.error('Sample search error:', error)
       return []
     }
   }
@@ -130,7 +131,7 @@ class SearchService {
         metadata: result as Record<string, unknown>
       })) || []
     } catch (error) {
-      console.error('Result search error:', error)
+      logger.error('Result search error:', error)
       return []
     }
   }
@@ -148,7 +149,7 @@ class SearchService {
         metadata: log as Record<string, unknown>
       })) || []
     } catch (error) {
-      console.error('Log search error:', error)
+      logger.error('Log search error:', error)
       return []
     }
   }
@@ -169,7 +170,7 @@ class SearchService {
         this.searchHistory = JSON.parse(saved)
       }
     } catch (error) {
-      console.error('Failed to load search history:', error)
+      logger.error('Failed to load search history:', error)
     }
   }
 
@@ -177,7 +178,7 @@ class SearchService {
     try {
       localStorage.setItem('searchHistory', JSON.stringify(this.searchHistory))
     } catch (error) {
-      console.error('Failed to save search history:', error)
+      logger.error('Failed to save search history:', error)
     }
   }
 

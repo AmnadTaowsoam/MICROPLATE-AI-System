@@ -18,7 +18,7 @@ export function useImageUpload() {
       }
     },
     onError: (error) => {
-      console.error('Upload failed:', error)
+      logger.error('Upload failed:', error)
     }
   })
 
@@ -33,10 +33,10 @@ export function useImageUpload() {
       if (data.data?.run_id) {
         setUploadedImageId(data.data.run_id.toString())
       }
-      console.log('Prediction completed:', data)
+      logger.info('Prediction completed:', data)
     },
     onError: (error) => {
-      console.error('Prediction failed:', error)
+      logger.error('Prediction failed:', error)
     }
   })
 

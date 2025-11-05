@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import morgan from 'morgan';
@@ -8,7 +7,6 @@ import swaggerJsdoc from 'swagger-jsdoc';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 
-// Import services and controllers
 import { PrismaClient } from '@prisma/client';
 import { ResultServiceImpl } from '@/services/result.service';
 import { WebSocketServiceImpl } from '@/services/websocket.service';
@@ -17,35 +15,24 @@ import { LogsService } from '@/services/logs.service';
 import { ResultController } from '@/controllers/result.controller';
 import { WebSocketController } from '@/controllers/websocket.controller';
 
-// Import routes
 import { resultRoutes } from '@/routes/result.routes';
 import { websocketRoutes } from '@/routes/websocket.routes';
 import { directResultRoutes } from '@/routes/direct-result.routes';
 
-// Import middleware and utilities
 import { errorHandler } from '@/utils/errors';
 import { requestLogger, responseLogger } from '@/utils/logger';
 import { cacheService } from '@/utils/redis';
 import { config } from '@/config/config';
-// import { authenticateToken } from '../../shared/auth-middleware';
+import logger from '../../../shared/logger';
 
-// Initialize Prisma Client
 export const prisma = new PrismaClient({
   log: config.server.nodeEnv === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
 });
 
-// Initialize Express
 const app = express();
 const server = createServer(app);
 
-// Basic middleware
 app.use(helmet());
-app.use(cors({
-  origin: true, // Allow all origins for now
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID']
-}));
 
 // Body parsing
 app.use(express.json({ limit: '1mb' }));
@@ -69,7 +56,6 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Authentication middleware
 const authConfig = {
   jwtSecret: process.env.JWT_ACCESS_SECRET || 'your-secret-key',
   jwtIssuer: process.env.JWT_ISSUER,
@@ -278,32 +264,28 @@ const setupDatabaseNotifications = async () => {
           }
         }
       } catch (error) {
-        console.error('Error handling database notification:', error);
+        logger.error({ error }, 'Error handling database notification');
       }
     };
 
-    // This would need to be implemented with a proper PostgreSQL LISTEN/NOTIFY handler
-    // For now, we'll log that it's set up
-    console.log('Database notifications configured');
+    logger.info('Database notifications configured');
 
   } catch (error) {
-    console.error('Failed to setup database notifications:', error);
+    logger.error({ error }, 'Failed to setup database notifications');
   }
 };
 
 // Start server
 const start = async () => {
   try {
-    // Connect to database
     await prisma.$connect();
-    console.log('Database connected successfully');
+    logger.info('Database connected successfully');
 
-    // Test cache connection
     const cacheHealthy = await cacheService.healthCheck();
     if (cacheHealthy) {
-      console.log('Cache connected successfully');
+      logger.info('Cache connected successfully');
     } else {
-      console.warn('Cache connection failed - continuing without cache');
+      logger.warn('Cache connection failed - continuing without cache');
     }
 
     // Initialize services and controllers
@@ -333,62 +315,48 @@ const start = async () => {
       });
     });
 
-    // Start server
     server.listen(config.server.port, config.server.host, () => {
-      console.log(`Result API Service running on port ${config.server.port}`);
-      console.log(`API documentation available at http://localhost:${config.server.port}/docs`);
+      logger.info(`Result API Service running on port ${config.server.port}`);
+      logger.info(`API documentation available at http://localhost:${config.server.port}/docs`);
       if (config.features.websocket) {
-        console.log(`WebSocket endpoint available at ws://localhost:${config.server.port}${config.websocket.path}`);
+        logger.info(`WebSocket endpoint available at ws://localhost:${config.server.port}${config.websocket.path}`);
       }
-      console.log(`Environment: ${config.server.nodeEnv}`);
+      logger.info(`Environment: ${config.server.nodeEnv}`);
     });
 
   } catch (err) {
-    console.error('Startup error:', err);
+    logger.error({ error: err }, 'Startup error');
     process.exit(1);
   }
 };
 
-// Graceful shutdown
 const gracefulShutdown = async (signal: string) => {
-  console.log(`Received ${signal}, shutting down gracefully...`);
+  logger.info(`Received ${signal}, shutting down gracefully...`);
   
   try {
-    // Close HTTP server
     server.close();
-    
-    // Disconnect from database
     await prisma.$disconnect();
-    
-    // Disconnect from cache
     await cacheService.clear();
-    
-    console.log('Graceful shutdown completed');
+    logger.info('Graceful shutdown completed');
     process.exit(0);
   } catch (error) {
-    console.error('Error during graceful shutdown:', error);
+    logger.error({ error }, 'Error during graceful shutdown');
     process.exit(1);
   }
 };
 
-// Handle shutdown signals
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-// Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+  logger.error({ error }, 'Uncaught Exception');
   gracefulShutdown('uncaughtException');
 });
 
-// Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection:', promise, 'reason:', reason);
+  logger.error({ promise, reason }, 'Unhandled Rejection');
   gracefulShutdown('unhandledRejection');
 });
 
-// Start the server
 start();
-
-// Export for testing
 export { app, server };

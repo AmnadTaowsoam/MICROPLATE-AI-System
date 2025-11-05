@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import morgan from 'morgan';
@@ -11,20 +10,14 @@ import { signedUrlRoutes } from './routes/signedUrl.routes';
 import { ensureBuckets } from './services/s3.service';
 import { databaseService } from './services/database.service';
 import { authenticateToken } from '../shared/auth-middleware';
+import logger from '../../../shared/logger';
 
 dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT || 6402);
 
-// Basic middleware
 app.use(helmet());
-app.use(cors({
-  origin: process.env.CORS_ORIGIN === 'true' ? true : process.env.CORS_ORIGIN || 'http://localhost:6410',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID']
-}));
 
 // Body parsing
 app.use(express.json({ limit: '1mb' }));
@@ -54,7 +47,6 @@ const upload = multer({
   }
 });
 
-// Authentication middleware
 const authConfig = {
   jwtSecret: process.env.JWT_ACCESS_SECRET || 'your-secret-key',
   jwtIssuer: process.env.JWT_ISSUER,
@@ -66,7 +58,6 @@ app.use('/api/v1/images', authenticateToken(authConfig), upload.single('file') a
 app.use('/api/v1/image-files', authenticateToken(authConfig), imageFileRoutes());
 app.use('/api/v1/signed-urls', authenticateToken(authConfig), signedUrlRoutes());
 
-// Health check routes
 app.get('/healthz', (_req: express.Request, res: express.Response) => {
   res.json({ status: 'ok' });
 });
@@ -80,9 +71,8 @@ app.get('/readyz', async (_req: express.Request, res: express.Response) => {
   }
 });
 
-// Error handling
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(err);
+  logger.error({ error: err }, 'Internal server error');
   res.status(500).json({
     success: false,
     error: {
@@ -92,7 +82,6 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   });
 });
 
-// 404 handler - catch all unmatched routes
 app.use((_req: express.Request, res: express.Response) => {
   res.status(404).json({
     success: false,
@@ -103,35 +92,31 @@ app.use((_req: express.Request, res: express.Response) => {
   });
 });
 
-// Start server
 const start = async () => {
   try {
-    // Connect to database
     await databaseService.connect();
-    console.log('Database connected successfully');
+    logger.info('Database connected successfully');
 
-    // Ensure MinIO buckets exist
     await ensureBuckets();
-    console.log('MinIO buckets ensured');
+    logger.info('MinIO buckets ensured');
 
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Image ingestion service running on port ${PORT}`);
+      logger.info(`Image ingestion service running on port ${PORT}`);
     });
   } catch (err) {
-    console.error('Failed to start server:', err);
+    logger.error('Failed to start server:', err);
     process.exit(1);
   }
 };
 
-// Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('Received SIGINT, shutting down gracefully...');
+  logger.info('Received SIGINT, shutting down gracefully...');
   await databaseService.disconnect();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('Received SIGTERM, shutting down gracefully...');
+  logger.info('Received SIGTERM, shutting down gracefully...');
   await databaseService.disconnect();
   process.exit(0);
 });

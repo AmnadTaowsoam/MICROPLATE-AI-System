@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import morgan from 'morgan';
@@ -11,8 +10,8 @@ import { minioService } from './services/minio.service';
 import { csvService } from './services/csv.service';
 import interfaceRoutes from './routes/interface.routes';
 import sharedRoutes from './routes/shared.routes';
+import logger from '../../shared/logger';
 
-// Initialize Prisma Client
 export const prisma = new PrismaClient({
   log: ['query', 'info', 'warn', 'error'],
 });
@@ -20,14 +19,7 @@ export const prisma = new PrismaClient({
 const app = express();
 const PORT = Number(process.env['PORT'] || 6405);
 
-// Basic middleware
 app.use(helmet());
-app.use(cors({
-  origin: process.env['CORS_ORIGIN'] === 'true' ? true : process.env['CORS_ORIGIN'] || 'http://localhost:6410',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID']
-}));
 
 // Body parsing
 app.use(express.json({ limit: '1mb' }));
@@ -91,7 +83,6 @@ app.get('/docs', (_req, res) => {
   res.send(swaggerUi.generateHTML(swaggerSpec));
 });
 
-// Routes
 app.get('/health', (_req, res) => {
   res.json({ status: 'healthy' });
 });
@@ -105,11 +96,9 @@ app.get('/ready', async (_req, res) => {
   }
 });
 
-// Protected routes
 app.use('/api/v1/labware/interface', authenticateToken(authConfig), interfaceRoutes);
 app.use('/api/v1/labware/shared', authenticateToken(authConfig), sharedRoutes);
 
-// Legacy endpoint for backward compatibility
 app.use('/api/v1/labware', authenticateToken(authConfig), (req: any, res) => {
   res.json({
     success: true,
@@ -130,9 +119,8 @@ app.use('/api/v1/labware', authenticateToken(authConfig), (req: any, res) => {
   });
 });
 
-// Error handling
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(err);
+  logger.error({ error: err }, 'Internal server error');
   res.status(500).json({
     success: false,
     error: {
@@ -142,7 +130,6 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   });
 });
 
-// 404 handler
 app.use('*', (_req, res) => {
   res.status(404).json({
     success: false,
@@ -153,58 +140,51 @@ app.use('*', (_req, res) => {
   });
 });
 
-// Start server
 const start = async () => {
   try {
-    // Initialize database connection
     await prisma.$connect();
-    console.log('Database connected successfully');
+    logger.info('Database connected successfully');
 
-    // Initialize Minio service
     await minioService.initialize();
-    console.log('Minio service initialized successfully');
+    logger.info('Minio service initialized successfully');
 
-    // Cleanup old temporary files on startup
-    await csvService.cleanupOldFiles(24); // Clean files older than 24 hours
-    console.log('Temporary files cleanup completed');
+    await csvService.cleanupOldFiles(24);
+    logger.info('Temporary files cleanup completed');
 
-    // Start server
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Labware Interface Service running on port ${PORT}`);
-      console.log(`API documentation available at http://localhost:${PORT}/docs`);
-      console.log('Available endpoints:');
-      console.log('  POST /api/v1/labware/interface/generate - Generate interface CSV file');
-      console.log('  GET  /api/v1/labware/interface/files - List interface files');
-      console.log('  GET  /api/v1/labware/interface/files/:id - Get interface file details');
-      console.log('  DELETE /api/v1/labware/interface/files/:id - Delete interface file');
+      logger.info(`Labware Interface Service running on port ${PORT}`);
+      logger.info(`API documentation available at http://localhost:${PORT}/docs`);
+      logger.info('Available endpoints:');
+      logger.info('  POST /api/v1/labware/interface/generate - Generate interface CSV file');
+      logger.info('  GET  /api/v1/labware/interface/files - List interface files');
+      logger.info('  GET  /api/v1/labware/interface/files/:id - Get interface file details');
+      logger.info('  DELETE /api/v1/labware/interface/files/:id - Delete interface file');
     });
   } catch (err) {
-    console.error('Failed to start server:', err);
+    logger.error('Failed to start server:', err);
     process.exit(1);
   }
 };
 
-// Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('Received SIGINT, shutting down gracefully...');
+  logger.info('Received SIGINT, shutting down gracefully...');
   await prisma.$disconnect();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('Received SIGTERM, shutting down gracefully...');
+  logger.info('Received SIGTERM, shutting down gracefully...');
   await prisma.$disconnect();
   process.exit(0);
 });
 
-// Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+  logger.error({ error }, 'Uncaught Exception');
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  logger.error({ promise, reason }, 'Unhandled Rejection');
   process.exit(1);
 });
 
