@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ApiResponse } from '../types/auth.types';
+import { logger } from '../utils/logger';
 
 export const errorHandler = (
   error: any,
@@ -11,14 +12,14 @@ export const errorHandler = (
   const timestamp = new Date().toISOString();
 
   // Log error
-  console.error({
+  logger.error('Request handling error', {
     error: error.message,
     stack: error.stack,
     requestId,
     url: req.url,
     method: req.method,
     ip: req.ip,
-    userAgent: req.headers['user-agent']
+    userAgent: req.headers['user-agent'],
   });
 
   // Determine error code and status

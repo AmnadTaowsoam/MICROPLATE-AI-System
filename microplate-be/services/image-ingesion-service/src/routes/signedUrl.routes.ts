@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { generateSignedUrl } from '../services/upload.service';
+import { logger } from '../utils/logger';
 
 export const signedUrlRoutes = (): Router => {
   const router = Router();
@@ -45,7 +46,7 @@ export const signedUrlRoutes = (): Router => {
         data: result
       });
     } catch (error) {
-      console.error('Error generating signed URL:', error);
+      logger.error('Error generating signed URL', { error, body: req.body });
       res.status(500).json({
         success: false,
         error: {
@@ -118,7 +119,7 @@ export const signedUrlRoutes = (): Router => {
         data: results
       });
     } catch (error) {
-      console.error('Error generating batch signed URLs:', error);
+      logger.error('Error generating batch signed URLs', { error, body: req.body });
       res.status(500).json({
         success: false,
         error: {

@@ -3,12 +3,37 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
+const parseList = (value: string | undefined, defaults: string[]): string[] => {
+  if (!value) {
+    return defaults;
+  }
+
+  const items = value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+
+  return items.length > 0 ? items : defaults;
+};
+
 export const config = {
   // Server configuration
   server: {
     port: parseInt(process.env.PORT || '6404', 10),
     host: process.env.HOST || '0.0.0.0',
     nodeEnv: process.env.NODE_ENV || 'development',
+  },
+
+  // CORS configuration
+  cors: {
+    enabled: process.env.ENABLE_CORS !== 'false',
+    allowedOrigins: parseList(process.env.CORS_ALLOWED_ORIGINS, ['http://localhost:6410']),
+    allowedMethods: process.env.CORS_ALLOWED_METHODS || 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+    allowedHeaders:
+      process.env.CORS_ALLOWED_HEADERS ||
+      'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Request-ID',
+    exposedHeaders: parseList(process.env.CORS_EXPOSED_HEADERS, ['X-Request-ID']),
+    maxAge: parseInt(process.env.CORS_MAX_AGE || '600', 10),
   },
 
   // Database configuration

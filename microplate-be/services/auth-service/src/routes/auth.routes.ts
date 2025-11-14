@@ -4,6 +4,7 @@ import { AuthService } from '../services/auth.service';
 import { AuditService } from '../services/audit.service';
 // Schema validation will be handled by Express middleware if needed
 import { ApiResponse } from '../types/auth.types';
+import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
 const auditService = new AuditService(prisma);
@@ -26,7 +27,7 @@ router.post('/register', async (req, res) => {
 
     res.status(201).json(response);
   } catch (error: any) {
-    console.error('Register error:', error);
+    logger.error('Register error', { error, body: req.body });
     res.status(error.status || 500).json({
       success: false,
       error: {
@@ -52,7 +53,7 @@ router.post('/login', async (req, res) => {
 
     res.json(response);
   } catch (error: any) {
-    console.error('Login error:', error);
+    logger.error('Login error', { error, body: req.body });
     res.status(error.status || 500).json({
       success: false,
       error: {
@@ -79,7 +80,7 @@ router.post('/refresh', async (req, res) => {
 
     res.json(response);
   } catch (error: any) {
-    console.error('Refresh token error:', error);
+    logger.error('Refresh token error', { error, body: req.body });
     res.status(error.status || 500).json({
       success: false,
       error: {

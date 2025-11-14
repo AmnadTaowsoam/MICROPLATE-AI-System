@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { sharedInterfaceService } from '../services/shared-interface.service';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -119,7 +120,7 @@ router.get('/interface-files', async (req: Request, res: Response): Promise<void
       data: files,
     });
   } catch (error) {
-    console.error('Get shared interface files error:', error);
+    logger.error('Get shared interface files error', { error, query: req.query });
     res.status(500).json({
       success: false,
       error: {
@@ -223,7 +224,7 @@ router.get('/interface-files/:id', async (req: Request, res: Response): Promise<
       data: file,
     });
   } catch (error) {
-    console.error('Get shared interface file error:', error);
+    logger.error('Get shared interface file error', { error, params: req.params });
     res.status(500).json({
       success: false,
       error: {
@@ -281,7 +282,7 @@ router.get('/interface-files/sample/:sampleNo', async (req: Request, res: Respon
       data: files,
     });
   } catch (error) {
-    console.error('Get shared interface files by sample error:', error);
+    logger.error('Get shared interface files by sample error', { error, params: req.params, query: req.query });
     res.status(500).json({
       success: false,
       error: {
@@ -328,7 +329,7 @@ router.get('/interface-files/sample/:sampleNo', async (req: Request, res: Respon
  *       500:
  *         description: Internal server error
  */
-router.get('/interface-files/statistics', async (_req: Request, res: Response): Promise<void> => {
+router.get('/interface-files/statistics', async (req: Request, res: Response): Promise<void> => {
   try {
     const statistics = await sharedInterfaceService.getStatistics();
 
@@ -337,7 +338,7 @@ router.get('/interface-files/statistics', async (_req: Request, res: Response): 
       data: statistics,
     });
   } catch (error) {
-    console.error('Get shared interface statistics error:', error);
+    logger.error('Get shared interface statistics error', { error, query: req.query });
     res.status(500).json({
       success: false,
       error: {

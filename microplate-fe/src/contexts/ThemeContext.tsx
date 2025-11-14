@@ -35,38 +35,40 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   useEffect(() => {
     const root = document.documentElement
     logger.debug('ThemeContext: Applying theme:', theme)
-    
+
+    let cleanup: (() => void) | undefined
+
     if (theme === 'system') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-      const isDark = mediaQuery.matches
-      
-      logger.debug('ThemeContext: System theme, prefers dark:', isDark)
-      
+
+      const applySystemTheme = (isDark: boolean) => {
+        logger.debug('ThemeContext: System preference apply:', isDark)
+        setActualTheme(isDark ? 'dark' : 'light')
+        root.classList.toggle('dark', isDark)
+      }
+
+      applySystemTheme(mediaQuery.matches)
+
       const handleChange = (e: MediaQueryListEvent) => {
         logger.debug('ThemeContext: System preference changed:', e.matches)
-        setActualTheme(e.matches ? 'dark' : 'light')
-        root.classList.toggle('dark', e.matches)
+        applySystemTheme(e.matches)
       }
-      
-      // Set initial value
-      setActualTheme(isDark ? 'dark' : 'light')
-      root.classList.toggle('dark', isDark)
-      
-      // Listen for changes
+
       mediaQuery.addEventListener('change', handleChange)
-      
-      return () => mediaQuery.removeEventListener('change', handleChange)
+      cleanup = () => mediaQuery.removeEventListener('change', handleChange)
     } else {
       const isDark = theme === 'dark'
       logger.debug('ThemeContext: Manual theme:', theme, 'isDark:', isDark)
-      
+
       setActualTheme(theme)
       root.classList.toggle('dark', isDark)
     }
-    
+
+    return cleanup
+  }, [theme])
+
+  useEffect(() => {
     localStorage.setItem('theme', theme)
-    
-    // Dispatch custom event for other components
     window.dispatchEvent(new CustomEvent('themeChanged', { detail: theme }))
   }, [theme])
 

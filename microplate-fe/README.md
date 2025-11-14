@@ -46,6 +46,7 @@ The **Microplate Frontend** is a modern, professional web application built with
 - ✅ **QR Code Scanner** - Quick sample number entry
 - ✅ **Responsive Design** - Works on desktop, tablet, and mobile
 - ✅ **Dark Mode** - Optional dark theme support
+- 🌐 **Localization** - Runtime language switching (Thai / English) across the entire UI
 
 ### Functionality
 
@@ -64,6 +65,7 @@ The **Microplate Frontend** is a modern, professional web application built with
 - ✅ **Error Handling** - Graceful error messages
 - ✅ **Form Validation** - Real-time input validation
 - ✅ **Keyboard Shortcuts** - Productivity features
+- ✅ **Structured Logging** - Centralized Winston logger replaces `console.log` for consistent diagnostics
 
 ---
 
@@ -208,23 +210,54 @@ nano .env
 ### Environment Configuration
 
 ```bash
-# .env
-   VITE_AUTH_SERVICE_URL=http://localhost:6401
-   VITE_IMAGE_SERVICE_URL=http://localhost:6402
-VITE_LABWARE_SERVICE_URL=http://localhost:6403
-   VITE_RESULTS_SERVICE_URL=http://localhost:6404
-VITE_INFERENCE_SERVICE_URL=http://localhost:6405
-VITE_PREDICTION_DB_SERVICE_URL=http://localhost:6406
-VITE_CAPTURE_SERVICE_URL=http://localhost:6407
+# .env (development defaults)
+VITE_AUTH_SERVICE_URL=http://localhost:6401
+VITE_IMAGE_SERVICE_URL=http://localhost:6402
+VITE_VISION_SERVICE_URL=http://localhost:6410        # served through webpack proxy
+VITE_RESULTS_SERVICE_URL=http://localhost:6410        # served through webpack proxy
+VITE_LABWARE_SERVICE_URL=http://localhost:6405
+VITE_PREDICTION_SERVICE_URL=http://localhost:6406
+VITE_VISION_CAPTURE_SERVICE_URL=http://localhost:6410  # served through webpack proxy
+VITE_MINIO_BASE_URL=http://localhost:9000
 
 # WebSocket URLs
 VITE_WS_RESULTS_URL=ws://localhost:6404/api/v1/results/ws
-VITE_WS_CAPTURE_URL=ws://localhost:6407/ws/capture
+VITE_WS_CAPTURE_URL=ws://localhost:6410/ws/capture        # served through webpack proxy
 
 # Application
 VITE_APP_NAME=Microplate AI
 VITE_APP_VERSION=1.0.0
 ```
+
+> ✅ **Development**: `yarn dev` จะสร้าง proxy ให้เส้นทาง `/api/v1/capture/*` และ `/ws/capture` เข้าหา `http://localhost:6407` อัตโนมัติ  (ไม่ต้องเปิด CORS ใน service ย่อย)  
+> 🚀 **Production**: ให้ทีมโครงสร้าง (IT) ตั้ง reverse proxy/gateway ที่ปลายทาง (เช่น Nginx) เพื่อ forward เส้นทางเดียวกันไปยังบริการจริง พร้อมกำหนดหัวข้อ CORS ตามโดเมนที่อนุญาต
+
+#### Gateway / Reverse Proxy (Production)
+
+ตัวอย่างการตั้งค่า Nginx (สรุปส่งต่อ capture service ผ่าน gateway เดียวกันกับ frontend):
+
+```nginx
+location /api/v1/capture/ {
+    proxy_pass http://localhost:6407/api/v1/capture/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+}
+
+location /ws/capture {
+    proxy_pass http://localhost:6407/ws/capture;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "Upgrade";
+}
+
+# CORS headers (ตามโดเมนที่อนุญาต)
+add_header Access-Control-Allow-Origin https://your-frontend.example.com;
+add_header Access-Control-Allow-Credentials true;
+add_header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With";
+add_header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS";
+```
+
+> หมายเหตุ: หากมีบริการอื่น ๆ (results, labware ฯลฯ) ต้องเพิ่มเส้นทาง proxy ให้ครบถ้วนที่ gateway
 
 ### Run Development Server
 
@@ -280,7 +313,16 @@ yarn type-check
 
 # Format code
 yarn format
+
+# Accessibility linting (jsx-a11y)
+yarn lint --rule 'jsx-a11y/*'
 ```
+
+### Logging & Monitoring
+
+- All application logs flow through `src/utils/logger.ts`, a Winston-based logger configured with leveled transports.
+- Avoid `console.log` and instead call `logger.debug/info/warn/error` so that output stays consistent between browser and Node environments.
+- Network requests, calibration payloads, and grid generation now emit structured log objects for easier troubleshooting without cluttering the console.
 
 ### Project Commands
 
@@ -612,7 +654,7 @@ export function useWebSocketLogs() {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log('WebSocket connected');
+      logger.info('WebSocket connected');
       setIsConnected(true);
     };
 
@@ -637,7 +679,7 @@ export function useWebSocketLogs() {
     };
 
     ws.onclose = () => {
-      console.log('WebSocket disconnected');
+      logger.info('WebSocket disconnected');
       setIsConnected(false);
     };
 

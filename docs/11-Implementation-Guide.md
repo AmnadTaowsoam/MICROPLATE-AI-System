@@ -197,11 +197,6 @@ const fastify = Fastify({
 });
 
 // Register plugins
-await fastify.register(require('@fastify/cors'), {
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true
-});
-
 await fastify.register(require('@fastify/helmet'));
 
 await fastify.register(require('@fastify/rate-limit'), {
@@ -228,6 +223,8 @@ const start = async () => {
 
 start();
 ```
+
+> **หมายเหตุ**: ในระบบปัจจุบัน CORS และ rate limit ถูกจัดการโดย gateway ส่วนบริการแต่ละตัวสามารถตัด plugin `@fastify/cors` ออกได้เมื่อ deploy จริง ใช้เฉพาะตอนสาธิตหรือทดสอบแบบ stand-alone เท่านั้น
 
 ### 2. Image Ingestion Service Implementation
 
@@ -262,10 +259,6 @@ const fastify = Fastify({
 
 // Register plugins
 await fastify.register(require('@fastify/multipart'));
-await fastify.register(require('@fastify/cors'), {
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true
-});
 
 // Register routes
 await fastify.register(imageRoutes, { prefix: '/api/v1/images' });
@@ -285,6 +278,8 @@ const start = async () => {
 
 start();
 ```
+
+> **หมายเหตุ**: เช่นเดียวกับ auth-service ให้ gateway จัดการ CORS/Rate limit ใน production ตัวอย่างนี้ตัด `@fastify/cors` ออกเพื่อให้โค้ดสอดคล้องกับการใช้งานจริง
 
 ### 3. Vision Inference Service Implementation
 
@@ -327,7 +322,6 @@ vision-inference-service/
 ```python
 # src/main.py
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import uvicorn
 
@@ -352,15 +346,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Initialize services
 inference_service = InferenceService()
 inference_controller = InferenceController(inference_service)
@@ -375,6 +360,8 @@ async def health_check():
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=6403)
 ```
+
+> หมายเหตุ: การจัดการ CORS ดำเนินการผ่าน API gateway จึงไม่ต้องตั้ง middleware ในบริการย่อย
 
 ### 4. Frontend Implementation
 

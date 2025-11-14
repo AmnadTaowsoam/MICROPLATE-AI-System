@@ -145,7 +145,10 @@ export const visionApi = new ApiService(process.env.VITE_VISION_SERVICE_URL || '
 export const resultsApi = new ApiService(process.env.VITE_RESULTS_SERVICE_URL || 'http://localhost:6404')
 export const labwareApi = new ApiService(process.env.VITE_LABWARE_SERVICE_URL || 'http://localhost:6405')
 export const predictionApi = new ApiService(process.env.VITE_PREDICTION_SERVICE_URL || 'http://localhost:6406')
-export const captureApi = new ApiService(process.env.VITE_VISION_CAPTURE_SERVICE_URL || 'http://localhost:6407')
+const defaultCaptureBaseUrl =
+  typeof window !== 'undefined' ? window.location.origin : 'http://localhost:6410'
+
+export const captureApi = new ApiService(process.env.VITE_VISION_CAPTURE_SERVICE_URL || defaultCaptureBaseUrl)
 
 // Default API (for backward compatibility)
 export const api = authApi

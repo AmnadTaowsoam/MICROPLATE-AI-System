@@ -6,6 +6,7 @@
 
 import axios, { AxiosInstance } from 'axios';
 import { InterfaceFileData, InterfaceFileQuery } from '../types/shared.types';
+import { logger } from '../utils/logger';
 
 export interface InterfaceClientConfig {
   baseUrl: string;
@@ -41,7 +42,7 @@ export class InterfaceClient {
       }
       throw new Error(response.data.error?.message || 'Failed to get interface files');
     } catch (error) {
-      console.error('Failed to get interface files:', error);
+      logger.error('Failed to get interface files', { error, query });
       throw error;
     }
   }
@@ -64,7 +65,7 @@ export class InterfaceClient {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         return null;
       }
-      console.error('Failed to get interface file:', error);
+      logger.error('Failed to get interface file', { error, id });
       throw error instanceof Error ? error : new Error('Unknown error');
     }
   }
@@ -81,7 +82,7 @@ export class InterfaceClient {
       }
       throw new Error(response.data.error?.message || 'Failed to get interface files by sample');
     } catch (error) {
-      console.error('Failed to get interface files by sample:', error);
+      logger.error('Failed to get interface files by sample', { error, sampleNo });
       throw error;
     }
   }
@@ -102,7 +103,7 @@ export class InterfaceClient {
       }
       throw new Error(response.data.error?.message || 'Failed to get statistics');
     } catch (error) {
-      console.error('Failed to get statistics:', error);
+      logger.error('Failed to get interface statistics', { error });
       throw error;
     }
   }
@@ -115,7 +116,7 @@ export class InterfaceClient {
       const file = await this.getInterfaceFile(id);
       return file !== null;
     } catch (error) {
-      console.error('Failed to check if interface file exists:', error);
+      logger.error('Failed to check if interface file exists', { error, id });
       return false;
     }
   }
@@ -135,7 +136,7 @@ export class InterfaceClient {
       const files = await this.getInterfaceFiles(query);
       return files.length;
     } catch (error) {
-      console.error('Failed to count interface files:', error);
+      logger.error('Failed to count interface files', { error, query });
       throw error;
     }
   }

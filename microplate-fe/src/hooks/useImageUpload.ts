@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { imageService } from '../services/image.service'
+import logger from '../utils/logger'
 
 export function useImageUpload() {
   const [uploadedImageId, setUploadedImageId] = useState<string | null>(null)

@@ -260,8 +260,7 @@ Seed database with initial data.
 | `JWT_EXPIRES_IN` | JWT expiration time | 24h |
 | `LOG_LEVEL` | Logging level | info |
 | `LOG_FORMAT` | Log format (json/text) | json |
-| `CORS_ORIGIN` | CORS origin | http://localhost:3000 |
-| `CORS_CREDENTIALS` | CORS credentials | true |
+| `GATEWAY_HOST` | Base URL of API gateway | https://api.example.com |
 | `RATE_LIMIT_MAX` | Rate limit max requests | 100 |
 | `RATE_LIMIT_TIME_WINDOW` | Rate limit time window (ms) | 60000 |
 
@@ -363,9 +362,7 @@ services:
 
 ### CORS
 
-- Configurable origins
-- Credential support
-- Preflight handling
+- Managed centrally by API gateway (service assumes trusted requests)
 
 ## Monitoring
 

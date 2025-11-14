@@ -1,12 +1,49 @@
 import path from 'path';
 import { randomUUID } from 'crypto';
-import mime from 'mime';
 import { storageConfig } from '../config/storage';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { logger } from '../utils/logger';
 
 export type FileType = 'raw' | 'annotated' | 'thumbnail';
+
+const MIME_EXTENSION_MAP: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/tiff': 'tiff'
+};
+
+const EXTENSION_MIME_MAP: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  tif: 'image/tiff',
+  tiff: 'image/tiff'
+};
+
+const ALLOWED_MIME_SET = new Set(
+  storageConfig.allowedMimeTypes.map((mime) => mime.trim().toLowerCase())
+);
+
+function resolveMimeType(
+  filename?: string,
+  providedMime?: string
+): { mimeType: string; extension: string } {
+  const normalizedProvided = providedMime?.trim().toLowerCase();
+  const ext = filename ? path.extname(filename).toLowerCase().replace('.', '') : '';
+  const inferredFromExt = ext ? EXTENSION_MIME_MAP[ext] : undefined;
+  const mimeType = normalizedProvided || inferredFromExt || 'application/octet-stream';
+
+  if (!ALLOWED_MIME_SET.has(mimeType)) {
+    throw new Error(`Unsupported mime type: ${mimeType}`);
+  }
+
+  const extension = MIME_EXTENSION_MAP[mimeType] || ext || 'bin';
+  return { mimeType, extension };
+}
 
 export interface UploadParams {
   sampleNo: string;
@@ -19,16 +56,14 @@ export interface UploadParams {
 }
 
 export async function saveImage(params: UploadParams) {
-  const detectedMime = params.mimeType || mime.getType(params.filename || '') || 'application/octet-stream';
-  if (!storageConfig.allowedMimeTypes.includes(detectedMime)) {
-    throw new Error(`Unsupported mime type: ${detectedMime}`);
-  }
+  const { mimeType, extension } = resolveMimeType(params.filename, params.mimeType);
 
   const timestamp = new Date().toISOString().replace(/[-:TZ]/g, '').slice(0, 14);
-  const ext = mime.getExtension(detectedMime) || 'bin';
   const uuid = randomUUID();
   const subdir = params.runId ? path.join(params.sampleNo, params.runId) : params.sampleNo;
-  const fileName = `${params.sampleNo}_${timestamp}_${uuid}${params.fileType === 'thumbnail' ? '_thumb' : ''}.${ext}`;
+  const fileName = `${params.sampleNo}_${timestamp}_${uuid}${
+    params.fileType === 'thumbnail' ? '_thumb' : ''
+  }.${extension}`;
   const relPath = path.join(subdir, fileName).replace(/\\/g, '/');
 
   const bucket = params.fileType === 'annotated'
@@ -45,16 +80,29 @@ export async function saveImage(params: UploadParams) {
     forcePathStyle: storageConfig.s3.forcePathStyle
   });
 
-  console.log(`Uploading to MinIO: bucket=${bucket}, key=${relPath}, size=${params.buffer.length}`);
+  logger.info('Uploading image to MinIO', {
+    bucket,
+    objectKey: relPath,
+    size: params.buffer.length,
+    sampleNo: params.sampleNo,
+    runId: params.runId,
+    fileType: params.fileType,
+  });
   
   await s3.send(new PutObjectCommand({
     Bucket: bucket,
     Key: relPath,
     Body: params.buffer,
-    ContentType: detectedMime
+    ContentType: mimeType
   }));
 
-  console.log(`Successfully uploaded to MinIO: ${bucket}/${relPath}`);
+  logger.info('Successfully uploaded image to MinIO', {
+    bucket,
+    objectKey: relPath,
+    sampleNo: params.sampleNo,
+    runId: params.runId,
+    fileType: params.fileType,
+  });
 
   // Generate signed URL using external endpoint
   const result = await generateSignedUrl(bucket, relPath);
@@ -66,7 +114,7 @@ export async function saveImage(params: UploadParams) {
     fileName,
     filePath: relPath,
     fileSize: params.buffer.length,
-    mimeType: detectedMime,
+    mimeType,
     bucketName: params.fileType === 'annotated' ? 'annotated-images' : 'raw-images',
     objectKey: relPath,
     signedUrl: result.signedUrl,
@@ -102,7 +150,12 @@ export async function generateSignedUrl(bucket: string, objectKey: string, expir
     { expiresIn: expiresIn || storageConfig.s3.signedUrlExpiry }
   );
 
-  console.log(`Generated signed URL for ${bucket}/${objectKey}: ${signedUrl}`);
+  logger.debug('Generated signed URL for image', {
+    bucket,
+    objectKey,
+    signedUrl,
+    expiresIn: expiresIn || storageConfig.s3.signedUrlExpiry,
+  });
 
   return {
     signedUrl,

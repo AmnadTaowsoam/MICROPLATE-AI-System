@@ -221,34 +221,22 @@ Access to fetch at 'http://localhost:6404/api/v1/results' has been blocked by CO
 
 **Solutions:**
 
-1. **Check CORS configuration in service:**
-```typescript
-// Check service CORS settings
-await fastify.register(cors, {
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:6410',
-  ],
-  credentials: true,
-});
-```
+1. **ตรวจสอบ gateway / proxy:**
+   - Development: ยืนยันว่า `.env` frontend ชี้ไป `http://localhost:6410` และมี proxy สำหรับเส้นทางที่เรียกใช้งาน
+   - Production: ดู config nginx / API gateway ว่ากำหนด `Access-Control-Allow-Origin`, `Access-Control-Allow-Credentials`, `Access-Control-Allow-Methods` ให้ตรงกับโดเมนที่อนุญาต
 
-2. **Verify Origin header:**
+2. **ทดสอบ preflight จาก gateway:**
 ```bash
-# Test with curl
-curl -H "Origin: http://localhost:3000" \
-     -H "Access-Control-Request-Method: POST" \
-     -X OPTIONS \
-     http://localhost:6404/api/v1/results/samples
+curl -i -X OPTIONS https://api.example.com/api/v1/results/samples \
+     -H "Origin: https://app.example.com" \
+     -H "Access-Control-Request-Method: GET"
 ```
 
-3. **Check for preflight OPTIONS handling:**
-```typescript
-// Ensure OPTIONS is allowed
-fastify.options('*', async (request, reply) => {
-  return reply.send();
-});
-```
+3. **ตรวจสอบ Certificate / Mixed Content:** ถ้า frontend ทำงานผ่าน HTTPS แต่ gateway/บริการตอบเป็น HTTP ธรรมดา browser จะบล็อกคำขอ
+
+4. **ตรวจสอบค่า `VITE_*_SERVICE_URL`:** ต้องชี้ไปยัง gateway/proxy ไม่ใช่ `http://localhost:6404` โดยตรงเพื่อหลีกเลี่ยง CORS
+
+5. **ดู console เพิ่มเติม:** ใน dev ถ้า proxy ไม่ match เส้นทาง `webpack-dev-server` จะรายงาน 404 หรือข้อความ proxy error
 
 ---
 

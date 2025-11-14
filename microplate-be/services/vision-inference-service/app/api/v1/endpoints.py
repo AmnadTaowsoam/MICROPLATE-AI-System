@@ -9,7 +9,8 @@ from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Q
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+from pydantic import BaseModel, Field, validator
 
 from app.services.grid_builder_service import GridBuilder
 from app.services.predictor_service import Predictor
@@ -18,6 +19,7 @@ from app.services.redis_service import redis_service
 from app.services.db_service import db_service
 from app.services.image_service import ImageService
 from app.services.image_uploader_service import image_uploader
+from app.services.calibration_service import CalibrationService
 from app.config import Config
 
 # Initialize logger for this module
@@ -67,11 +69,129 @@ if not model_path:
     logger.error("MODEL_PATH not configured in Config")
     raise RuntimeError("MODEL_PATH not configured in Config")
 
-# initialize services
-grid_builder = GridBuilder()
+# initialize services - สร้าง instance ใหม่ทุกครั้งเพื่อไม่ให้ cache
+def get_calibration_service():
+    return CalibrationService()
+
+def get_grid_builder():
+    return GridBuilder(calibration_service=get_calibration_service())
+
 predictor = Predictor(model_path, Config.CONFIDENCE_THRESHOLD)
 processor = ResultProcessor()
 image_service = ImageService()
+
+
+GRID_ROWS = getattr(Config, "GRID_ROWS", 8)
+GRID_COLS = getattr(Config, "GRID_COLS", 12)
+
+
+class CalibrationBounds(BaseModel):
+    left: float = Field(..., description="จุดซ้ายสุดของกริด (พิกเซล)")
+    right: float = Field(..., description="จุดขวาสุดของกริด (พิกเซล)")
+    top: float = Field(..., description="จุดบนสุดของกริด (พิกเซล)")
+    bottom: float = Field(..., description="จุดล่างสุดของกริด (พิกเซล)")
+
+
+class CalibrationRequest(BaseModel):
+    image_width: int = Field(..., gt=0)
+    image_height: int = Field(..., gt=0)
+    bounds: CalibrationBounds
+    columns: List[float] = Field(..., description="ตำแหน่งเส้นแนวตั้งทั้งหมด (พิกเซล)")
+    rows: List[float] = Field(..., description="ตำแหน่งเส้นแนวนอนทั้งหมด (พิกเซล)")
+
+    @validator("columns")
+    def validate_columns(cls, value: List[float]) -> List[float]:
+        expected = GRID_COLS + 1
+        if len(value) != expected:
+            raise ValueError(f"Columns must contain {expected} positions")
+        return value
+
+    @validator("rows")
+    def validate_rows(cls, value: List[float]) -> List[float]:
+        expected = GRID_ROWS + 1
+        if len(value) != expected:
+            raise ValueError(f"Rows must contain {expected} positions")
+        return value
+
+
+class CalibrationResponse(BaseModel):
+    enabled: bool
+    bounds: Optional[CalibrationBounds] = None
+    columns: Optional[List[float]] = None
+    rows: Optional[List[float]] = None
+    image_width: Optional[int] = None
+    image_height: Optional[int] = None
+    updated_at: Optional[str] = None
+
+
+def _to_pixel_grid(config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    image_width = config.get("image_width")
+    image_height = config.get("image_height")
+    if not image_width or not image_height:
+        return None
+    cal_service = get_calibration_service()
+    grid = cal_service.get_grid((int(image_height), int(image_width)))
+    return {
+        "bounds": CalibrationBounds(**grid.get("bounds", {})),
+        "columns": grid.get("columns", []),
+        "rows": grid.get("rows", []),
+        "image_width": image_width,
+        "image_height": image_height,
+        "updated_at": config.get("updated_at"),
+    }
+
+
+@router.get("/calibration", response_model=CalibrationResponse)
+async def get_calibration_config(user: Dict[str, Any] = Depends(verify_token)):
+    """
+    ดึงค่า calibration ปัจจุบัน (ถ้ามี)
+    """
+    cal_service = get_calibration_service()
+    config = cal_service.get_config()
+    if not config:
+        return CalibrationResponse(enabled=False)
+    grid = _to_pixel_grid(config)
+    if not grid:
+        return CalibrationResponse(enabled=False)
+    return CalibrationResponse(enabled=True, **grid)
+
+
+@router.post("/calibration", response_model=CalibrationResponse)
+async def save_calibration_config(
+    payload: CalibrationRequest,
+    user: Dict[str, Any] = Depends(verify_token),
+):
+    """
+    บันทึกค่า calibration ใหม่ (จุด 4 มุม)
+    """
+    try:
+        cal_service = get_calibration_service()
+        saved = cal_service.save(
+            image_width=payload.image_width,
+            image_height=payload.image_height,
+            bounds=payload.bounds.dict(),
+            columns=payload.columns,
+            rows=payload.rows,
+        )
+        grid = _to_pixel_grid(saved)
+        if not grid:
+            return CalibrationResponse(enabled=False)
+        return CalibrationResponse(enabled=True, **grid)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.error("Failed to save calibration config: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to save calibration configuration")
+
+
+@router.delete("/calibration", response_model=CalibrationResponse)
+async def clear_calibration_config(user: Dict[str, Any] = Depends(verify_token)):
+    """
+    ล้างค่า calibration
+    """
+    cal_service = get_calibration_service()
+    cal_service.clear()
+    return CalibrationResponse(enabled=False)
 
 @router.post("/predict")
 async def predict_endpoint(
@@ -183,15 +303,41 @@ async def predict_endpoint(
         img = cv2.imread(file_path)
         if img is None:
             raise ValueError(f"Unable to load image: {file_path}")
+
+        height, width = img.shape[:2]
+        logger.info(
+            "Prediction image loaded for run_id=%s size=%sx%s (path=%s)",
+            run_id,
+            width,
+            height,
+            file_path,
+        )
         
-        grid_img, wells = grid_builder.draw(img)
+        # สร้าง grid_builder ใหม่เพื่อโหลด calibration ล่าสุด
+        builder = get_grid_builder()
+        
+        original_image = img.copy()
+        grid_img, wells, grid_metadata = builder.draw(img)
+        bounds = grid_metadata.get("bounds") or {}
+        columns = (grid_metadata.get("columns") or [])[:4]
+        rows = (grid_metadata.get("rows") or [])[:4]
         logger.info("Grid drawn: %d wells detected", len(wells))
+        logger.info(
+            "Grid metadata for run_id=%s bounds=%s columns_sample=%s rows_sample=%s",
+            run_id,
+            bounds,
+            columns,
+            rows,
+        )
         redis_service.log_progress(run_id, 40, f"Grid drawn with {len(wells)} wells detected")
 
         # 4. Run prediction and annotate
         annotated_img, wells = predictor.predict(grid_img, wells)
         logger.info("Prediction completed, saving results")
         redis_service.log_progress(run_id, 60, "AI prediction completed")
+
+        annotated_img, wells = builder.restore_original(annotated_img, wells, grid_metadata, original_image)
+        logger.debug("Annotated image restored to original perspective")
 
         # Save well predictions via prediction-db-service
         well_predictions = []
@@ -342,6 +488,12 @@ async def predict_endpoint(
                 'row_counts': counts,
                 'inference_results': {
                     'distribution': distribution
+                },
+                'grid_metadata': {
+                    'bounds': grid_metadata.get('bounds'),
+                    'columns': grid_metadata.get('columns'),
+                    'rows': grid_metadata.get('rows'),
+                    'original_size': grid_metadata.get('original_size'),
                 }
             }
         }

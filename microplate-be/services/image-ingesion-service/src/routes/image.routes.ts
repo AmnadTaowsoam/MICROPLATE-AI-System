@@ -4,6 +4,7 @@ import { ensureBuckets } from '../services/s3.service';
 import { saveImage } from '../services/upload.service';
 import { publishLog } from '../services/event-bus.service';
 import { databaseService } from '../services/database.service';
+import { logger } from '../utils/logger';
 
 export const imageRoutes = (req: Request, res: Response) => {
   const file = req.file;
@@ -69,7 +70,12 @@ export const imageRoutes = (req: Request, res: Response) => {
           description
         });
       } catch (dbError) {
-        console.error('Error saving image file record to database:', dbError);
+        logger.error('Error saving image file record to database', {
+          error: dbError,
+          sampleNo,
+          runId,
+          fileType,
+        });
         // Continue with response even if database save fails
       }
 
@@ -82,7 +88,12 @@ export const imageRoutes = (req: Request, res: Response) => {
       res.status(201).json({ success: true, data });
     })
     .catch(error => {
-      console.error('Error saving image:', error);
+      logger.error('Error saving image', {
+        error,
+        sampleNo,
+        runId,
+        fileType,
+      });
       res.status(500).json({
         success: false,
         error: {

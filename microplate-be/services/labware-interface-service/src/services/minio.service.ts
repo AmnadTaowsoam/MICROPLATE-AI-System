@@ -1,14 +1,18 @@
 import { Client } from 'minio';
 import { Readable } from 'stream';
+import { logger } from '@/utils/logger';
 
 export class MinioService {
   private client: Client;
   private bucketName: string;
+  private publicEndpoint: URL;
+  private signedUrlExpiry: number;
 
   constructor() {
     // Parse endpoint to extract hostname and port
     const endpoint = process.env['OBJECT_STORAGE_ENDPOINT'] || 'http://minio:9000';
     const url = new URL(endpoint);
+    const publicEndpoint = process.env['OBJECT_STORAGE_PUBLIC_ENDPOINT'] || 'http://localhost:9000';
     
     this.client = new Client({
       endPoint: url.hostname,
@@ -19,6 +23,8 @@ export class MinioService {
     });
 
     this.bucketName = process.env['OBJECT_STORAGE_BUCKET_INTERFACE'] || 'interface-file';
+    this.publicEndpoint = new URL(publicEndpoint);
+    this.signedUrlExpiry = parseInt(process.env['OBJECT_STORAGE_SIGNED_URL_TTL'] || '3600', 10);
   }
 
   async initialize(): Promise<void> {
@@ -27,11 +33,11 @@ export class MinioService {
       const bucketExists = await this.client.bucketExists(this.bucketName);
       if (!bucketExists) {
         await this.client.makeBucket(this.bucketName, 'us-east-1');
-        console.log(`Created bucket: ${this.bucketName}`);
+        logger.info(`Created bucket: ${this.bucketName}`);
       }
-      console.log(`Minio service initialized with bucket: ${this.bucketName}`);
+      logger.info(`Minio service initialized with bucket: ${this.bucketName}`);
     } catch (error) {
-      console.error('Failed to initialize Minio service:', error);
+      logger.error('Failed to initialize Minio service', { error });
       throw error;
     }
   }
@@ -51,10 +57,10 @@ export class MinioService {
         }
       );
       
-      console.log(`File uploaded successfully: ${objectName}`);
+      logger.info(`File uploaded successfully: ${objectName}`);
       return objectName;
     } catch (error) {
-      console.error(`Failed to upload file ${objectName}:`, error);
+      logger.error(`Failed to upload file ${objectName}`, { error });
       throw error;
     }
   }
@@ -76,20 +82,29 @@ export class MinioService {
         }
       );
       
-      console.log(`Stream uploaded successfully: ${objectName}`);
+      logger.info(`Stream uploaded successfully: ${objectName}`);
       return objectName;
     } catch (error) {
-      console.error(`Failed to upload stream ${objectName}:`, error);
+      logger.error(`Failed to upload stream ${objectName}`, { error });
       throw error;
     }
   }
 
   async getFileUrl(objectName: string): Promise<string> {
     try {
-      // Use direct MinIO API URL for frontend access
-      return `http://localhost:9000/${this.bucketName}/${objectName}`;
+      const signedUrl = await this.client.presignedGetObject(
+        this.bucketName,
+        objectName,
+        this.signedUrlExpiry,
+      );
+
+      const signedUrlObj = new URL(signedUrl);
+      signedUrlObj.protocol = this.publicEndpoint.protocol;
+      signedUrlObj.host = this.publicEndpoint.host;
+
+      return signedUrlObj.toString();
     } catch (error) {
-      console.error(`Failed to get file URL for ${objectName}:`, error);
+      logger.error(`Failed to get file URL for ${objectName}`, { error });
       throw error;
     }
   }
@@ -97,9 +112,9 @@ export class MinioService {
   async deleteFile(objectName: string): Promise<void> {
     try {
       await this.client.removeObject(this.bucketName, objectName);
-      console.log(`File deleted successfully: ${objectName}`);
+      logger.info(`File deleted successfully: ${objectName}`);
     } catch (error) {
-      console.error(`Failed to delete file ${objectName}:`, error);
+      logger.error(`Failed to delete file ${objectName}`, { error });
       throw error;
     }
   }
@@ -120,7 +135,7 @@ export class MinioService {
         stream.on('end', () => resolve(objectsList));
       });
     } catch (error) {
-      console.error('Failed to list files:', error);
+      logger.error('Failed to list files', { error });
       throw error;
     }
   }

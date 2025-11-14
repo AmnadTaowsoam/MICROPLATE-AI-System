@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { AuditLogData } from '../types/auth.types';
+import { logger } from '../utils/logger';
 
 export class AuditService {
   constructor(private prisma: PrismaClient) {}
@@ -38,7 +39,7 @@ export class AuditService {
       });
     } catch (error) {
       // Don't throw error for audit logging failures
-      console.error('Failed to log audit event:', error);
+      logger.error('Failed to log audit event', { error, data });
     }
   }
 

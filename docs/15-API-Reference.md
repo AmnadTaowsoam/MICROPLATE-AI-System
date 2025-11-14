@@ -547,11 +547,9 @@ GET http://localhost:6407/api/v1/capture/health  # Vision Capture
 
 ## CORS
 
-Each service supports CORS for the following origins:
-- `http://localhost:3000` (Development)
-- `http://localhost:3001` (Alternative dev port)
-- `http://localhost:6410` (Frontend)
-- Production domains (configured in environment)
+- Production: จัดการโดย API gateway / reverse proxy (ระบุ origin ที่อนุญาตใน gateway)
+- Development: webpack-dev-server proxy (`http://localhost:6410`) ส่ง header CORS ให้โดยอัตโนมัติ
+- Backend servicesจึงไม่ต้องเปิด `@fastify/cors` หรือ middleware เพิ่มเติม
 
 ## WebSocket Support
 

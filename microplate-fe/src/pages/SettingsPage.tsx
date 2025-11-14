@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
@@ -23,7 +24,15 @@ interface SettingsState {
   }
 }
 
+interface SettingsMessage {
+  type: 'success' | 'error'
+  key: string
+  fallback?: string
+}
+
 export default function SettingsPage() {
+  const { t } = useTranslation()
+  const translate = (key: string) => t(`settingsPage.${key}`)
   const { theme, setTheme } = useTheme()
   const [settings, setSettings] = useState<SettingsState>({
     notifications: {
@@ -44,11 +53,28 @@ export default function SettingsPage() {
   })
 
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [message, setMessage] = useState<SettingsMessage | null>(null)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPasswords, setShowPasswords] = useState(false)
+
+  const notificationItems = t('settingsPage.notifications.items', { returnObjects: true }) as Record<
+    keyof SettingsState['notifications'],
+    { title: string; description: string }
+  >
+  const profileVisibilityOptions = t('settingsPage.privacy.profileVisibility.options', { returnObjects: true }) as Record<
+    SettingsState['privacy']['profileVisibility'],
+    string
+  >
+  const exportFormatOptions = t('settingsPage.data.exportFormat.options', { returnObjects: true }) as Record<
+    SettingsState['data']['exportFormat'],
+    string
+  >
+  const themeOptions = t('settingsPage.appearance.options', { returnObjects: true }) as Record<
+    'light' | 'dark' | 'system',
+    string
+  >
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme)
@@ -82,9 +108,9 @@ export default function SettingsPage() {
     try {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000))
-      setMessage({ type: 'success', text: 'Settings saved successfully' })
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to save settings' })
+      setMessage({ type: 'success', key: 'messages.saveSuccess' })
+    } catch {
+      setMessage({ type: 'error', key: 'messages.saveError' })
     } finally {
       setLoading(false)
     }
@@ -92,12 +118,12 @@ export default function SettingsPage() {
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
-      setMessage({ type: 'error', text: 'Please fill in all password fields' })
+      setMessage({ type: 'error', key: 'messages.passwordRequired' })
       return
     }
     
     if (newPassword !== confirmPassword) {
-      setMessage({ type: 'error', text: 'New passwords do not match' })
+      setMessage({ type: 'error', key: 'messages.passwordMismatch' })
       return
     }
 
@@ -107,13 +133,17 @@ export default function SettingsPage() {
     try {
       // Here you would call the actual password change API
       await new Promise(resolve => setTimeout(resolve, 1000))
-      setMessage({ type: 'success', text: 'Password changed successfully' })
+      setMessage({ type: 'success', key: 'messages.passwordSuccess' })
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
     } catch (error: unknown) {
       const errorObj = error as { message?: string };
-      setMessage({ type: 'error', text: errorObj?.message || 'Failed to change password' })
+      setMessage({
+        type: 'error',
+        key: 'messages.passwordError',
+        fallback: errorObj?.message
+      })
     } finally {
       setLoading(false)
     }
@@ -124,7 +154,7 @@ export default function SettingsPage() {
     const data = {
       exportDate: new Date().toISOString(),
       settings,
-      message: 'Your data has been exported successfully'
+      message: translate('dataActions.exportMessage')
     }
     
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -139,9 +169,9 @@ export default function SettingsPage() {
   }
 
   const handleDeleteAccount = () => {
-    if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+    if (window.confirm(translate('messages.deleteConfirm'))) {
       // Handle account deletion
-      setMessage({ type: 'error', text: 'Account deletion is not implemented in demo' })
+      setMessage({ type: 'error', key: 'messages.deleteNotImplemented' })
     }
   }
 
@@ -149,8 +179,8 @@ export default function SettingsPage() {
     <div className="max-w-6xl mx-auto space-y-8">
       {/* Header */}
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Settings</h1>
-        <p className="text-gray-600 dark:text-gray-400">Customize your application preferences and security settings</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{translate('title')}</h1>
+        <p className="text-gray-600 dark:text-gray-400">{translate('subtitle')}</p>
       </div>
 
       {message && (
@@ -159,7 +189,7 @@ export default function SettingsPage() {
             ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800' 
             : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
         }`}>
-          {message.text}
+          {message.fallback ? `${translate(message.key)}: ${message.fallback}` : translate(message.key)}
         </div>
       )}
 
@@ -168,14 +198,14 @@ export default function SettingsPage() {
         <Card className="p-6">
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
             <MdPalette className="w-5 h-5" />
-            Appearance
+            {translate('appearance.title')}
           </h3>
           
           <div className="space-y-6">
             {/* Theme Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                Theme
+                {translate('appearance.themeLabel')}
               </label>
               <div className="grid grid-cols-3 gap-3">
                 <button
@@ -187,7 +217,7 @@ export default function SettingsPage() {
                   }`}
                 >
                   <MdLightMode className="w-6 h-6 mx-auto mb-2 text-yellow-500" />
-                  <span className="text-sm font-medium">Light</span>
+                  <span className="text-sm font-medium">{themeOptions.light}</span>
                 </button>
                 
                 <button
@@ -199,7 +229,7 @@ export default function SettingsPage() {
                   }`}
                 >
                   <MdDarkMode className="w-6 h-6 mx-auto mb-2 text-blue-400" />
-                  <span className="text-sm font-medium">Dark</span>
+                  <span className="text-sm font-medium">{themeOptions.dark}</span>
                 </button>
                 
                 <button
@@ -211,7 +241,7 @@ export default function SettingsPage() {
                   }`}
                 >
                   <MdSettings className="w-6 h-6 mx-auto mb-2 text-gray-500" />
-                  <span className="text-sm font-medium">System</span>
+                  <span className="text-sm font-medium">{themeOptions.system}</span>
                 </button>
               </div>
             </div>
@@ -222,7 +252,7 @@ export default function SettingsPage() {
         <Card className="p-6">
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
             <MdNotifications className="w-5 h-5" />
-            Notifications
+            {translate('notifications.title')}
           </h3>
           
           <div className="space-y-4">
@@ -230,14 +260,10 @@ export default function SettingsPage() {
               <div key={key} className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-medium text-gray-900 dark:text-white capitalize">
-                    {key === 'email' && 'Email Notifications'}
-                    {key === 'push' && 'Push Notifications'}
-                    {key === 'desktop' && 'Desktop Notifications'}
+                    {notificationItems[key as keyof SettingsState['notifications']]?.title ?? key}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {key === 'email' && 'Receive notifications via email'}
-                    {key === 'push' && 'Receive push notifications'}
-                    {key === 'desktop' && 'Show desktop notifications'}
+                    {notificationItems[key as keyof SettingsState['notifications']]?.description ?? ''}
                   </div>
                 </div>
                 <button
@@ -261,30 +287,33 @@ export default function SettingsPage() {
         <Card className="p-6">
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
             <MdSecurity className="w-5 h-5" />
-            Privacy & Security
+            {translate('privacy.title')}
           </h3>
           
           <div className="space-y-4">
             {/* Profile Visibility */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Profile Visibility
+                {translate('privacy.profileVisibility.label')}
               </label>
               <select
                 value={settings.privacy.profileVisibility}
                 onChange={(e) => handlePrivacyChange('profileVisibility', e.target.value)}
                 className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
-                <option value="public">Public</option>
-                <option value="private">Private</option>
+                {Object.entries(profileVisibilityOptions).map(([optionKey, label]) => (
+                  <option key={optionKey} value={optionKey}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </div>
 
             {/* Show Email */}
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-medium text-gray-900 dark:text-white">Show Email</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Make your email visible to other users</div>
+                <div className="text-sm font-medium text-gray-900 dark:text-white">{translate('privacy.showEmail.title')}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{translate('privacy.showEmail.description')}</div>
               </div>
               <button
                 onClick={() => handlePrivacyChange('showEmail', !settings.privacy.showEmail)}
@@ -303,8 +332,8 @@ export default function SettingsPage() {
             {/* Two-Factor Authentication */}
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-medium text-gray-900 dark:text-white">Two-Factor Authentication</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Add an extra layer of security</div>
+                <div className="text-sm font-medium text-gray-900 dark:text-white">{translate('privacy.twoFactor.title')}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{translate('privacy.twoFactor.description')}</div>
               </div>
               <button
                 onClick={() => handlePrivacyChange('twoFactor', !settings.privacy.twoFactor)}
@@ -326,15 +355,15 @@ export default function SettingsPage() {
         <Card className="p-6">
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
             <MdStorage className="w-5 h-5" />
-            Data Management
+            {translate('data.title')}
           </h3>
           
           <div className="space-y-4">
             {/* Auto Backup */}
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-medium text-gray-900 dark:text-white">Auto Backup</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Automatically backup your data</div>
+                <div className="text-sm font-medium text-gray-900 dark:text-white">{translate('data.autoBackup.title')}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{translate('data.autoBackup.description')}</div>
               </div>
               <button
                 onClick={() => handleDataChange('autoBackup', !settings.data.autoBackup)}
@@ -353,7 +382,7 @@ export default function SettingsPage() {
             {/* Data Retention */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Data Retention (days)
+                {translate('data.dataRetention.label')}
               </label>
               <Input
                 type="number"
@@ -366,16 +395,18 @@ export default function SettingsPage() {
             {/* Export Format */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Export Format
+                {translate('data.exportFormat.label')}
               </label>
               <select
                 value={settings.data.exportFormat}
                 onChange={(e) => handleDataChange('exportFormat', e.target.value)}
                 className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
-                <option value="json">JSON</option>
-                <option value="csv">CSV</option>
-                <option value="pdf">PDF</option>
+                {Object.entries(exportFormatOptions).map(([optionKey, label]) => (
+                  <option key={optionKey} value={optionKey}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -386,14 +417,14 @@ export default function SettingsPage() {
       <Card className="p-6">
         <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
           <MdLock className="w-5 h-5" />
-          Change Password
+          {translate('password.title')}
         </h3>
         
         <div className="grid md:grid-cols-3 gap-4">
           <div className="relative">
             <Input
               type={showPasswords ? 'text' : 'password'}
-              placeholder="Current password"
+              placeholder={translate('password.current')}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               className="pr-10"
@@ -410,7 +441,7 @@ export default function SettingsPage() {
           <div className="relative">
             <Input
               type={showPasswords ? 'text' : 'password'}
-              placeholder="New password"
+              placeholder={translate('password.new')}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="pr-10"
@@ -430,7 +461,7 @@ export default function SettingsPage() {
             className="flex items-center gap-2"
           >
             <MdSave className="w-4 h-4" />
-            {loading ? 'Changing...' : 'Change Password'}
+            {loading ? translate('password.loading') : translate('password.button')}
           </Button>
         </div>
       </Card>
@@ -439,7 +470,7 @@ export default function SettingsPage() {
       <Card className="p-6">
         <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
           <MdBackup className="w-5 h-5" />
-          Data Actions
+          {translate('dataActions.title')}
         </h3>
         
         <div className="grid md:grid-cols-3 gap-4">
@@ -449,7 +480,7 @@ export default function SettingsPage() {
             className="flex items-center gap-2"
           >
             <MdDownload className="w-4 h-4" />
-            Export Data
+            {translate('dataActions.export')}
           </Button>
           
           <Button 
@@ -458,7 +489,7 @@ export default function SettingsPage() {
             className="flex items-center gap-2"
           >
             <MdSave className="w-4 h-4" />
-            {loading ? 'Saving...' : 'Save All Settings'}
+            {loading ? translate('dataActions.saveLoading') : translate('dataActions.save')}
           </Button>
           
           <Button 
@@ -467,7 +498,7 @@ export default function SettingsPage() {
             className="flex items-center gap-2 text-red-600 hover:text-red-700 border-red-300 hover:border-red-400"
           >
             <MdDelete className="w-4 h-4" />
-            Delete Account
+            {translate('dataActions.delete')}
           </Button>
         </div>
       </Card>

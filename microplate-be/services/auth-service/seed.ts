@@ -1,10 +1,11 @@
 import { PrismaClient } from '@prisma/client';
 import { PasswordUtil } from './src/utils/password.util';
+import { logger } from './src/utils/logger';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Starting database seeding...');
+  logger.info('🌱 Starting database seeding...');
 
   // Create default roles
   const adminRole = await prisma.role.upsert({
@@ -27,7 +28,7 @@ async function main() {
     }
   });
 
-  console.log('✅ Roles created');
+  logger.info('✅ Roles created');
 
   // Create test user
   const hashedPassword = await PasswordUtil.hash('password123');
@@ -61,10 +62,11 @@ async function main() {
     }
   });
 
-  console.log('✅ Test user created');
-  console.log('📧 Email: test@example.com');
-  console.log('👤 Username: testuser');
-  console.log('🔑 Password: password123');
+  logger.info('✅ Test user created', {
+    email: 'test@example.com',
+    username: 'testuser',
+  });
+  logger.info('🔑 Temporary password issued for test user', { password: 'password123' });
 
   // Create admin user
   const adminUser = await prisma.user.upsert({
@@ -96,17 +98,18 @@ async function main() {
     }
   });
 
-  console.log('✅ Admin user created');
-  console.log('📧 Email: admin@example.com');
-  console.log('👤 Username: admin');
-  console.log('🔑 Password: password123');
+  logger.info('✅ Admin user created', {
+    email: 'admin@example.com',
+    username: 'admin',
+  });
+  logger.info('🔑 Temporary password issued for admin user', { password: 'password123' });
 
-  console.log('🎉 Database seeding completed!');
+  logger.info('🎉 Database seeding completed!');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Seeding failed:', e);
+    logger.error('❌ Seeding failed', { error: e });
     process.exit(1);
   })
   .finally(async () => {

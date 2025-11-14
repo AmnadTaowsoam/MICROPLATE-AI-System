@@ -14,7 +14,13 @@ export default function LiveStream({ className, quality = 70, fps = 15 }: LiveSt
   const [useToken, setUseToken] = React.useState<boolean>(false)
 
   const baseUrl = React.useMemo(() => {
-    return process.env.VITE_VISION_CAPTURE_SERVICE_URL || 'http://localhost:6407'
+    if (process.env.VITE_VISION_CAPTURE_SERVICE_URL) {
+      return process.env.VITE_VISION_CAPTURE_SERVICE_URL
+    }
+    if (typeof window !== 'undefined') {
+      return window.location.origin
+    }
+    return 'http://localhost:6410'
   }, [])
 
   // Observe container size

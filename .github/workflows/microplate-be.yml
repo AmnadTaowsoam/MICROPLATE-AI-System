@@ -12,6 +12,8 @@ on:
 
 env:
   NODE_VERSION: '20.x'
+# NOTE: Deployment steps are placeholders. Ops can replace the echo commands
+# with their actual scripts (kubectl, terraform, SSH, etc.) per environment.
 
 jobs:
   build:
@@ -42,10 +44,13 @@ jobs:
         run: yarn install --frozen-lockfile
       
       - name: Run linter
-        run: yarn lint || true
+        run: yarn lint
       
       - name: Type check
-        run: yarn type-check || true
+        run: yarn type-check
+
+      - name: Run unit tests
+        run: yarn test --ci --runInBand
       
       - name: Build
         run: yarn build
@@ -69,6 +74,73 @@ jobs:
     if: github.ref == 'refs/heads/develop'
     environment:
       name: development
+    strategy:
+      matrix:
+        service:
+          - auth-service
+          - image-ingesion-service
+          - result-api-service
+          - prediction-db-service
+          - labware-interface-service
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.service }}-build
+          # Artifacts contain the compiled output for each service.
+          path: microplate-be/services/${{ matrix.service }}/dist
+      
+      - name: Deploy to Dev
+        run: |
+          echo "🔧 Deploy ${{ matrix.service }} to the Dev environment"
+          echo "Add deployment commands or scripts for Dev here."
+
+  deploy-qa:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: qa
+    strategy:
+      matrix:
+        service:
+          - auth-service
+          - image-ingesion-service
+          - result-api-service
+          - prediction-db-service
+          - labware-interface-service
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.service }}-build
+          path: microplate-be/services/${{ matrix.service }}/dist
+      
+      - name: Deploy to QA
+        run: |
+          echo "🔧 Deploy ${{ matrix.service }} to the QA environment"
+          echo "Add deployment commands or scripts for QA here."
+
+  deploy-uat:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: uat
+    strategy:
+      matrix:
+        service:
+          - auth-service
+          - image-ingesion-service
+          - result-api-service
+          - prediction-db-service
+          - labware-interface-service
     
     steps:
       - uses: actions/checkout@v4
@@ -79,40 +151,10 @@ jobs:
           name: ${{ matrix.service }}-build
           path: microplate-be/services/${{ matrix.service }}/dist
       
-      - name: Deploy to Dev
-        run: |
-          echo "Deploy to Dev environment"
-          # Add deployment commands here
-
-  deploy-qa:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    environment:
-      name: qa
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Deploy to QA
-        run: |
-          echo "Deploy to QA environment"
-          # Add deployment commands here
-
-  deploy-uat:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment:
-      name: uat
-    
-    steps:
-      - uses: actions/checkout@v4
-      
       - name: Deploy to UAT
         run: |
-          echo "Deploy to UAT environment"
-          # Add deployment commands here
+          echo "🔧 Deploy ${{ matrix.service }} to the UAT environment"
+          echo "Add deployment commands or scripts for UAT here."
 
   deploy-prod:
     needs: build
@@ -120,12 +162,26 @@ jobs:
     if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[deploy-prod]')
     environment:
       name: production
+    strategy:
+      matrix:
+        service:
+          - auth-service
+          - image-ingesion-service
+          - result-api-service
+          - prediction-db-service
+          - labware-interface-service
     
     steps:
       - uses: actions/checkout@v4
       
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.service }}-build
+          path: microplate-be/services/${{ matrix.service }}/dist
+      
       - name: Deploy to Production
         run: |
-          echo "Deploy to Production environment"
-          # Add deployment commands here
+          echo "🚀 Deploy ${{ matrix.service }} to the Production environment"
+          echo "Add deployment commands or scripts for Production here."
 

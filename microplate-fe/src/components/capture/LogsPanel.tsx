@@ -56,9 +56,11 @@ export default function LogsPanel({ className = '' }: Props) {
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm ${className}`}>
       {/* Header */}
-      <div 
-        className="p-4 border-b border-gray-200 dark:border-gray-700 cursor-pointer flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+      <button
+        type="button"
+        className="w-full p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
         onClick={() => setIsExpanded(!isExpanded)}
+        aria-expanded={isExpanded}
       >
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
@@ -96,7 +98,7 @@ export default function LogsPanel({ className = '' }: Props) {
             <ChevronDownIcon className="h-4 w-4 text-gray-400" />
           )}
         </div>
-      </div>
+      </button>
       
       {isExpanded && (
         <div className="p-4">
@@ -156,9 +158,9 @@ export default function LogsPanel({ className = '' }: Props) {
                 </div>
               </div>
             ) : (
-              filteredLogs.map((log) => (
+              filteredLogs.map((log, index) => (
                 <div 
-                  key={log.id}
+                  key={log.id ? `${log.id}-${index}` : `log-${index}`}
                   className={`p-3 rounded-lg border text-xs transition-all hover:shadow-sm ${logsService.getLevelColor(log.level)}`}
                 >
                   <div className="flex items-start gap-3">

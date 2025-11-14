@@ -1,55 +1,128 @@
-## /app/services/grid_builder_service.py
-import os
-import cv2
-import warnings
-import tempfile
-from ultralytics import YOLO
-from collections import defaultdict
-import pandas as pd
-import uuid
+"""
+Grid builder with calibration support.
+"""
+
+from __future__ import annotations
 
 import logging
-from app.config import Config
+from typing import Dict, List, Optional, Tuple
 
-# ตั้งค่า logging
+import cv2
+import numpy as np
+
+from app.config import Config
+from app.services.calibration_service import CalibrationService
+
 logger = logging.getLogger(__name__)
 
-warnings.filterwarnings('ignore')
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
-
-# กำหนดสีสำหรับแต่ละคลาส
-COLORS = {0: (255, 0, 0), 1: (0, 255, 0), 2: (0, 0, 255)}
 
 class GridBuilder:
     """
-    สร้างและวาดกริดบนภาพ
+    สร้างและวาดกริดสำหรับไมโครเพลต พร้อมรองรับ ROI calibration
     """
-    def __init__(self, rows=8, cols=12, scale=1.2):
+
+    def __init__(self, rows: int = 8, cols: int = 12, calibration_service: Optional[CalibrationService] = None):
         self.rows = rows
         self.cols = cols
-        self.scale = scale
+        self.calibration_service = calibration_service or CalibrationService()
+        self.default_width = Config.DEFAULT_GRID_WIDTH
+        self.default_height = Config.DEFAULT_GRID_HEIGHT
 
-    def resize_image(self, image):
-        h, w = image.shape[:2]
-        new_dims = (int(w * self.scale), int(h * self.scale))
-        return cv2.resize(image, new_dims, interpolation=cv2.INTER_LINEAR)
+    @staticmethod
+    def _create_row_labels(rows: int) -> List[str]:
+        alphabet = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        if rows <= len(alphabet):
+            return alphabet[:rows]
 
-    def draw(self, image):
-        resized = self.resize_image(image)
-        cw = int(127 * self.scale)
-        ch = int(126 * self.scale)
-        ox, oy = cw, ch - 1
+        labels: List[str] = []
+        index = 0
+        while len(labels) < rows:
+            prefix = alphabet[index // len(alphabet) - 1] if index >= len(alphabet) else ""
+            labels.append(prefix + alphabet[index % len(alphabet)])
+            index += 1
+        return labels
 
-        labels = list("ABCDEFGH")
-        wells = []
-        for i in range(self.rows):
-            for j in range(self.cols):
-                tl = (j * cw + ox, i * ch + oy)
-                br = ((j + 1) * cw + ox, (i + 1) * ch + oy)
-                label = f"{labels[i]}{j+1}"
-                cv2.rectangle(resized, tl, br, (0, 0, 255), 2)
-                cv2.putText(resized, label, (tl[0]+10, tl[1]+30),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
-                wells.append({"label": label, "top_left": tl, "bottom_right": br, "predictions": []})
-        logger.info("Grid drawn successfully.")
-        return resized, wells
+    def draw(self, image: np.ndarray) -> Tuple[np.ndarray, List[Dict], Dict]:
+        """
+        คืนภาพที่วาดกริดแล้ว, รายการ wells, และ metadata สำหรับแปลงกลับ
+        """
+        original_h, original_w = image.shape[:2]
+        metadata: Dict[str, Optional[object]] = {
+            "original_size": (original_w, original_h),
+            "bounds": None,
+        }
+
+        grid_definition = self.calibration_service.get_grid((original_h, original_w))
+        logger.info("Grid definition from calibration: columns=%d, rows=%d", 
+                    len(grid_definition.get("columns", [])), 
+                    len(grid_definition.get("rows", [])))
+        logger.debug("Grid columns: %s", grid_definition.get("columns", [])[:5])
+        logger.debug("Grid rows: %s", grid_definition.get("rows", [])[:5])
+        metadata.update(grid_definition)
+
+        grid_image = image.copy()
+        wells = self._build_grid(
+            grid_image,
+            grid_definition.get("columns", []),
+            grid_definition.get("rows", []),
+        )
+        return grid_image, wells, metadata
+
+    def _build_grid(
+        self,
+        image: np.ndarray,
+        vertical_lines: List[float],
+        horizontal_lines: List[float],
+    ) -> List[Dict]:
+        height, width = image.shape[:2]
+
+        if len(vertical_lines) != self.cols + 1:
+            vertical_lines = np.linspace(0, width, self.cols + 1, dtype=float).tolist()
+        if len(horizontal_lines) != self.rows + 1:
+            horizontal_lines = np.linspace(0, height, self.rows + 1, dtype=float).tolist()
+
+        labels = self._create_row_labels(self.rows)
+        wells: List[Dict] = []
+
+        for row_index in range(self.rows):
+            for col_index in range(self.cols):
+                x1 = int(round(vertical_lines[col_index]))
+                y1 = int(round(horizontal_lines[row_index]))
+                x2 = int(round(vertical_lines[col_index + 1]))
+                y2 = int(round(horizontal_lines[row_index + 1]))
+                label = f"{labels[row_index]}{col_index + 1}"
+
+                cv2.rectangle(image, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                cv2.putText(
+                    image,
+                    label,
+                    (x1 + 10, y1 + 35),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.75,
+                    (255, 0, 0),
+                    2,
+                )
+
+                wells.append(
+                    {
+                        "label": label,
+                        "top_left": (x1, y1),
+                        "bottom_right": (x2, y2),
+                        "predictions": [],
+                    }
+                )
+
+        logger.info("Grid drawn on normalized image %sx%s", width, height)
+        return wells
+
+    def restore_original(
+        self,
+        annotated_image: np.ndarray,
+        wells: List[Dict],
+        metadata: Dict,
+        original_image: np.ndarray,
+    ) -> Tuple[np.ndarray, List[Dict]]:
+        """
+        แปลงภาพ annotated และพิกัดย้อนกลับไปยังภาพต้นฉบับ
+        """
+        return annotated_image, wells

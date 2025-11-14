@@ -76,14 +76,14 @@ graph TB
 
 ### 2. Application Layer
 
-#### Direct Service Access
-- **Purpose**: Frontend connects directly to individual services
+#### API Gateway & Internal Services
+- **Purpose**: Frontend communicates with services through a unified gateway
 - **Architecture**:
-  - No central gateway - services are accessed directly
-  - Each service handles its own authentication and authorization
-  - CORS configured per service for frontend access
-  - Rate limiting implemented at service level
-  - Health checks available on each service
+  - Requests pass through API gateway / reverse proxy (HTTPS)
+  - Gateway validates JWT, applies rate limiting and CORS policies
+  - Backend services focus on business logic and trust headers from gateway
+  - Development workflowใช้ webpack-dev-server proxy แทน gateway
+  - Health checksยังมีบนแต่ละ service สำหรับ monitoring
 
 #### auth-service (Node.js + Prisma + Fastify)
 - **Purpose**: User authentication and authorization

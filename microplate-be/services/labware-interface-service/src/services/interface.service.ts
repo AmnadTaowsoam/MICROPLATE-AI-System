@@ -2,6 +2,7 @@ import { prisma } from '../server';
 import { csvService } from './csv.service';
 import { minioService } from './minio.service';
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from '../utils/logger';
 
 export interface GenerateInterfaceRequest {
   sampleNo: string;
@@ -99,7 +100,11 @@ export class InterfaceService {
         },
       };
     } catch (error) {
-      console.error('Failed to generate interface file:', error);
+      logger.error('Failed to generate interface file', {
+        error,
+        sampleNo: request.sampleNo,
+        interfaceFileId,
+      });
 
       // Update interface file status to failed
       if (interfaceFileId) {
@@ -112,7 +117,11 @@ export class InterfaceService {
             },
           });
         } catch (updateError) {
-          console.error('Failed to update interface file status:', updateError);
+          logger.error('Failed to update interface file status', {
+            error: updateError,
+            interfaceFileId,
+            status: 'failed',
+          });
         }
       }
 
@@ -164,7 +173,7 @@ export class InterfaceService {
         })),
       };
     } catch (error) {
-      console.error('Failed to get interface files:', error);
+      logger.error('Failed to get interface files', { error, sampleNo });
       return {
         success: false,
         error: {
@@ -204,7 +213,11 @@ export class InterfaceService {
         try {
           downloadUrl = await minioService.getFileUrl(interfaceFile.filePath);
         } catch (urlError) {
-          console.error('Failed to get download URL:', urlError);
+          logger.error('Failed to get download URL', {
+            error: urlError,
+            interfaceFileId: interfaceFile.id,
+            filePath: interfaceFile.filePath,
+          });
         }
       }
 
@@ -225,7 +238,7 @@ export class InterfaceService {
         },
       };
     } catch (error) {
-      console.error('Failed to get interface file:', error);
+      logger.error('Failed to get interface file', { error, interfaceFileId: id });
       return {
         success: false,
         error: {
@@ -263,7 +276,10 @@ export class InterfaceService {
         try {
           await minioService.deleteFile(interfaceFile.filePath);
         } catch (minioError) {
-          console.error('Failed to delete file from Minio:', minioError);
+          logger.error('Failed to delete file from Minio', {
+            error: minioError,
+            filePath: interfaceFile.filePath,
+          });
           // Continue with database deletion even if Minio deletion fails
         }
       }
@@ -275,7 +291,7 @@ export class InterfaceService {
 
       return { success: true };
     } catch (error) {
-      console.error('Failed to delete interface file:', error);
+      logger.error('Failed to delete interface file', { error, interfaceFileId: id });
       return {
         success: false,
         error: {

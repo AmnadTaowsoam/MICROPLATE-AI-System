@@ -30,7 +30,7 @@ This document provides a comprehensive summary of the Microplate AI System desig
 - JWT-based authentication with refresh token rotation
 - Role-based access control (admin, operator, viewer)
 - Password reset and email verification
-- Rate limiting and CORS protection
+- Centralised API gateway for rate limiting and CORS
 - Service-to-service authentication
 
 ### Image Processing
@@ -89,7 +89,7 @@ This document provides a comprehensive summary of the Microplate AI System desig
 - **Forms**: React Hook Form + Zod
 - **UI Components**: Headless UI + Custom Components
 - **Charts**: Chart.js / Recharts
-- **Build Tool**: Vite
+- **Build Tool**: Webpack 5 + webpack-dev-server
 
 ### Infrastructure
 - **Containerization**: Docker
@@ -164,10 +164,12 @@ This document provides a comprehensive summary of the Microplate AI System desig
 - `GET /api/v1/interface/templates` - Get templates
 
 ### Capture (vision-capture-service)
-- `POST /api/v1/capture` - Capture image
-- `GET /api/v1/capture/preview` - Live preview stream
-- `GET /api/v1/capture/cameras` - List cameras
-- `PUT /api/v1/capture/cameras/:id/settings` - Update settings
+- `POST /api/v1/capture/image` - Trigger image capture
+- `GET /api/v1/capture/health` - Service health check
+- `GET /api/v1/capture/status` - Camera status
+- `GET /api/v1/capture/image/:filename` - Download captured image
+- `GET /api/v1/stream/mjpeg` - Live preview stream
+- `WebSocket /ws/capture` - Real-time capture status
 
 ## Frontend Design
 

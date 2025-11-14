@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import logger from '../utils/logger';
-import { 
-  MdSearch, 
-  MdExpandMore, 
-  MdExpandLess, 
+import {
+  MdSearch,
+  MdExpandMore,
+  MdExpandLess,
   MdRefresh,
   MdFilterList,
   MdChevronLeft,
@@ -14,7 +14,7 @@ import {
   MdClose,
   MdPreview,
   MdImage,
-  MdZoomOut
+  MdZoomOut,
 } from 'react-icons/md';
 import { resultsService, type RunDetails, type InterfaceFile } from '../services/results.service';
 import { resultsServiceDirect } from '../services/results.service.direct';
@@ -22,8 +22,6 @@ import { labwareService } from '../services/labware.service';
 import { validateRunData } from '../utils/debugRuns';
 import Card from '../components/ui/Card';
 import Spinner from '../components/ui/Spinner';
-// import WellGrid from '../components/results/WellGrid';
-// import ConfidenceChart from '../components/results/ConfidenceChart';
 
 interface ExpandedSample {
   sampleNo: string;
@@ -624,9 +622,11 @@ export default function Results() {
             return (
               <Card key={sample.sampleNo} className="overflow-hidden">
                 {/* Sample Header */}
-                <div 
-                  className="p-6 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                <button
+                  type="button"
+                  className="w-full text-left p-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
                   onClick={() => toggleSampleExpansion(sample.sampleNo)}
+                  aria-expanded={isExpanded}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -654,7 +654,7 @@ export default function Results() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </button>
 
                 {/* Expanded Content */}
                 {isExpanded && expandedData && (
@@ -1190,7 +1190,7 @@ export default function Results() {
               <div className="relative max-w-full max-h-full">
                 <img
                   src={selectedImageUrl}
-                  alt="Annotated Image"
+                  alt="Annotated prediction result"
                   className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
                   onError={(e) => {
                     logger.error('Failed to load image:', selectedImageUrl);

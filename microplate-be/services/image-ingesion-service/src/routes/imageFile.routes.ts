@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { databaseService } from '../services/database.service';
 import { publishLog } from '../services/event-bus.service';
+import { logger } from '../utils/logger';
 
 export const imageFileRoutes = (): Router => {
   const router = Router();
@@ -75,7 +76,7 @@ export const imageFileRoutes = (): Router => {
         }
       });
     } catch (error) {
-      console.error('Error creating image file:', error);
+      logger.error('Error creating image file', { error, body: req.body });
       res.status(500).json({
         success: false,
         error: {
@@ -112,7 +113,7 @@ export const imageFileRoutes = (): Router => {
         }
       });
     } catch (error) {
-      console.error('Error getting image file:', error);
+      logger.error('Error getting image file', { error, params: req.params });
       res.status(500).json({
         success: false,
         error: {
@@ -139,7 +140,7 @@ export const imageFileRoutes = (): Router => {
         }))
       });
     } catch (error) {
-      console.error('Error getting image files by run ID:', error);
+      logger.error('Error getting image files by run ID', { error, params: req.params });
       res.status(500).json({
         success: false,
         error: {
@@ -166,7 +167,7 @@ export const imageFileRoutes = (): Router => {
         }))
       });
     } catch (error) {
-      console.error('Error getting image files by sample number:', error);
+      logger.error('Error getting image files by sample number', { error, params: req.params });
       res.status(500).json({
         success: false,
         error: {
@@ -199,7 +200,7 @@ export const imageFileRoutes = (): Router => {
         }
       });
     } catch (error) {
-      console.error('Error updating image file:', error);
+      logger.error('Error updating image file', { error, params: req.params, body: req.body });
       res.status(500).json({
         success: false,
         error: {
@@ -221,7 +222,7 @@ export const imageFileRoutes = (): Router => {
         message: 'Image file deleted successfully'
       });
     } catch (error) {
-      console.error('Error deleting image file:', error);
+      logger.error('Error deleting image file', { error, params: req.params });
       res.status(500).json({
         success: false,
         error: {
@@ -243,7 +244,7 @@ export const imageFileRoutes = (): Router => {
         message: `Deleted ${result.count} image files for run ${runId}`
       });
     } catch (error) {
-      console.error('Error deleting image files by run ID:', error);
+      logger.error('Error deleting image files by run ID', { error, params: req.params });
       res.status(500).json({
         success: false,
         error: {

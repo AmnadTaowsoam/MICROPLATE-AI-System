@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { logger } from '../utils/logger';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -23,16 +24,18 @@ export const authenticateToken = (config: AuthConfig) => {
       const authHeader = req.headers.authorization;
       const token = authHeader && authHeader.split(' ')[1];
       
-      console.log('🔍 Auth middleware: Authorization header:', authHeader);
-      console.log('🔍 Auth middleware: Extracted token:', token ? `${token.substring(0, 20)}...` : 'No token');
-      console.log('🔍 Auth middleware: Config:', {
+      logger.debug('🔍 Auth middleware: Authorization header', { authorization: authHeader });
+      logger.debug('🔍 Auth middleware: Extracted token', {
+        tokenPreview: token ? `${token.substring(0, 20)}...` : 'No token',
+      });
+      logger.debug('🔍 Auth middleware: Config', {
         jwtSecret: config.jwtSecret ? 'Secret set' : 'No secret',
         jwtIssuer: config.jwtIssuer,
-        jwtAudience: config.jwtAudience
+        jwtAudience: config.jwtAudience,
       });
 
       if (!token) {
-        console.log('❌ Auth middleware: No token provided');
+        logger.warn('❌ Auth middleware: No token provided');
         res.status(401).json({
           success: false,
           error: {
@@ -43,9 +46,9 @@ export const authenticateToken = (config: AuthConfig) => {
         return;
       }
 
-      console.log('🔍 Auth middleware: Verifying token with options:', {
+      logger.debug('🔍 Auth middleware: Verifying token with options', {
         issuer: config.jwtIssuer,
-        audience: config.jwtAudience
+        audience: config.jwtAudience,
       });
       
       const decoded = jwt.verify(token, config.jwtSecret, {
@@ -53,12 +56,12 @@ export const authenticateToken = (config: AuthConfig) => {
         audience: config.jwtAudience
       }) as any;
       
-      console.log('✅ Auth middleware: Token verified successfully:', {
+      logger.info('✅ Auth middleware: Token verified successfully', {
         sub: decoded.sub,
         iss: decoded.iss,
         aud: decoded.aud,
         exp: decoded.exp,
-        iat: decoded.iat
+        iat: decoded.iat,
       });
 
       req.user = {
@@ -71,10 +74,10 @@ export const authenticateToken = (config: AuthConfig) => {
 
       next();
     } catch (error) {
-      console.error('❌ Auth middleware: Token verification failed:', error);
+      logger.error('❌ Auth middleware: Token verification failed', { error });
       
       if (error instanceof jwt.TokenExpiredError) {
-        console.log('❌ Auth middleware: Token expired');
+        logger.warn('❌ Auth middleware: Token expired');
         res.status(401).json({
           success: false,
           error: {
@@ -86,7 +89,7 @@ export const authenticateToken = (config: AuthConfig) => {
       }
 
       if (error instanceof jwt.JsonWebTokenError) {
-        console.log('❌ Auth middleware: Invalid token:', error.message);
+        logger.warn('❌ Auth middleware: Invalid token', { message: error.message });
         res.status(401).json({
           success: false,
           error: {
@@ -97,7 +100,7 @@ export const authenticateToken = (config: AuthConfig) => {
         return;
       }
 
-      console.log('❌ Auth middleware: Unknown auth error:', error);
+      logger.error('❌ Auth middleware: Unknown auth error', { error });
       res.status(500).json({
         success: false,
         error: {

@@ -3,6 +3,8 @@ import { MdQrCodeScanner } from 'react-icons/md';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
+import { useTranslation } from 'react-i18next';
+import { logger } from '../../utils/logger';
 
 interface SampleInformationProps {
   sampleNo: string;
@@ -25,13 +27,13 @@ export default function SampleInformation({
   onSampleEnter,
   uploadError
 }: SampleInformationProps) {
+  const { t } = useTranslation();
   const [barcodeInput, setBarcodeInput] = useState('');
   
   logger.debug('SampleInformation rendered with description:', description, 'at', new Date().toISOString());
 
   const handleScanQR = () => {
     if (barcodeInput.trim()) {
-      // Parse barcode input - assuming format like "SAMPLE123,SUBMISSION456" or "SAMPLE123|SUBMISSION456"
       const parts = barcodeInput.split(/[,|]/).map(part => part.trim());
       if (parts.length >= 1) {
         setSampleNo(parts[0]);
@@ -39,17 +41,16 @@ export default function SampleInformation({
       if (parts.length >= 2) {
         setSubmissionNo(parts[1]);
       }
-      // Clear barcode input after processing
       setBarcodeInput('');
     }
   };
 
   return (
     <Card className="col-span-12 md:col-span-3 xl:col-span-2 p-5">
-      <h2 className="text-lg font-semibold mb-6">Sample Information - UPDATED</h2>
+      <h2 className="text-lg font-semibold mb-6">{t('capture.sampleInformation.title')}</h2>
       <div className="space-y-4">
         <Input 
-          placeholder="Sample Number" 
+          placeholder={t('capture.sampleInformation.sampleNumber')} 
           value={sampleNo}
           onChange={(e) => setSampleNo(e.target.value)}
           onKeyDown={(e) => {
@@ -59,18 +60,17 @@ export default function SampleInformation({
           }}
         />
         <Input 
-          placeholder="Submission Number" 
+          placeholder={t('capture.sampleInformation.submissionNumber')} 
           value={submissionNo}
           onChange={(e) => setSubmissionNo(e.target.value)}
         />
         <Input 
-          placeholder="Description (Optional) - TEST" 
+          placeholder={t('capture.sampleInformation.descriptionPlaceholder')} 
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          style={{ backgroundColor: 'yellow', border: '2px solid red' }}
         />
         <Input 
-          placeholder="Barcode Scanner Input" 
+          placeholder={t('capture.sampleInformation.barcodeInput')} 
           value={barcodeInput}
           onChange={(e) => setBarcodeInput(e.target.value)}
           onKeyDown={(e) => {
@@ -86,12 +86,12 @@ export default function SampleInformation({
             className="flex items-center gap-2"
           >
             <MdQrCodeScanner className="h-4 w-4" />
-            Scan QR
+            {t('capture.sampleInformation.scanQr')}
           </Button>
         </div>
         {uploadError && (
           <div className="text-red-500 text-sm">
-            Upload failed: {uploadError.message}
+            {t('capture.sampleInformation.uploadError', { message: uploadError.message })}
           </div>
         )}
       </div>

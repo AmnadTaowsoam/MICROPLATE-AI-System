@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authService } from '../services/auth.service'
+import { logger } from '../utils/logger'
 
 type Props = {
   children: React.ReactNode
@@ -36,7 +37,7 @@ export default function AuthGuard({ children }: Props) {
           logger.debug('AuthGuard: Token refreshed successfully')
           setIsAuthenticated(true)
         } catch (error) {
-          logger.debug('AuthGuard: Token refresh failed, logging out')
+          logger.error('AuthGuard: Token refresh failed, logging out', error)
           // Refresh failed, logout user
           authService.logout()
           setIsAuthenticated(false)

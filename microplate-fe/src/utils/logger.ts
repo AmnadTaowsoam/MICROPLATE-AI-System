@@ -82,6 +82,7 @@ if (isBrowser) {
       exitOnError: false,
     });
   } catch (error) {
+    console.warn('Logger fallback: winston unavailable in this environment', error);
     logger = {
       debug: (...args: any[]) => console.debug(...args),
       info: (...args: any[]) => console.info(...args),

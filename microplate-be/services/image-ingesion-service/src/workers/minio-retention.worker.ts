@@ -1,6 +1,7 @@
 import { S3Client, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { databaseService } from '../services/database.service';
 import { publishLog } from '../services/event-bus.service';
+import { logger } from '../utils/logger';
 
 interface RetentionSettings {
   checkIntervalMs: number;
@@ -70,7 +71,7 @@ async function processBucket(bucketName: string): Promise<{ deleted: number; err
   let errors = 0;
   const threshold = Date.now() - daysToMs(settings.deleteAfterDays);
 
-  console.log(`[minio-retention] Processing bucket: ${bucketName}`);
+  logger.info('[minio-retention] Processing bucket', { bucketName });
 
   try {
     const objects = await listObjectsInBucket(bucketName);
@@ -86,19 +87,26 @@ async function processBucket(bucketName: string): Promise<{ deleted: number; err
           const imageFile = await databaseService.getImageFilesByBucketAndObjectKey(bucketName, object.Key);
 
           if (settings.dryRun) {
-            console.log(`[minio-retention] DRY RUN: Would delete ${bucketName}/${object.Key} (${object.LastModified})`);
-            if (imageFile) {
-              console.log(`[minio-retention] DRY RUN: Would delete database record ID: ${imageFile.id}`);
-            }
+            logger.info('[minio-retention] DRY RUN: Skipping deletion', {
+              bucketName,
+              objectKey: object.Key,
+              lastModified: object.LastModified,
+              imageFileId: imageFile?.id,
+            });
           } else {
             // Delete from MinIO
             await deleteObjectFromMinIO(bucketName, object.Key);
-            console.log(`[minio-retention] Deleted from MinIO: ${bucketName}/${object.Key}`);
+            logger.info('[minio-retention] Deleted object from MinIO', {
+              bucketName,
+              objectKey: object.Key,
+            });
 
             // Delete from database
             if (imageFile) {
               await deleteImageFileRecord(imageFile.id);
-              console.log(`[minio-retention] Deleted database record ID: ${imageFile.id}`);
+              logger.info('[minio-retention] Deleted image file record', {
+                imageFileId: imageFile.id,
+              });
             }
 
             // Log the deletion
@@ -116,7 +124,11 @@ async function processBucket(bucketName: string): Promise<{ deleted: number; err
             deleted++;
           }
         } catch (error) {
-          console.error(`[minio-retention] Error deleting ${bucketName}/${object.Key}:`, error);
+          logger.error('[minio-retention] Error deleting object', {
+            bucketName,
+            objectKey: object.Key,
+            error,
+          });
           await publishLog({
             level: 'error',
             event: 'minio_retention_error',
@@ -127,7 +139,7 @@ async function processBucket(bucketName: string): Promise<{ deleted: number; err
       }
     }
   } catch (error) {
-    console.error(`[minio-retention] Error processing bucket ${bucketName}:`, error);
+    logger.error('[minio-retention] Error processing bucket', { bucketName, error });
     await publishLog({
       level: 'error',
       event: 'minio_retention_bucket_error',
@@ -140,10 +152,13 @@ async function processBucket(bucketName: string): Promise<{ deleted: number; err
 }
 
 async function runRetentionCheck(): Promise<void> {
-  console.log(`[minio-retention] Starting retention check (delete files older than ${settings.deleteAfterDays} days)`);
+  logger.info('[minio-retention] Starting retention check', {
+    deleteAfterDays: settings.deleteAfterDays,
+    dryRun: settings.dryRun,
+  });
   
   if (settings.dryRun) {
-    console.log('[minio-retention] DRY RUN MODE - No files will be actually deleted');
+    logger.info('[minio-retention] DRY RUN MODE - No files will be actually deleted');
   }
 
   await publishLog({
@@ -164,7 +179,10 @@ async function runRetentionCheck(): Promise<void> {
     totalErrors += result.errors;
   }
 
-  console.log(`[minio-retention] Retention check completed. Deleted: ${totalDeleted}, Errors: ${totalErrors}`);
+  logger.info('[minio-retention] Retention check completed', {
+    totalDeleted,
+    totalErrors,
+  });
 
   await publishLog({
     level: 'info',
@@ -179,11 +197,13 @@ async function runRetentionCheck(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log('[minio-retention] MinIO retention worker started');
-  console.log(`[minio-retention] Settings:`, {
-    checkIntervalMs: settings.checkIntervalMs,
-    deleteAfterDays: settings.deleteAfterDays,
-    dryRun: settings.dryRun
+  logger.info('[minio-retention] MinIO retention worker started', {
+    settings: {
+      checkIntervalMs: settings.checkIntervalMs,
+      deleteAfterDays: settings.deleteAfterDays,
+      dryRun: settings.dryRun,
+      checkIntervalMinutes: settings.checkIntervalMs / 1000 / 60,
+    },
   });
 
   // Connect to database
@@ -195,23 +215,25 @@ async function main(): Promise<void> {
   // Schedule periodic checks
   setInterval(runRetentionCheck, settings.checkIntervalMs);
 
-  console.log(`[minio-retention] Worker scheduled to run every ${settings.checkIntervalMs / 1000 / 60} minutes`);
+  logger.info('[minio-retention] Worker scheduled', {
+    intervalMinutes: settings.checkIntervalMs / 1000 / 60,
+  });
 }
 
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('[minio-retention] Received SIGINT, shutting down gracefully...');
+  logger.info('[minio-retention] Received SIGINT, shutting down gracefully...');
   await databaseService.disconnect();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('[minio-retention] Received SIGTERM, shutting down gracefully...');
+  logger.info('[minio-retention] Received SIGTERM, shutting down gracefully...');
   await databaseService.disconnect();
   process.exit(0);
 });
 
 main().catch(error => {
-  console.error('[minio-retention] Fatal error:', error);
+  logger.error('[minio-retention] Fatal error', { error });
   process.exit(1);
 });

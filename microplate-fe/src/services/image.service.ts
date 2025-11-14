@@ -14,6 +14,18 @@ export type PredictionRequest = {
   imageUrl?: string
 }
 
+export type GridMetadata = {
+  bounds?: {
+    left: number
+    right: number
+    top: number
+    bottom: number
+  }
+  columns?: number[]
+  rows?: number[]
+  original_size?: [number, number]
+}
+
 export type PredictionResponse = {
   success: boolean
   data?: {
@@ -41,6 +53,7 @@ export type PredictionResponse = {
     inference_results: {
       distribution: any
     }
+    grid_metadata?: GridMetadata
   }
   error?: {
     code: string
@@ -73,7 +86,7 @@ export const imageService = {
   },
 
   // Run prediction via vision-inference-service directly
-  async runPrediction(_request: PredictionRequest): Promise<PredictionResponse> {
+  async runPrediction(): Promise<PredictionResponse> {
     // For prediction, we need to send the image file directly to vision-inference-service
     // This should be called after image upload, but we need the file to send to prediction endpoint
     throw new Error('runPrediction should be called with file upload directly to vision-inference-service')

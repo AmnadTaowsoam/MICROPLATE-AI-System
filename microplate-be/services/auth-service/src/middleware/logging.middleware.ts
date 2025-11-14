@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 
 export const requestLogger = (req: Request, res: Response, next: NextFunction) => {
   const startTime = Date.now();
@@ -8,14 +9,14 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
   (req as any).requestId = requestId;
 
   // Log request start
-  console.log({
+  logger.info('Request started', {
     requestId,
     method: req.method,
     url: req.url,
     ip: req.ip,
     userAgent: req.headers['user-agent'],
-    timestamp: new Date().toISOString()
-  }, 'Request started');
+    timestamp: new Date().toISOString(),
+  });
 
   // Store start time for response logging
   (req as any).startTime = startTime;
@@ -23,7 +24,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
   // Log response when finished
   res.on('finish', () => {
     const duration = Date.now() - startTime;
-    console.log({
+    logger.info('Request completed', {
       requestId,
       method: req.method,
       url: req.url,
@@ -31,8 +32,8 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
       duration: `${duration}ms`,
       ip: req.ip,
       userAgent: req.headers['user-agent'],
-      timestamp: new Date().toISOString()
-    }, 'Request completed');
+      timestamp: new Date().toISOString(),
+    });
   });
 
   next();

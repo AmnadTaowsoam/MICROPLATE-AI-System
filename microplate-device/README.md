@@ -217,9 +217,9 @@ IMAGE_FORMAT=JPEG               # JPEG or PNG
 CAPTURE_DIR=captures            # Directory for captured images
 MAX_CAPTURE_AGE_HOURS=24        # Auto-cleanup old images
 
-# CORS
-ALLOWED_ORIGINS=http://localhost:6410,http://localhost:3000
 ```
+
+> **Production tip:** ตั้งค่า endpoint ของระบบกลางผ่าน gateway (เช่น `https://api.example.com/api/v1/capture/...`) และปล่อยให้ gateway จัดการ CORS/Rate limiting ส่วนบริการนี้ไม่ต้องตั้ง `ALLOWED_ORIGINS`
 
 ### 4. Run Service
 

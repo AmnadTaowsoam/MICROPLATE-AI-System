@@ -5,6 +5,7 @@
  */
 
 import axios, { AxiosInstance } from 'axios';
+import { logger } from '../utils/logger';
 
 export interface SampleSummaryData {
   sampleNo: string;
@@ -60,7 +61,7 @@ export class SampleSummaryService {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         throw new Error(`Sample ${sampleNo} not found`);
       }
-      console.error('Failed to get sample summary:', error);
+      logger.error('Failed to get sample summary', { error, sampleNo });
       throw error;
     }
   }

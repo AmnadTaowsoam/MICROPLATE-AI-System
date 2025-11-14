@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { interfaceService } from '../services/interface.service';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -104,7 +105,7 @@ router.post('/generate', async (req: Request, res: Response): Promise<void> => {
 
     res.json(result);
   } catch (error) {
-    console.error('Generate interface file error:', error);
+    logger.error('Generate interface file error', { error, body: req.body });
     res.status(500).json({
       success: false,
       error: {
@@ -200,7 +201,7 @@ router.get('/files', async (req: Request, res: Response): Promise<void> => {
 
     res.json(result);
   } catch (error) {
-    console.error('Get interface files error:', error);
+    logger.error('Get interface files error', { error, query: req.query });
     res.status(500).json({
       success: false,
       error: {
@@ -297,7 +298,7 @@ router.get('/files/:id', async (req: Request, res: Response): Promise<void> => {
 
     res.json(result);
   } catch (error) {
-    console.error('Get interface file error:', error);
+    logger.error('Get interface file error', { error, params: req.params });
     res.status(500).json({
       success: false,
       error: {
@@ -366,7 +367,7 @@ router.delete('/files/:id', async (req: Request, res: Response): Promise<void> =
 
     res.json(result);
   } catch (error) {
-    console.error('Delete interface file error:', error);
+    logger.error('Delete interface file error', { error, params: req.params });
     res.status(500).json({
       success: false,
       error: {

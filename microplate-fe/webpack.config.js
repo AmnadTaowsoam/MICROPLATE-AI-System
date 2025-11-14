@@ -1,5 +1,6 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 const webpack = require('webpack');
 require('dotenv').config();
 
@@ -79,6 +80,15 @@ module.exports = (env, argv) => {
         filename: 'index.html',
         inject: 'body',
       }),
+      new CopyWebpackPlugin({
+        patterns: [
+          {
+            from: path.resolve(__dirname, 'public'),
+            to: path.resolve(__dirname, 'build'),
+            noErrorOnMissing: true,
+          },
+        ],
+      }),
       new webpack.DefinePlugin({
         'process.env.VITE_AUTH_SERVICE_URL': JSON.stringify(process.env.VITE_AUTH_SERVICE_URL || 'http://localhost:6401'),
         'process.env.VITE_IMAGE_SERVICE_URL': JSON.stringify(process.env.VITE_IMAGE_SERVICE_URL || 'http://localhost:6402'),
@@ -98,14 +108,47 @@ module.exports = (env, argv) => {
       }),
     ],
     devServer: {
-      static: {
-        directory: path.join(__dirname, 'build'),
-      },
+      static: [
+        {
+          directory: path.join(__dirname, 'public'),
+          publicPath: '/',
+        },
+        {
+          directory: path.join(__dirname, 'build'),
+        },
+      ],
       port: 6410,
       host: '0.0.0.0',
       hot: true,
       historyApiFallback: true,
       open: false,
+      proxy: [
+        {
+          context: ['/api/v1/capture'],
+          target: 'http://localhost:6407',
+          changeOrigin: true,
+          secure: false,
+        },
+        {
+          context: ['/ws/capture'],
+          target: 'ws://localhost:6407',
+          changeOrigin: true,
+          secure: false,
+          ws: true,
+        },
+        {
+          context: ['/api/v1/inference'],
+          target: 'http://localhost:6403',
+          changeOrigin: true,
+          secure: false,
+        },
+        {
+          context: ['/api/v1/results'],
+          target: 'http://localhost:6404',
+          changeOrigin: true,
+          secure: false,
+        },
+      ],
     },
     devtool: isProduction ? 'source-map' : 'eval-source-map',
     optimization: {

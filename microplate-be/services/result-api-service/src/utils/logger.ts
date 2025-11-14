@@ -1,53 +1,60 @@
+import winston from 'winston';
 import { Request, Response, NextFunction } from 'express';
 import { config } from '@/config/config';
 
-// Simple logger interface
-interface Logger {
-  info: (obj: any, msg?: string) => void;
-  error: (obj: any, msg?: string) => void;
-  warn: (obj: any, msg?: string) => void;
-  debug: (obj: any, msg?: string) => void;
-}
+const timestampFormat = 'YYYY-MM-DD HH:mm:ss';
 
-// Console-based logger implementation
-class ConsoleLogger implements Logger {
-  private formatMessage(level: string, obj: any, msg?: string): string {
-    const timestamp = new Date().toISOString();
-    const message = msg || '';
-    const data = typeof obj === 'object' ? JSON.stringify(obj, null, 2) : obj;
-    
-    if (config.logging.format === 'pretty') {
-      return `[${timestamp}] ${level.toUpperCase()}: ${message}\n${data}`;
-    }
-    
-    return JSON.stringify({
-      timestamp,
-      level: level.toUpperCase(),
-      message,
-      data: obj
-    });
+const baseLogger = winston.createLogger({
+  level: config.logging.level,
+  format: winston.format.combine(
+    winston.format.timestamp({ format: timestampFormat }),
+    config.logging.format === 'pretty'
+      ? winston.format.colorize({ all: true })
+      : winston.format.json(),
+    winston.format.printf(({ timestamp, level, message, ...meta }) => {
+      if (config.logging.format === 'pretty') {
+        const metaString = Object.keys(meta).length ? ` ${JSON.stringify(meta, null, 2)}` : '';
+        return `${timestamp} [${level}]: ${message}${metaString}`;
+      }
+      return JSON.stringify({ timestamp, level, message, ...meta });
+    })
+  ),
+  transports: [
+    new winston.transports.Console()
+  ],
+  exitOnError: false,
+});
+
+const normalizeArgs = (args: any[]): { message: string; meta?: any } => {
+  if (typeof args[0] === 'string') {
+    return { message: args[0], meta: args[1] };
   }
-
-  info(obj: any, msg?: string): void {
-    console.log(this.formatMessage('info', obj, msg));
+  if (typeof args[1] === 'string') {
+    return { message: args[1], meta: args[0] };
   }
+  return { message: '', meta: args[0] };
+};
 
-  error(obj: any, msg?: string): void {
-    console.error(this.formatMessage('error', obj, msg));
+export const logger = {
+  info: (...args: any[]) => {
+    const { message, meta } = normalizeArgs(args);
+    baseLogger.info(message, meta);
+  },
+  error: (...args: any[]) => {
+    const { message, meta } = normalizeArgs(args);
+    baseLogger.error(message, meta);
+  },
+  warn: (...args: any[]) => {
+    const { message, meta } = normalizeArgs(args);
+    baseLogger.warn(message, meta);
+  },
+  debug: (...args: any[]) => {
+    const { message, meta } = normalizeArgs(args);
+    baseLogger.debug(message, meta);
   }
+};
 
-  warn(obj: any, msg?: string): void {
-    console.warn(this.formatMessage('warn', obj, msg));
-  }
-
-  debug(obj: any, msg?: string): void {
-    if (config.logging.level === 'debug') {
-      console.debug(this.formatMessage('debug', obj, msg));
-    }
-  }
-}
-
-export const logger = new ConsoleLogger();
+export { baseLogger };
 
 // Request logger middleware for Express
 export const requestLogger = (request: Request, response: Response, next: NextFunction) => {
@@ -55,14 +62,14 @@ export const requestLogger = (request: Request, response: Response, next: NextFu
   (request as any).startTime = startTime;
   (request as any).id = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-  logger.info({
+  logger.info('Request started', {
     requestId: (request as any).id,
     method: request.method,
     url: request.url,
     ip: request.ip,
     userAgent: request.headers['user-agent'],
     timestamp: new Date().toISOString(),
-  }, 'Request started');
+  });
 
   next();
 };
@@ -74,14 +81,14 @@ export const responseLogger = (request: Request, response: Response, next: NextF
   response.send = function(data: any) {
     const duration = Date.now() - ((request as any).startTime || Date.now());
     
-    logger.info({
+    logger.info('Request completed', {
       requestId: (request as any).id,
       method: request.method,
       url: request.url,
       statusCode: response.statusCode,
       duration: `${duration}ms`,
       timestamp: new Date().toISOString(),
-    }, 'Request completed');
+    });
 
     return originalSend.call(this, data);
   };
@@ -91,7 +98,7 @@ export const responseLogger = (request: Request, response: Response, next: NextF
 
 // Error logger
 export const logError = (error: Error, context?: any) => {
-  logger.error({
+  logger.error('Error occurred', {
     error: {
       name: error.name,
       message: error.message,
@@ -99,27 +106,25 @@ export const logError = (error: Error, context?: any) => {
     },
     context,
     timestamp: new Date().toISOString(),
-  }, 'Error occurred');
+  });
 };
 
 // Performance logger
 export const logPerformance = (operation: string, duration: number, context?: any) => {
-  logger.info({
+  logger.info('Performance metric', {
     operation,
     duration: `${duration}ms`,
     context,
     timestamp: new Date().toISOString(),
-  }, 'Performance metric');
+  });
 };
 
 // Business logic logger
 export const logBusinessEvent = (event: string, data: any, context?: any) => {
-  logger.info({
+  logger.info('Business event', {
     event,
     data,
     context,
     timestamp: new Date().toISOString(),
-  }, 'Business event');
+  });
 };
-
-export default logger;

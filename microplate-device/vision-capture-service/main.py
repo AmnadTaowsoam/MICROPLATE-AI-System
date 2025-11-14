@@ -11,35 +11,21 @@ from typing import Dict, Any
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Depends, status
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.core.config import settings
-from app.core.auth import verify_token
 from app.api.routes import capture
 from app.api.routes import health
-from app.api.routes import websocket
 from app.api.routes import stream
+from app.api.routes import websocket
+from app.core.auth import verify_token
+from app.core.config import settings
+from app.core.logging_config import configure_logging
+from app.core.websocket_manager import WebSocketManager
 from app.services.camera_service import CameraService
 from app.services.status_service import StatusService
-from app.core.websocket_manager import WebSocketManager
 
-# Ensure log directory exists before configuring logging
-log_file = getattr(settings, 'LOG_FILE', 'logs/vision-capture.log')
-log_dir = os.path.dirname(log_file) or '.'
-os.makedirs(log_dir, exist_ok=True)
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(log_file),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger(__name__)
+configure_logging()
+logger = logging.getLogger("vision-capture-service")
 
 # Global services
 camera_service: CameraService = None
@@ -51,27 +37,27 @@ websocket_manager: WebSocketManager = None
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     global camera_service, status_service, websocket_manager
-    
+
     logger.info("Starting Vision Capture Service...")
-    
+
     try:
         # Initialize services
         camera_service = CameraService()
         status_service = StatusService()
         websocket_manager = WebSocketManager()
-        
+
         # Initialize camera
         await camera_service.initialize()
-        
+
         # Set up status monitoring
         asyncio.create_task(status_service.start_monitoring())
-        
+
         logger.info("Vision Capture Service started successfully")
-        
+
         yield
-        
+
     except Exception as e:
-        logger.error(f"Failed to start Vision Capture Service: {e}")
+        logger.error("Failed to start Vision Capture Service", extra={"error": str(e)})
         raise
     finally:
         # Cleanup
@@ -88,15 +74,6 @@ app = FastAPI(
     description="Camera capture service for HAllytics microplate analysis",
     version="1.0.0",
     lifespan=lifespan
-)
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
 )
 
 # Include routers
@@ -126,7 +103,7 @@ async def root():
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """Global exception handler"""
-    logger.error(f"Global exception: {exc}")
+    logger.error("Global exception", extra={"error": str(exc)})
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
@@ -171,14 +148,11 @@ def get_websocket_manager() -> WebSocketManager:
 
 
 if __name__ == "__main__":
-    # Ensure logs directory exists
-    os.makedirs("logs", exist_ok=True)
-    
-    # Run the application
     uvicorn.run(
         "main:app",
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,
-        log_level="info"
+        log_level=settings.LOG_LEVEL.lower(),
+        access_log=True
     )

@@ -31,7 +31,28 @@ const configSchema = z.object({
       errorChannel: z.string().default('microplate:prediction-db:errors'),
     }).default({ enabled: true, logChannel: 'microplate:prediction-db:logs', errorChannel: 'microplate:prediction-db:errors' }),
   }),
+  cors: z.object({
+    enabled: z.boolean().default(true),
+    allowedOrigins: z.array(z.string()).default(['*']),
+    allowedMethods: z.string().default('GET,POST,PUT,PATCH,DELETE,OPTIONS'),
+    allowedHeaders: z.string().default('Origin, X-Requested-With, Content-Type, Accept, Authorization'),
+    exposedHeaders: z.array(z.string()).default([]),
+    maxAge: z.number().default(600),
+  }),
 });
+
+const parseCsv = (value: string | undefined, fallback: string[]): string[] => {
+  if (!value) {
+    return fallback;
+  }
+
+  const parts = value
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  return parts.length > 0 ? parts : fallback;
+};
 
 // Parse and validate configuration
 const rawConfig = {
@@ -59,9 +80,18 @@ const rawConfig = {
       errorChannel: process.env['REDIS_ERROR_CHANNEL'] || 'microplate:prediction-db:errors',
     },
   },
+  cors: {
+    enabled: (process.env['ENABLE_CORS'] || 'true') === 'true',
+    allowedOrigins: parseCsv(process.env['CORS_ALLOWED_ORIGINS'], ['*']),
+    allowedMethods: process.env['CORS_ALLOWED_METHODS'] || 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+    allowedHeaders:
+      process.env['CORS_ALLOWED_HEADERS'] || 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+    exposedHeaders: parseCsv(process.env['CORS_EXPOSED_HEADERS'], []),
+    maxAge: parseInt(process.env['CORS_MAX_AGE'] || '600'),
+  },
 };
 
 export const config = configSchema.parse(rawConfig);
 
 // Export individual configs for convenience
-export const { server, database, redis, logging } = config;
+export const { server, database, redis, logging, cors } = config;

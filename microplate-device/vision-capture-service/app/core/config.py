@@ -3,7 +3,7 @@ Configuration settings for Vision Capture Service
 """
 
 import os
-from typing import List, Optional
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,13 +19,6 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 6407
     DEBUG: bool = False
-    
-    # CORS configuration
-    ALLOWED_ORIGINS: List[str] = [
-        "http://localhost:6410",
-        "http://localhost:3000",
-        "http://localhost:8080"
-    ]
     
     # JWT Configuration (should match auth-service access token config)
     # Defaults aligned with auth-service defaults
@@ -44,6 +37,10 @@ class Settings(BaseSettings):
     CAPTURE_TIMEOUT: int = 30  # seconds
     IMAGE_QUALITY: int = 95  # JPEG quality (1-100)
     IMAGE_FORMAT: str = "JPEG"
+    CAPTURE_RESIZE_WIDTH: Optional[int] = None
+    CAPTURE_RESIZE_HEIGHT: Optional[int] = None
+    CAPTURE_PERSIST_IMAGES: bool = True
+    CAPTURE_IN_MEMORY_LIMIT: int = 10
     
     # File storage
     CAPTURE_DIR: str = "captures"
@@ -55,6 +52,7 @@ class Settings(BaseSettings):
     
     # Logging
     LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "json"  # json | pretty
     LOG_FILE: str = "logs/vision-capture.log"
     
     # WebSocket settings
@@ -63,11 +61,11 @@ class Settings(BaseSettings):
 
     # Basler Camera Configuration
     CAMERA_BACKEND: str = "opencv"
-    BASLER_SERIAL: Optional[str]
-    BASLER_IP: Optional[str]
-    BASLER_PACKET_SIZE: Optional[int]
-    BASLER_EXPOSURE_US: Optional[int]
-    BASLER_GAIN: Optional[float]
+    BASLER_SERIAL: Optional[str] = None
+    BASLER_IP: Optional[str] = None
+    BASLER_PACKET_SIZE: Optional[int] = None
+    BASLER_EXPOSURE_US: Optional[int] = None
+    BASLER_GAIN: Optional[float] = None
     
     
 # Create global settings instance

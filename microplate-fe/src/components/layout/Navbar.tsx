@@ -1,17 +1,25 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { MdLogout, MdSettings, MdDashboard, MdScience, MdDescription, MdPerson, MdExpandMore, MdNotifications, MdSearch, MdClose, MdAccessTime, MdDelete, MdMarkEmailRead, MdClearAll, MdHelp } from 'react-icons/md';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ComponentType } from 'react';
 import { authService } from '../../services/auth.service';
 import { notificationService } from '../../services/notification.service';
 import type { Notification } from '../../services/notification.service';
 import { searchService } from '../../services/search.service';
 import type { SearchResult } from '../../services/search.service';
 import LanguageSwitcher from '../LanguageSwitcher';
+import { useTranslation } from 'react-i18next';
+import { logger } from '../../utils/logger';
 
-const navigationLinks = [
-  { name: 'Dashboard', href: '/capture', icon: MdDashboard },
-  { name: 'Results', href: '/results', icon: MdScience },
-  { name: 'User Guide', href: '/user-guide', icon: MdHelp },
+type NavigationLink = {
+  key: 'dashboard' | 'results' | 'userGuide';
+  href: string;
+  icon: ComponentType<{ className?: string }>;
+};
+
+const navigationLinks: NavigationLink[] = [
+  { key: 'dashboard', href: '/capture', icon: MdDashboard },
+  { key: 'results', href: '/results', icon: MdScience },
+  { key: 'userGuide', href: '/user-guide', icon: MdHelp },
 ];
 
 // const userNavigation = [
@@ -25,6 +33,7 @@ function classNames(...classes: string[]) {
 
 export default function Navbar() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   
   const handleSignOut = () => {
     authService.logout();
@@ -44,7 +53,7 @@ export default function Navbar() {
   };
 
   const handleClearAll = () => {
-    if (window.confirm('Are you sure you want to clear all notifications?')) {
+    if (window.confirm(t('navbar.notifications.confirmClear'))) {
       notificationService.clearNotifications();
     }
   };
@@ -157,7 +166,7 @@ export default function Navbar() {
             <div className="flex items-baseline space-x-4">
               {navigationLinks.map((item) => (
                 <NavLink
-                  key={item.name}
+                  key={item.key}
                   to={item.href}
                   className={({ isActive }) =>
                     classNames(
@@ -169,7 +178,7 @@ export default function Navbar() {
                   }
                 >
                   <item.icon className="h-4 w-4" />
-                  {item.name}
+                  {t(`navbar.links.${item.key}`)}
                 </NavLink>
               ))}
             </div>
@@ -182,7 +191,7 @@ export default function Navbar() {
               <button
                 onClick={() => setIsSearchOpen(!isSearchOpen)}
                 className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                title="Search"
+                title={t('navbar.actions.search')}
               >
                 <MdSearch className="h-5 w-5" />
               </button>
@@ -194,7 +203,7 @@ export default function Navbar() {
                     <div className="relative">
                       <input
                         type="text"
-                        placeholder="Search samples, results, logs..."
+                        placeholder={t('navbar.search.placeholder')}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full px-4 py-2 pl-10 pr-4 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
@@ -214,7 +223,7 @@ export default function Navbar() {
                   {isSearching && (
                     <div className="px-4 pb-4">
                       <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-                        Searching...
+                        {t('navbar.search.searching')}
                       </div>
                     </div>
                   )}
@@ -249,7 +258,7 @@ export default function Navbar() {
                         ))
                       ) : (
                         <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                          No results found for "{searchQuery}"
+                          {t('navbar.search.noResults', { query: searchQuery })}
                         </div>
                       )}
                     </div>
@@ -257,7 +266,7 @@ export default function Navbar() {
                   
                   {!searchQuery && (
                     <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                      Start typing to search...
+                      {t('navbar.search.start')}
                     </div>
                   )}
                 </div>
@@ -269,7 +278,7 @@ export default function Navbar() {
               <button
                 onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
                 className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                title="Notifications"
+                title={t('navbar.notifications.title')}
               >
                 <MdNotifications className="h-5 w-5" />
                 {/* Notification badge */}
@@ -285,7 +294,7 @@ export default function Navbar() {
                 <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-xl ring-1 ring-black ring-opacity-5 focus:outline-none z-50 border border-gray-200 dark:border-gray-700">
                   <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Notifications</h3>
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{t('navbar.notifications.title')}</h3>
                       <div className="flex gap-1">
                         {unreadCount > 0 && (
                           <button
@@ -294,7 +303,7 @@ export default function Navbar() {
                               handleMarkAllAsRead();
                             }}
                             className="p-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                            title="Mark all as read"
+                            title={t('navbar.notifications.markAll')}
                           >
                             <MdMarkEmailRead className="h-3 w-3" />
                           </button>
@@ -305,7 +314,7 @@ export default function Navbar() {
                             handleClearAll();
                           }}
                           className="p-1 text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                          title="Clear all"
+                          title={t('navbar.notifications.clearAll')}
                         >
                           <MdClearAll className="h-3 w-3" />
                         </button>
@@ -328,12 +337,23 @@ export default function Navbar() {
                               notification.type === 'error' ? 'bg-red-500' :
                               'bg-blue-500'
                             }`}></div>
-                            <div 
-                              className="flex-1 cursor-pointer"
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              className="flex-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
                               onClick={() => {
                                 handleMarkAsRead(notification.id);
                                 if (notification.actionUrl) {
                                   window.location.href = notification.actionUrl;
+                                }
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  handleMarkAsRead(notification.id);
+                                  if (notification.actionUrl) {
+                                    window.location.href = notification.actionUrl;
+                                  }
                                 }
                               }}
                             >
@@ -355,7 +375,7 @@ export default function Navbar() {
                                     handleMarkAsRead(notification.id);
                                   }}
                                   className="p-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                                  title="Mark as read"
+                                  title={t('navbar.notifications.markAsRead')}
                                 >
                                   <MdMarkEmailRead className="h-3 w-3" />
                                 </button>
@@ -366,7 +386,7 @@ export default function Navbar() {
                                   handleDeleteNotification(notification.id);
                                 }}
                                 className="p-1 text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                                title="Delete"
+                                title={t('navbar.notifications.delete')}
                               >
                                 <MdDelete className="h-3 w-3" />
                               </button>
@@ -376,7 +396,7 @@ export default function Navbar() {
                       ))
                     ) : (
                       <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                        No notifications
+                        {t('navbar.notifications.empty')}
                       </div>
                     )}
                   </div>
@@ -388,7 +408,7 @@ export default function Navbar() {
                       }}
                       className="w-full text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
                     >
-                      View all notifications
+                      {t('navbar.notifications.viewAll')}
                     </button>
                   </div>
                 </div>
@@ -421,10 +441,10 @@ export default function Navbar() {
                         </div>
                         <div>
                           <p className="text-sm font-medium text-gray-900 dark:text-white">
-                            {userInfo.username || 'User Profile'}
+                            {userInfo.username || t('navbar.profile.defaultName')}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {userInfo.email || 'user@example.com'}
+                            {userInfo.email || t('navbar.profile.defaultEmail')}
                           </p>
                         </div>
                       </div>
@@ -437,7 +457,7 @@ export default function Navbar() {
                       className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                     >
                       <MdPerson className="h-4 w-4" />
-                      Profile
+                      {t('navbar.profile.profileLink')}
                     </NavLink>
                     
                     <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700">
@@ -449,7 +469,7 @@ export default function Navbar() {
                       className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                     >
                       <MdSettings className="h-4 w-4" />
-                      Settings
+                      {t('navbar.profile.settingsLink')}
                     </NavLink>
                     <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                     
@@ -462,7 +482,7 @@ export default function Navbar() {
                       className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                     >
                       <MdLogout className="h-4 w-4" />
-                      Logout
+                      {t('navbar.profile.logout')}
                     </button>
                   </div>
                 </div>

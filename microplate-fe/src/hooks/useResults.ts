@@ -5,6 +5,7 @@ import type {
   SampleSummary, 
   InterfaceFile 
 } from '../services/results.service'
+import logger from '../utils/logger'
 
 export function useSampleResult(sampleNo?: string) {
   return useQuery<SampleResult>({

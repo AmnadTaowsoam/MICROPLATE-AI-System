@@ -1,6 +1,7 @@
 import ImageUpload from './ImageUpload';
 import Card from '../ui/Card';
 import LiveStream from './LiveStream';
+import logger from '../../utils/logger';
 
 interface ImageCaptureProps {
   selectedFile: File | null;

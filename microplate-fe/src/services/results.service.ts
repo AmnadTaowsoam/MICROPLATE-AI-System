@@ -92,7 +92,7 @@ export const resultsService = {
     return resultsApi.get<SampleResult>(`/api/v1/results/samples/${encodeURIComponent(sampleNo)}`)
   },
   
-  async getSampleSummary(sampleNo: string) {
+  async getSampleSummary(sampleNo: string): Promise<SampleSummary | null> {
     logger.debug('resultsService: Getting sample summary for:', sampleNo)
     const token = getAuthToken()
     if (token) {
@@ -104,6 +104,10 @@ export const resultsService = {
       logger.debug('resultsService: API response received:', result)
       return result
     } catch (error) {
+      if (error instanceof Error && 'status' in error && (error as any).status === 404) {
+        logger.debug('resultsService: Sample summary not found yet, returning null')
+        return null
+      }
       logger.error('resultsService: API request failed:', error)
       throw error
     }

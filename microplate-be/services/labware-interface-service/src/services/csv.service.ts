@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { createObjectCsvWriter } from 'csv-writer';
+import { logger } from '../utils/logger';
 import { createSampleSummaryService, SampleSummaryData } from './sample-summary.service';
 
 export interface CsvRow {
@@ -72,7 +73,7 @@ export class CsvService {
       const stats = fs.statSync(filePath);
       const fileSize = stats.size;
 
-      console.log(`CSV file generated: ${fileName} (${fileSize} bytes)`);
+      logger.info(`CSV file generated: ${fileName}`, { fileSize });
 
       return {
         filePath,
@@ -80,7 +81,7 @@ export class CsvService {
         fileSize,
       };
     } catch (error) {
-      console.error('Failed to generate CSV file:', error);
+      logger.error('Failed to generate CSV file', { error });
       throw error;
     }
   }
@@ -163,10 +164,10 @@ export class CsvService {
     try {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
-        console.log(`Temporary file cleaned up: ${filePath}`);
+        logger.info('Temporary file cleaned up', { filePath });
       }
     } catch (error) {
-      console.error(`Failed to cleanup file ${filePath}:`, error);
+      logger.error(`Failed to cleanup file ${filePath}`, { error });
     }
   }
 
@@ -182,11 +183,11 @@ export class CsvService {
         
         if (now - stats.mtime.getTime() > maxAge) {
           fs.unlinkSync(filePath);
-          console.log(`Cleaned up old file: ${file}`);
+          logger.info('Cleaned up old file', { file });
         }
       }
     } catch (error) {
-      console.error('Failed to cleanup old files:', error);
+      logger.error('Failed to cleanup old files', { error });
     }
   }
 }

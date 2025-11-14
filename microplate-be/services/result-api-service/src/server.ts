@@ -23,7 +23,20 @@ import { errorHandler } from '@/utils/errors';
 import { requestLogger, responseLogger } from '@/utils/logger';
 import { cacheService } from '@/utils/redis';
 import { config } from '@/config/config';
-import logger from '../../../shared/logger';
+import type { Logger } from 'winston';
+
+// Load shared logger at runtime to avoid TypeScript cross-package compilation issues
+const sharedLoggerModule: Partial<{ default: Logger; logger: Logger }> = (() => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('../../../shared/logger.js');
+  } catch (error) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('../../../shared/logger');
+  }
+})();
+
+const logger: Logger = (sharedLoggerModule.default || sharedLoggerModule.logger || sharedLoggerModule) as Logger;
 
 export const prisma = new PrismaClient({
   log: config.server.nodeEnv === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
@@ -31,6 +44,40 @@ export const prisma = new PrismaClient({
 
 const app = express();
 const server = createServer(app);
+
+if (config.cors.enabled) {
+  const allowAllOrigins = config.cors.allowedOrigins.includes('*');
+
+  app.use((request, response, next) => {
+    const requestOrigin = request.headers.origin;
+
+    if (allowAllOrigins) {
+      response.header('Access-Control-Allow-Origin', '*');
+    } else if (requestOrigin && config.cors.allowedOrigins.includes(requestOrigin)) {
+      response.header('Access-Control-Allow-Origin', requestOrigin);
+      response.header('Access-Control-Allow-Credentials', 'true');
+      response.header('Vary', 'Origin');
+    }
+
+    response.header('Access-Control-Allow-Methods', config.cors.allowedMethods);
+    response.header('Access-Control-Allow-Headers', config.cors.allowedHeaders);
+
+    if (config.cors.exposedHeaders.length > 0) {
+      response.header('Access-Control-Expose-Headers', config.cors.exposedHeaders.join(', '));
+    }
+
+    if (config.cors.maxAge) {
+      response.header('Access-Control-Max-Age', String(config.cors.maxAge));
+    }
+
+    if (request.method === 'OPTIONS') {
+      response.status(204).send();
+      return;
+    }
+
+    next();
+  });
+}
 
 app.use(helmet());
 
@@ -264,14 +311,14 @@ const setupDatabaseNotifications = async () => {
           }
         }
       } catch (error) {
-        logger.error({ error }, 'Error handling database notification');
+        logger.error('Error handling database notification', { error });
       }
     };
 
     logger.info('Database notifications configured');
 
   } catch (error) {
-    logger.error({ error }, 'Failed to setup database notifications');
+    logger.error('Failed to setup database notifications', { error });
   }
 };
 
@@ -325,7 +372,7 @@ const start = async () => {
     });
 
   } catch (err) {
-    logger.error({ error: err }, 'Startup error');
+    logger.error('Startup error', { error: err });
     process.exit(1);
   }
 };
@@ -340,7 +387,7 @@ const gracefulShutdown = async (signal: string) => {
     logger.info('Graceful shutdown completed');
     process.exit(0);
   } catch (error) {
-    logger.error({ error }, 'Error during graceful shutdown');
+    logger.error('Error during graceful shutdown', { error });
     process.exit(1);
   }
 };
@@ -349,12 +396,12 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 process.on('uncaughtException', (error) => {
-  logger.error({ error }, 'Uncaught Exception');
+  logger.error('Uncaught Exception', { error });
   gracefulShutdown('uncaughtException');
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  logger.error({ promise, reason }, 'Unhandled Rejection');
+  logger.error('Unhandled Rejection', { promise, reason });
   gracefulShutdown('unhandledRejection');
 });
 

@@ -32,7 +32,15 @@ export interface CaptureStatus {
 }
 
 class CaptureService {
-  private baseUrl = process.env.VITE_VISION_CAPTURE_SERVICE_URL || 'http://localhost:6407';
+  private baseUrl: string;
+
+  constructor() {
+    const defaultBase =
+      typeof window !== 'undefined'
+        ? window.location.origin
+        : process.env.VITE_VISION_CAPTURE_SERVICE_URL || 'http://localhost:6410';
+    this.baseUrl = process.env.VITE_VISION_CAPTURE_SERVICE_URL || defaultBase;
+  }
 
   /**
    * ส่งคำสั่งถ่ายภาพไปยัง vision-capture-service

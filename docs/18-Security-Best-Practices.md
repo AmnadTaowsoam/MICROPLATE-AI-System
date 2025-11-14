@@ -636,38 +636,8 @@ fastify.post('/api/v1/auth/login', {
 
 ### CORS Configuration
 
-```typescript
-import cors from '@fastify/cors';
-
-// Secure CORS configuration
-await fastify.register(cors, {
-  origin: (origin, callback) => {
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:6410',
-      'https://app.microplate.com',
-      'https://staging.microplate.com',
-    ];
-    
-    // Allow requests with no origin (mobile apps, curl, etc.)
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
-  exposedHeaders: ['X-Total-Count', 'X-Request-ID'],
-  maxAge: 86400, // 24 hours
-});
-```
+- จัดการที่ API gateway / reverse proxy เพื่อควบคุม origin เดียวกันทั้งหมด
+- Backend service พึ่งพา gateway headers และไม่จำเป็นต้องลง `@fastify/cors` นอกจากกรณีทดสอบแบบ stand-alone
 
 ### Content Security Policy (CSP)
 

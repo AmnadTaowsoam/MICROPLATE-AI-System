@@ -3,8 +3,14 @@ import { MdExpandMore, MdExpandLess } from 'react-icons/md';
 import Card from '../ui/Card';
 import CameraStatus from './CameraStatus';
 
+type LogEntry = {
+  timestamp: string | number | Date;
+  level: string;
+  message: string;
+};
+
 interface SystemLogsProps {
-  logs: any[];
+  logs: LogEntry[];
   cameraStatus?: {
     isConnected: boolean;
     isCapturing: boolean;

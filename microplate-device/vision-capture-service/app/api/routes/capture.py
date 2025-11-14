@@ -5,13 +5,15 @@ Capture API routes
 import logging
 from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, status, BackgroundTasks
-from fastapi.responses import JSONResponse, FileResponse
-from pathlib import Path
+from fastapi.responses import FileResponse, Response
 
 from app.core.auth import verify_token
 from app.models.schemas import (
-    CaptureRequest, CaptureResponse, CameraStatus, 
-    ErrorResponse, ServiceStatus
+    CaptureRequest,
+    CaptureResponse,
+    CameraStatus,
+    ErrorResponse,
+    ServiceStatus,
 )
 from app.services.camera_service import CameraService
 from app.services.status_service import StatusService
@@ -55,6 +57,8 @@ def get_websocket_manager() -> WebSocketManager:
     return websocket_manager
 
 
+
+
 @router.get("/health", response_model=Dict[str, Any])
 async def health_check(
     status_service: StatusService = Depends(get_status_service)
@@ -79,6 +83,8 @@ async def health_check(
         )
 
 
+
+
 @router.get("/image/{filename}")
 async def get_captured_image(
     filename: str,
@@ -86,22 +92,26 @@ async def get_captured_image(
 ):
     """Serve a captured image file by filename from the captures directory."""
     try:
-        capture_dir = camera_service.capture_dir if hasattr(camera_service, 'capture_dir') else Path("captures")
-        file_path = Path(capture_dir) / filename
-        if not file_path.exists():
+        resource = camera_service.get_image_resource(filename)
+        if resource is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
-        # Serve inline to allow <img src> to render in-browser (not as download)
-        return FileResponse(
-            path=str(file_path),
-            media_type="image/jpeg",
-            filename=filename,
-            headers={
-                "Content-Disposition": f"inline; filename=\"{filename}\"",
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "Pragma": "no-cache",
-                "Expires": "0",
-            },
-        )
+
+        headers = {
+            "Content-Disposition": f"inline; filename=\"{filename}\"",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+
+        if resource.get("type") == "file":
+            return FileResponse(
+                path=str(resource["path"]),
+                media_type="image/jpeg",
+                filename=filename,
+                headers=headers,
+            )
+
+        return Response(content=resource.get("bytes"), media_type="image/jpeg", headers=headers)
     except HTTPException:
         raise
     except Exception as e:

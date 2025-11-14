@@ -10,12 +10,55 @@ import { signedUrlRoutes } from './routes/signedUrl.routes';
 import { ensureBuckets } from './services/s3.service';
 import { databaseService } from './services/database.service';
 import { authenticateToken } from '../shared/auth-middleware';
-import logger from '../../../shared/logger';
+import { logger } from './utils/logger';
 
 dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT || 6402);
+
+const enableCors = (process.env.ENABLE_CORS || 'true') === 'true';
+const parseCsv = (value?: string, fallback: string[] = ['*']) =>
+  (value ? value.split(',') : fallback).map((item) => item.trim()).filter((item) => item.length > 0);
+const allowedOrigins = parseCsv(process.env.CORS_ALLOWED_ORIGINS, ['*']);
+const allowedMethods = process.env.CORS_ALLOWED_METHODS || 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
+const allowedHeaders = process.env.CORS_ALLOWED_HEADERS || 'Origin, X-Requested-With, Content-Type, Accept, Authorization';
+const exposedHeaders = parseCsv(process.env.CORS_EXPOSED_HEADERS, []);
+const maxAge = parseInt(process.env.CORS_MAX_AGE || '600');
+
+if (enableCors) {
+  const allowAllOrigins = allowedOrigins.includes('*');
+
+  app.use((request, response, next) => {
+    const origin = request.headers.origin;
+
+    if (allowAllOrigins) {
+      response.header('Access-Control-Allow-Origin', '*');
+    } else if (origin && allowedOrigins.includes(origin)) {
+      response.header('Access-Control-Allow-Origin', origin);
+      response.header('Access-Control-Allow-Credentials', 'true');
+      response.header('Vary', 'Origin');
+    }
+
+    response.header('Access-Control-Allow-Methods', allowedMethods);
+    response.header('Access-Control-Allow-Headers', allowedHeaders);
+
+    if (exposedHeaders.length > 0) {
+      response.header('Access-Control-Expose-Headers', exposedHeaders.join(', '));
+    }
+
+    if (!Number.isNaN(maxAge)) {
+      response.header('Access-Control-Max-Age', String(maxAge));
+    }
+
+    if (request.method === 'OPTIONS') {
+      response.status(204).send();
+      return;
+    }
+
+    next();
+  });
+}
 
 app.use(helmet());
 
@@ -72,7 +115,7 @@ app.get('/readyz', async (_req: express.Request, res: express.Response) => {
 });
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logger.error({ error: err }, 'Internal server error');
+  logger.error('Internal server error', { error: err });
   res.status(500).json({
     success: false,
     error: {

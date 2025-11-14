@@ -15,6 +15,7 @@ import { CacheService } from '@/utils/redis';
 import { createError } from '@/utils/errors';
 import { logger } from '@/utils/logger';
 import { config } from '@/config/config';
+import { AggregationServiceImpl } from '@/services/aggregation.service';
 
 export class ResultServiceImpl implements ResultService {
   private predictionDbServiceUrl: string;
@@ -33,18 +34,39 @@ export class ResultServiceImpl implements ResultService {
     if (config.features.caching) {
       const cached = await this.cache.get<SampleSummary>(cacheKey);
       if (cached) {
-        logger.debug({ sampleNo }, 'Sample summary retrieved from cache');
+        logger.debug('Sample summary retrieved from cache', { sampleNo });
         return cached;
       }
     }
 
     // Query database
-    const summary = await this.prisma.sampleSummary.findUnique({
+    let summary = await this.prisma.sampleSummary.findUnique({
       where: { sampleNo }
     });
 
     if (!summary) {
-      throw createError.notFound('Sample', sampleNo);
+      const runCount = await this.prisma.predictionRun.count({ where: { sampleNo } });
+
+      if (runCount > 0) {
+        logger.warn({ sampleNo }, 'Sample summary missing despite existing runs, triggering aggregation');
+        const aggregationService = new AggregationServiceImpl(this.prisma);
+        await aggregationService.updateSampleSummary(sampleNo);
+
+        summary = await this.prisma.sampleSummary.findUnique({
+          where: { sampleNo }
+        });
+      }
+
+      if (!summary) {
+        const emptySummary = this.createEmptySampleSummary(sampleNo);
+        logger.info({ sampleNo }, 'Returning empty sample summary');
+
+        if (config.features.caching) {
+          await this.cache.set(cacheKey, emptySummary, config.cache.ttl);
+        }
+
+        return emptySummary;
+      }
     }
 
     // Transform to response format
@@ -65,6 +87,29 @@ export class ResultServiceImpl implements ResultService {
 
     logger.info({ sampleNo, totalRuns: result.totalRuns }, 'Sample summary retrieved');
     return result;
+  }
+
+  private createEmptySampleSummary(sampleNo: string): SampleSummary {
+    const now = new Date();
+    return {
+      sampleNo,
+      summary: {
+        distribution: { total: 0 },
+        concentration: {
+          positive_percentage: 0,
+          negative_percentage: 0,
+        },
+        quality_metrics: {
+          average_confidence: 0,
+          high_confidence_percentage: 0,
+        },
+      },
+      totalRuns: 0,
+      lastRunAt: null,
+      lastRunId: null,
+      createdAt: now,
+      updatedAt: now,
+    };
   }
 
   async getSampleDetails(sampleNo: string): Promise<SampleDetails> {

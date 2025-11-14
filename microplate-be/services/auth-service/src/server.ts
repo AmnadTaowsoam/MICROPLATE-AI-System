@@ -14,6 +14,40 @@ import logger from './utils/logger';
 
 const app = express();
 
+if (config.cors.enabled) {
+  const allowAllOrigins = config.cors.allowedOrigins.includes('*');
+
+  app.use((request, response, next) => {
+    const origin = request.headers.origin;
+
+    if (allowAllOrigins) {
+      response.header('Access-Control-Allow-Origin', '*');
+    } else if (origin && config.cors.allowedOrigins.includes(origin)) {
+      response.header('Access-Control-Allow-Origin', origin);
+      response.header('Access-Control-Allow-Credentials', 'true');
+      response.header('Vary', 'Origin');
+    }
+
+    response.header('Access-Control-Allow-Methods', config.cors.allowedMethods);
+    response.header('Access-Control-Allow-Headers', config.cors.allowedHeaders);
+
+    if (config.cors.exposedHeaders.length > 0) {
+      response.header('Access-Control-Expose-Headers', config.cors.exposedHeaders.join(', '));
+    }
+
+    if (config.cors.maxAge) {
+      response.header('Access-Control-Max-Age', String(config.cors.maxAge));
+    }
+
+    if (request.method === 'OPTIONS') {
+      response.status(204).send();
+      return;
+    }
+
+    next();
+  });
+}
+
 app.use(helmet());
 
 app.use(express.json({ limit: '1mb' }));

@@ -436,8 +436,6 @@ LOG_FILE=logs/vision-capture.log
 WS_HEARTBEAT_INTERVAL=30
 WS_MAX_CONNECTIONS=10
 
-# CORS
-ALLOWED_ORIGINS=http://localhost:6410,http://localhost:3000,http://localhost:8080
 ```
 
 ## Docker Deployment
@@ -661,9 +659,9 @@ class CaptureService {
 - Permission validation
 
 ### Network Security
-- CORS configuration
-- WebSocket security
-- Input validation
+- ใช้งานผ่าน API gateway / VPN ที่องค์กรควบคุม
+- WebSocket security (token validation, heartbeat)
+- Input validation และ logging ฝั่งอุปกรณ์
 
 ## Deployment Guide
 

@@ -200,11 +200,12 @@ export default function ProfilePage() {
             <div className="space-y-6">
               {/* Full Name */}
             <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+              <label htmlFor="profile-full-name" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
                 Full Name
               </label>
                 {isEditing ? (
                   <Input
+                    id="profile-full-name"
                     value={editForm.fullName}
                     onChange={(e) => setEditForm(prev => ({ ...prev, fullName: e.target.value }))}
                     placeholder="Enter your full name"
@@ -219,12 +220,13 @@ export default function ProfilePage() {
 
               {/* Email */}
             <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+              <label htmlFor="profile-email" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
                 <MdEmail className="w-4 h-4" />
                 Email Address
               </label>
                 {isEditing ? (
                   <Input
+                    id="profile-email"
                     type="email"
                     value={editForm.email}
                     onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
@@ -241,12 +243,13 @@ export default function ProfilePage() {
 
               {/* Username */}
             <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+              <label htmlFor="profile-username" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
                 <MdPerson className="w-4 h-4" />
                 Username
               </label>
                 {isEditing ? (
                   <Input
+                    id="profile-username"
                     value={editForm.username}
                     onChange={(e) => setEditForm(prev => ({ ...prev, username: e.target.value }))}
                     placeholder="Enter your username"

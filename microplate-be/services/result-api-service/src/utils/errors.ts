@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ApiError, ErrorResponse } from '@/types/result.types';
+import { logger } from '@/utils/logger';
 
 // Custom error classes
 export class AppError extends Error {
@@ -100,7 +101,7 @@ export const errorHandler = (
   const requestId = (request as any).id || 'unknown';
   
   // Log the error
-  console.error('Request error occurred:', {
+  logger.error('Request error occurred', {
     error: {
       name: error.name,
       message: error.message,
@@ -217,7 +218,7 @@ export const sendSuccess = <T>(response: Response, data: T, statusCode: number =
 
 // Error logging helpers
 export const logError = (error: Error, context?: any) => {
-  console.error('Error occurred:', {
+  logger.error('Error occurred', {
     name: error.name,
     message: error.message,
     stack: error.stack,
@@ -227,7 +228,7 @@ export const logError = (error: Error, context?: any) => {
 };
 
 export const logAppError = (error: AppError, context?: any) => {
-  console.error('Application error:', {
+  logger.error('Application error', {
     code: error.code,
     message: error.message,
     statusCode: error.statusCode,

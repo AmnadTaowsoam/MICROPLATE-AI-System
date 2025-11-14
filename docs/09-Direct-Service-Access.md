@@ -1,3 +1,109 @@
+# Gateway & Service Connectivity
+
+## Overview
+
+Production deployments route all traffic through an **API gateway / reverse proxy**. The gateway terminates TLS, validates JWTs, applies rate limiting, injects CORS headers และส่งต่อคำขอไปยัง service ย่อย (auth, results, inference ฯลฯ) ตามเส้นทางที่กำหนด
+
+ระหว่างการพัฒนา เราใช้ **webpack-dev-server proxy** ให้ frontend (`http://localhost:6410`) เรียก `/api/v1/*` แล้ว dev server forward ไปยัง service ที่พอร์ต 6401‑6407 โดยอัตโนมัติ จึงไม่มีปัญหา CORS
+
+## Architecture
+
+```mermaid
+graph TB
+    subgraph "Frontend Layer"
+        FE[React Frontend<br/>Webpack Dev Server (6410)]
+    end
+
+    subgraph "Gateway Layer"
+        GW[API Gateway / Reverse Proxy<br/>JWT Validation + Rate Limit + CORS]
+    end
+
+    subgraph "Service Layer"
+        AUTH[Auth Service<br/>:6401]
+        IMG[Image Ingestion<br/>:6402]
+        RES[Result API<br/>:6404]
+        INF[Vision Inference<br/>:6403]
+        LAB[Labware Interface<br/>:6405]
+        PDB[Prediction DB<br/>:6406]
+        CAP[Vision Capture<br/>Device LAN]
+    end
+
+    FE -->|HTTPS| GW
+    GW -->|/api/v1/auth/*| AUTH
+    GW -->|/api/v1/images/*| IMG
+    GW -->|/api/v1/results/*| RES
+    GW -->|/api/v1/inference/*| INF
+    GW -->|/api/v1/interface/*| LAB
+    GW -->|/api/v1/predictions/*| PDB
+    GW -->|/api/v1/capture/*| CAP
+```
+
+## Development Workflow
+
+- ค่า `.env` ฝั่ง frontend ชี้ทั้งหมดไปที่ `http://localhost:6410`
+- `webpack.config.js` กำหนด proxy สำหรับเส้นทาง `/api/v1/...` และ `/ws/capture`
+- Backend service ไม่ต้องเปิด CORS plugin เพื่อหลีกเลี่ยง config ซ้ำซ้อน
+
+```bash
+# .env (frontend development)
+VITE_AUTH_SERVICE_URL=http://localhost:6410
+VITE_IMAGE_SERVICE_URL=http://localhost:6410
+VITE_RESULTS_SERVICE_URL=http://localhost:6410
+VITE_VISION_SERVICE_URL=http://localhost:6410
+VITE_LABWARE_SERVICE_URL=http://localhost:6410
+VITE_PREDICTION_SERVICE_URL=http://localhost:6410
+VITE_VISION_CAPTURE_SERVICE_URL=http://localhost:6410
+VITE_WS_CAPTURE_URL=ws://localhost:6410/ws/capture
+```
+
+## Production Deployment
+
+1. Gateway (เช่น Nginx/Envoy) รับคำขอทั้งหมดจากผู้ใช้
+2. ตรวจสอบ JWT (`issuer`, `audience`) และเพิ่ม header อ้างอิงถึงผู้ใช้
+3. กำหนด rate limiting และ logging ใน gateway เดียว
+4. Forward คำขอไป service ภายใน (auth, results, inference ฯลฯ)
+5. Vision capture ที่เครื่องลูกค้าเรียก gateway (`https://api.example.com/api/v1/capture/...`)
+
+### ตัวอย่าง Nginx
+
+```nginx
+location /api/v1/capture/ {
+    proxy_pass http://device-lan-ip:6407/api/v1/capture/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+}
+
+location /ws/capture {
+    proxy_pass http://device-lan-ip:6407/ws/capture;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "Upgrade";
+}
+```
+
+ส่วนบริการอื่นให้เพิ่ม location mapping ตามพอร์ตที่ระบุใน `docs/14-Service-Port-Allocation.md`
+
+## Security Considerations
+
+- JWT secret และ service token จัดการผ่าน gateway
+- CORS allowlist ตั้งที่ gateway เท่านั้น
+- Logging/Monitoring รวมศูนย์, backend บันทึกเฉพาะ business log
+- Service เชื่อ header (`x-user-id` ฯลฯ) เฉพาะเมื่อ gateway เพิ่มให้
+
+## Device Layer
+
+vision-capture-service ทำงานบนเครื่องลูกค้าหรือภายในโรงงาน:
+
+- ใช้ `.env` ตั้งค่า `JWT_SECRET`, `CAMERA_BACKEND`, `BASLER_SERIAL` เป็นต้น
+- เรียก API gateway ผ่าน HTTPS
+- ไม่ต้องเปิด CORS ใน service ย่อย
+
+## Summary
+
+- **Dev**: ใช้ webpack proxy (6410) จัดการ CORS
+- **Prod**: ใช้ API gateway ตรวจสอบและ forward คำขอทั้งหมด
+- Backend services เรียบง่ายขึ้นเพราะไม่ต้องดูแล CORS/Rate limiting เอง
+- เอกสารนี้แทนที่แนวคิด “Direct Service Access” เดิม และระบุแนวทางที่ใช้อยู่ในปัจจุบัน
 # Direct Service Access Architecture
 
 ## Overview

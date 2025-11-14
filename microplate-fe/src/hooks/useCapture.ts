@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { captureService, type CaptureRequest, type CaptureResponse, type CaptureStatus } from '../services/capture.service';
+import logger from '../utils/logger';
 
 export interface UseCaptureOptions {
   onSuccess?: (response: CaptureResponse) => void;
@@ -131,7 +132,7 @@ export function useCapture(options: UseCaptureOptions = {}): UseCaptureReturn {
     } finally {
       setIsCapturing(false);
     }
-  }, [isConnected, onSuccess, onError, onStatusChange, checkConnection]);
+  }, [onSuccess, onError, onStatusChange, checkConnection]);
 
   // ล้าง error
   const clearError = useCallback(() => {

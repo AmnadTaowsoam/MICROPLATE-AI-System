@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import time
+from collections import OrderedDict
 from datetime import datetime
 from typing import Optional, Dict, Any, Tuple
 from pathlib import Path
@@ -37,6 +38,7 @@ class CameraService:
         self.height = settings.CAMERA_HEIGHT
         self.fps = settings.CAMERA_FPS
         self.last_capture_time: Optional[datetime] = None
+        self.persist_images = getattr(settings, 'CAPTURE_PERSIST_IMAGES', True)
         self.capture_dir = Path(settings.CAPTURE_DIR)
         self.is_streaming = False
         self._capture_stats = {
@@ -45,9 +47,12 @@ class CameraService:
             "failed_captures": 0,
             "capture_times": []
         }
+        self._image_cache: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
+        self._in_memory_limit = max(1, int(getattr(settings, 'CAPTURE_IN_MEMORY_LIMIT', 10)))
         
-        # Ensure capture directory exists
-        self.capture_dir.mkdir(parents=True, exist_ok=True)
+        # Ensure capture directory exists when persisting to disk
+        if self.persist_images:
+            self.capture_dir.mkdir(parents=True, exist_ok=True)
     
     async def initialize(self) -> bool:
         """
@@ -248,7 +253,16 @@ class CameraService:
                 if not ret or frame is None:
                     self.is_capturing = False
                     return False, None, "Failed to capture frame from camera"
-            
+
+            resize_width = getattr(settings, 'CAPTURE_RESIZE_WIDTH', None)
+            resize_height = getattr(settings, 'CAPTURE_RESIZE_HEIGHT', None)
+            if resize_width and resize_height:
+                try:
+                    frame = cv2.resize(frame, (int(resize_width), int(resize_height)), interpolation=cv2.INTER_AREA)
+                    logger.debug("Resized captured frame to %sx%s", resize_width, resize_height)
+                except Exception as resize_error:
+                    logger.warning("Failed to resize frame, using original size: %s", resize_error)
+
             # Generate filename
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"capture_{sample_no}_{timestamp}.jpg"
@@ -258,21 +272,48 @@ class CameraService:
             
             file_path = self.capture_dir / filename
             
-            # Save image
-            success = cv2.imwrite(str(file_path), frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
-            
-            if not success:
-                self.is_capturing = False
-                return False, None, "Failed to save image"
-            
-            # Get image properties
-            height, width = frame.shape[:2]
-            file_size = file_path.stat().st_size
-            
+            if self.persist_images:
+                # Save image to disk
+                success = cv2.imwrite(str(file_path), frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
+                
+                if not success:
+                    self.is_capturing = False
+                    return False, None, "Failed to save image"
+                
+                # Get image properties
+                height, width = frame.shape[:2]
+                file_size = file_path.stat().st_size
+                image_file_path_str = str(file_path)
+            else:
+                encode_success, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
+                if not encode_success:
+                    self.is_capturing = False
+                    return False, None, "Failed to encode image"
+
+                image_bytes = buffer.tobytes()
+                height, width = frame.shape[:2]
+                file_size = len(image_bytes)
+                image_file_path_str = filename
+
+                # Store in memory cache
+                self._image_cache[filename] = {
+                    "bytes": image_bytes,
+                    "size": file_size,
+                    "width": width,
+                    "height": height,
+                    "captured_at": datetime.now(),
+                }
+                self._image_cache.move_to_end(filename)
+
+                # Trim cache to limit
+                while len(self._image_cache) > self._in_memory_limit:
+                    removed_filename, _ = self._image_cache.popitem(last=False)
+                    logger.debug("Removed cached image due to limit: %s", removed_filename)
+
             # Create image data
             image_data = ImageData(
                 filename=filename,
-                file_path=str(file_path),
+                file_path=image_file_path_str,
                 file_size=file_size,
                 width=width,
                 height=height,
@@ -355,9 +396,12 @@ class CameraService:
             stats["average_capture_time"] = None
         
         # Calculate storage used
-        storage_used = 0
-        for file_path in self.capture_dir.glob("*.jpg"):
-            storage_used += file_path.stat().st_size
+        if self.persist_images:
+            storage_used = 0
+            for file_path in self.capture_dir.glob("*.jpg"):
+                storage_used += file_path.stat().st_size
+        else:
+            storage_used = sum(item["size"] for item in self._image_cache.values())
         
         stats["storage_used"] = storage_used
         stats["last_capture_time"] = self.last_capture_time
@@ -377,21 +421,29 @@ class CameraService:
         if max_age_hours is None:
             max_age_hours = settings.MAX_CAPTURE_AGE_HOURS
         
-        deleted_count = 0
-        cutoff_time = datetime.now().timestamp() - (max_age_hours * 3600)
-        
-        try:
-            for file_path in self.capture_dir.glob("*.jpg"):
-                if file_path.stat().st_mtime < cutoff_time:
-                    file_path.unlink()
-                    deleted_count += 1
+        if self.persist_images:
+            deleted_count = 0
+            cutoff_time = datetime.now().timestamp() - (max_age_hours * 3600)
             
-            logger.info(f"Cleaned up {deleted_count} old capture files")
+            try:
+                for file_path in self.capture_dir.glob("*.jpg"):
+                    if file_path.stat().st_mtime < cutoff_time:
+                        file_path.unlink()
+                        deleted_count += 1
+                
+                logger.info(f"Cleaned up {deleted_count} old capture files")
+            except Exception as e:
+                logger.error(f"Failed to cleanup captures: {e}")
             
-        except Exception as e:
-            logger.error(f"Failed to cleanup captures: {e}")
-        
-        return deleted_count
+            return deleted_count
+        else:
+            cutoff = datetime.now().timestamp() - (max_age_hours * 3600)
+            keys_to_remove = [key for key, meta in self._image_cache.items() if meta["captured_at"].timestamp() < cutoff]
+            for key in keys_to_remove:
+                self._image_cache.pop(key, None)
+            if keys_to_remove:
+                logger.info("Cleaned up %s cached images", len(keys_to_remove))
+            return len(keys_to_remove)
     
     async def cleanup(self):
         """Cleanup camera resources"""
@@ -408,6 +460,18 @@ class CameraService:
             
         except Exception as e:
             logger.error(f"Camera cleanup error: {e}")
+
+    def get_image_resource(self, filename: str) -> Optional[Dict[str, Any]]:
+        """Retrieve image resource either from disk or memory cache."""
+        if self.persist_images:
+            file_path = self.capture_dir / filename
+            if file_path.exists():
+                return {"type": "file", "path": file_path}
+        else:
+            data = self._image_cache.get(filename)
+            if data:
+                return {"type": "memory", "bytes": data["bytes"]}
+        return None
 
     def mjpeg_frame_iterator(self, quality: int = None, width: int = None, height: int = None, max_fps: int = None):
         """Yield encoded JPEG frames for MJPEG streaming with optional resize and fps limit.
